@@ -1,0 +1,15 @@
+{
+  "name": "@tea/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "sync-server": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@tea/shared": "file:../../packages/shared",
+    "electron": "^33.2.1"
+  }
+}

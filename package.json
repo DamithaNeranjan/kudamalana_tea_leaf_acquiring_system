@@ -1,0 +1,17 @@
+{
+  "name": "tea-leaf-acquiring-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "apps/backend",
+    "apps/desktop",
+    "apps/web"
+  ],
+  "scripts": {
+    "test": "node test/all.test.mjs",
+    "backend": "node apps/backend/src/server.mjs",
+    "desktop:sync": "node apps/desktop/src/server.mjs"
+  }
+}

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Runtime data
+apps/desktop/desktop-data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.log
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+.cache/
+
+# Android / Gradle
+.gradle/
+local.properties
+*.apk
+*.aab
+apps/mobile-android/app/build/
+apps/mobile-android/build/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+

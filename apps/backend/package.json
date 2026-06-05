@@ -1,0 +1,15 @@
+{
+  "name": "@tea/backend",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "main": "src/server.mjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@tea/shared": "file:../../packages/shared",
+    "mysql2": "^3.11.5"
+  }
+}

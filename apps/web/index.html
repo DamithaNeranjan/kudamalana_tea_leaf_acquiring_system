@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Green Leaf Books</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Green Leaf Books</h1>
+      <div id="session">Not signed in</div>
+    </header>
+
+    <main>
+      <section class="panel" id="loginPanel">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <input name="apiUrl" value="http://localhost:8080" aria-label="API URL" />
+          <input name="username" placeholder="Username" required />
+          <input name="password" placeholder="Password" type="password" required />
+          <button type="submit">Login</button>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="adminPanel">
+        <h2>Create Director</h2>
+        <form id="directorForm">
+          <input name="displayName" placeholder="Display name" required />
+          <input name="username" placeholder="Username" required />
+          <input name="password" placeholder="Password" type="password" required />
+          <button type="submit">Create</button>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="bookPanel">
+        <h2>Monthly Green Leaf Book</h2>
+        <div class="toolbar">
+          <input id="month" type="month" />
+          <button id="loadBook">Load</button>
+        </div>
+        <div class="table-wrap">
+          <table id="book"></table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

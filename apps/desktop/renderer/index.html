@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tea Leaf Office</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Tea Leaf Office</h1>
+        <p>Offline factory operations and tablet sync</p>
+      </div>
+      <span id="syncStatus">Sync server: checking</span>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Quick Registration</h2>
+        <div class="grid">
+          <form id="lineForm">
+            <h3>Tea Line</h3>
+            <input name="name" placeholder="Line name" required />
+            <button type="submit">Save line</button>
+          </form>
+          <form id="lineUserForm">
+            <h3>Line User</h3>
+            <input name="username" placeholder="Username" required />
+            <input name="displayName" placeholder="Display name" required />
+            <input name="password" placeholder="Local password" required />
+            <button type="submit">Save line user</button>
+          </form>
+          <form id="supplierForm">
+            <h3>Supplier</h3>
+            <input name="code" placeholder="Supplier code" required />
+            <input name="name" placeholder="Supplier name" required />
+            <input name="lineName" placeholder="Line name" required />
+            <label><input type="checkbox" name="deductionEnabled" /> 2% deduction</label>
+            <label><input type="checkbox" name="ownTransportAdditionEnabled" /> Own transport addition</label>
+            <label><input type="checkbox" name="factoryTransportDeductionEnabled" /> Factory transport deduction</label>
+            <button type="submit">Save supplier</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Staging Review</h2>
+        <table id="stagingTable">
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Date</th>
+              <th>Bags</th>
+              <th>Gross</th>
+              <th>Net</th>
+              <th>Print</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>Green Leaf Book</h2>
+        <div class="toolbar">
+          <input id="bookMonth" type="month" />
+          <button id="loadBook">Load month</button>
+        </div>
+        <div class="book-wrap">
+          <table id="bookTable"></table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

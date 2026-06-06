@@ -42,6 +42,21 @@ Health check:
 Invoke-RestMethod -Uri http://127.0.0.1:7070/health
 ```
 
+Default desktop office login:
+
+```text
+username: office
+password: office123
+```
+
+The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+
+The visible logo and Electron window icon use:
+
+```text
+apps/logo/KudamalanaLogo1.png
+```
+
 ## Run Desktop Sync Server Only
 
 ```powershell
@@ -70,4 +85,3 @@ password: admin123
 ```
 
 Change this before production use.
-

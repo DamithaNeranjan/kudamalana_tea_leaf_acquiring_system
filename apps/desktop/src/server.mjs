@@ -1,10 +1,12 @@
 import http from "node:http";
+import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { buildGreenLeafBook, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 import { LocalStore } from "./localStore.mjs";
 
 export async function createDesktopSyncServer({ store = new LocalStore() } = {}) {
   await store.load();
+  const sessions = new Map();
 
   async function body(request) {
     const chunks = [];
@@ -20,6 +22,21 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
       "access-control-allow-methods": "GET,POST,PUT,OPTIONS"
     });
     response.end(JSON.stringify(payload));
+  }
+
+  function bearer(request) {
+    const header = request.headers.authorization || "";
+    return header.startsWith("Bearer ") ? header.slice(7) : "";
+  }
+
+  function requireOfficeSession(request) {
+    const token = bearer(request);
+    if (!sessions.has(token)) {
+      const error = new Error("Office login is required");
+      error.status = 401;
+      throw error;
+    }
+    return sessions.get(token);
   }
 
   const server = http.createServer(async (request, response) => {
@@ -41,7 +58,25 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
       }
       if (request.method === "POST" && url.pathname === "/office/login") {
         const payload = await body(request);
-        return send(response, 200, store.login(payload.username, payload.password));
+        const user = store.login(payload.username, payload.password);
+        const token = randomBytes(24).toString("hex");
+        sessions.set(token, { user, createdAt: new Date().toISOString() });
+        return send(response, 200, { token, user });
+      }
+      if (url.pathname.startsWith("/office/")) {
+        const session = requireOfficeSession(request);
+        if (request.method === "GET" && url.pathname === "/office/profile") {
+          return send(response, 200, store.officeUserById(session.user.id));
+        }
+        if (request.method === "PUT" && url.pathname === "/office/profile") {
+          const updatedUser = await store.updateOfficeProfile(session.user.id, await body(request));
+          session.user = updatedUser;
+          return send(response, 200, updatedUser);
+        }
+        if (request.method === "POST" && url.pathname === "/office/logout") {
+          sessions.delete(bearer(request));
+          return send(response, 200, { ok: true });
+        }
       }
       if (request.method === "POST" && url.pathname === "/office/line-users") {
         return send(response, 201, await store.upsert("lineUsers", await body(request), "line_user"));

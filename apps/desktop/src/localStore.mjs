@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -28,6 +29,34 @@ function currentMonth() {
 
 function mapRows(rows, mapper = (row) => row) {
   return rows.map(mapper);
+}
+
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(String(password), salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
+
+function isHashedPassword(value) {
+  return String(value || "").startsWith("scrypt$");
+}
+
+function verifyPassword(password, stored) {
+  if (!isHashedPassword(stored)) {
+    return String(password) === String(stored || "");
+  }
+  const [, salt, hash] = stored.split("$");
+  if (!salt || !hash) return false;
+  const actual = Buffer.from(scryptSync(String(password), salt, 64).toString("hex"), "hex");
+  const expected = Buffer.from(hash, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function passwordValue(inputPassword, inputHash, existingHash = "") {
+  if (inputPassword) return hashPassword(inputPassword);
+  if (inputHash && isHashedPassword(inputHash)) return inputHash;
+  if (inputHash) return hashPassword(inputHash);
+  return existingHash;
 }
 
 export class LocalStore {
@@ -70,7 +99,7 @@ export class LocalStore {
          (id, username, display_name, password_hash, role, active)
          VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run("office_admin", "office", "Office Admin", "office123", "office_user", 1);
+      .run("office_admin", "office", "Office Admin", hashPassword("office123"), "office_user", 1);
 
     this.db
       .prepare(
@@ -93,16 +122,58 @@ export class LocalStore {
   }
 
   login(username, password) {
+    const row = this.db
+      .prepare(
+        `SELECT id, username, display_name AS displayName, role, password_hash AS passwordHash
+         FROM office_users
+         WHERE username = ? AND active = 1
+         LIMIT 1`
+      )
+      .get(username);
+    if (!row || !verifyPassword(password, row.passwordHash)) throw new Error("Invalid username or password");
+    if (!isHashedPassword(row.passwordHash)) {
+      this.db.prepare("UPDATE office_users SET password_hash = ? WHERE id = ?").run(hashPassword(password), row.id);
+    }
+    const { passwordHash, ...user } = row;
+    return user;
+  }
+
+  officeUserById(id) {
     const user = this.db
       .prepare(
         `SELECT id, username, display_name AS displayName, role
          FROM office_users
-         WHERE username = ? AND password_hash = ? AND active = 1
+         WHERE id = ? AND active = 1
          LIMIT 1`
       )
-      .get(username, password);
-    if (!user) throw new Error("Invalid username or password");
+      .get(id);
+    if (!user) throw new Error("Office user not found");
     return user;
+  }
+
+  async updateOfficeProfile(userId, input) {
+    const current = this.officeUserById(userId);
+    const displayName = String(input.displayName || "").trim();
+    const password = String(input.password || "");
+    if (!displayName) {
+      const error = new Error("Display name is required");
+      error.status = 400;
+      throw error;
+    }
+    if (password && password.length < 6) {
+      const error = new Error("Password must be at least 6 characters");
+      error.status = 400;
+      throw error;
+    }
+    if (password) {
+      this.db
+        .prepare("UPDATE office_users SET display_name = ?, password_hash = ? WHERE id = ?")
+        .run(displayName, hashPassword(password), userId);
+    } else {
+      this.db.prepare("UPDATE office_users SET display_name = ? WHERE id = ?").run(displayName, userId);
+    }
+    this.refreshSnapshot();
+    return { ...current, displayName };
   }
 
   async upsert(collection, record, prefix) {
@@ -117,6 +188,15 @@ export class LocalStore {
   }
 
   upsertLineUser(user) {
+    const existing = user.id
+      ? this.db.prepare("SELECT password_hash AS passwordHash FROM line_users WHERE id = ?").get(user.id)
+      : this.db.prepare("SELECT password_hash AS passwordHash FROM line_users WHERE username = ?").get(user.username);
+    const passwordHash = passwordValue(user.password, user.passwordHash, existing?.passwordHash || "");
+    if (!passwordHash) {
+      const error = new Error("Line user password is required");
+      error.status = 400;
+      throw error;
+    }
     this.db
       .prepare(
         `INSERT INTO line_users (id, username, display_name, password_hash, active, updated_at)
@@ -133,7 +213,7 @@ export class LocalStore {
            active = excluded.active,
            updated_at = excluded.updated_at`
       )
-      .run(user.id, user.username, user.displayName, user.password || user.passwordHash || "", bool(user.active !== false), user.updatedAt);
+      .run(user.id, user.username, user.displayName, passwordHash, bool(user.active !== false), user.updatedAt);
   }
 
   upsertTeaLine(line) {
@@ -153,6 +233,14 @@ export class LocalStore {
   }
 
   upsertSupplier(supplier) {
+    const registeredLine = this.db
+      .prepare("SELECT id, name FROM tea_lines WHERE lower(name) = lower(?) AND active = 1 LIMIT 1")
+      .get(supplier.lineName);
+    if (!registeredLine) {
+      const error = new Error("Supplier must be assigned to a registered active tea line");
+      error.status = 400;
+      throw error;
+    }
     this.db
       .prepare(
         `INSERT INTO suppliers
@@ -183,8 +271,8 @@ export class LocalStore {
         supplier.id,
         supplier.code,
         supplier.name,
-        optional(supplier.lineId),
-        supplier.lineName,
+        supplier.lineId || registeredLine.id,
+        registeredLine.name,
         bool(supplier.deductionEnabled),
         bool(supplier.ownTransportAdditionEnabled),
         bool(supplier.factoryTransportDeductionEnabled),

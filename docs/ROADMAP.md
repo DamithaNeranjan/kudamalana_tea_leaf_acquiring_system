@@ -12,8 +12,8 @@
 ## Phase 2: Desktop Office Operations
 
 - Replace scaffold forms with full office workflows.
-- Add office user registration and password hashing.
-- Add complete supplier registration and monthly override screens.
+- Add office user registration.
+- Add complete monthly override screens.
 - Add financial entry screens for advances, fertilizer, tea packets, and arrears.
 - Add richer staging review filters and bulk posting.
 - Add export/print options for green leaf books.
@@ -29,11 +29,10 @@
 
 ## Production Hardening
 
-- Hash all passwords.
+- Replace any remaining prototype authentication pieces with production-grade password and session policies.
 - Add database backups.
 - Add schema migrations.
 - Add app versioning and sync protocol versioning.
 - Add device registration for tablets.
 - Add receipt numbering policy.
 - Add automated desktop and backend integration tests.
-

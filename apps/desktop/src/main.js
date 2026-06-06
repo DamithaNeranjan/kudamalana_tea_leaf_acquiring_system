@@ -22,15 +22,21 @@ function startSyncServer() {
 
 async function createWindow() {
   startSyncServer();
+  const appPath = app.getAppPath();
+  const iconPath = join(appPath, "..", "logo", "KudamalanaLogo1.png");
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.kudamalana.tea-office");
+  }
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
+    icon: iconPath,
     webPreferences: {
-      preload: join(app.getAppPath(), "src", "preload.cjs")
+      preload: join(appPath, "src", "preload.cjs")
     }
   });
 
-  await window.loadFile(join(app.getAppPath(), "renderer", "index.html"));
+  await window.loadFile(join(appPath, "renderer", "index.html"));
 }
 
 app.whenReady().then(createWindow);

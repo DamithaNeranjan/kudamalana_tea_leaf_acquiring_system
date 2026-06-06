@@ -37,5 +37,7 @@ MySQL Workbench is suitable for this hosted backend database.
 - Desktop uses SQLite through Node's built-in `node:sqlite` module in the spawned sync server.
 - Electron does not load SQLite directly; it starts the sync server as a normal Node process.
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
+- Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
+- Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
+- Suppliers are validated against active registered tea lines before saving.
 - Local runtime data, WAL files, and logs are excluded from Git.
-

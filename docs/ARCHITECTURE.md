@@ -5,7 +5,7 @@ This repository is a monorepo for the tea leaf intake and payment system.
 ## Applications
 
 - `apps/mobile-android`: Native Android tablet application for field collection rounds.
-- `apps/desktop`: Electron desktop application and local Wi-Fi sync service for the factory office.
+- `apps/desktop`: Electron desktop application and local Wi-Fi sync service for the factory office. It contains local office authentication, profile management, master-data management, staging review, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for cloud sync and hosted MySQL-backed web access.
 - `apps/web`: Static director/super-admin web interface.
 - `packages/shared`: Shared ID helpers and green leaf book calculation logic.
@@ -18,7 +18,7 @@ The hosted backend is used for cloud backup/reporting and for the director web a
 
 ## Data Flow
 
-1. Office users register line users, tea lines, suppliers, and monthly settings in the desktop app.
+1. Office users log in locally and register line users, tea lines, suppliers, and monthly settings in the desktop app.
 2. Tablets download master data from the desktop over local Wi-Fi before collection rounds.
 3. Tablets record collections offline and print English receipts.
 4. Tablets upload unsynced collections back to the desktop.
@@ -33,4 +33,11 @@ The hosted backend is used for cloud backup/reporting and for the director web a
 - Desktop staging preserves original synced gross weight separately from edited values.
 - Monthly calculations are calendar-month based.
 - Supplier-facing identity uses supplier code plus supplier name.
+- Suppliers must reference an active registered tea line before they can be saved.
 
+## Desktop UI Structure
+
+- Header: Kudamalana Tea Factory branding, current office session, and logout action.
+- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+- Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
+- Supplier screens use registered tea lines as the allowed tea-line source.

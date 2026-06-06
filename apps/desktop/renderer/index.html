@@ -7,72 +7,317 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header>
-      <div>
-        <h1>Tea Leaf Office</h1>
-        <p>Offline factory operations and tablet sync</p>
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img class="brand-logo topbar-logo" src="../../logo/KudamalanaLogo1.png" alt="Kudamalana Tea Factory logo" />
+        <div>
+          <h1>Kudamalana Tea Factory - Office</h1>
+          <p>Offline factory operations and tablet sync</p>
+        </div>
       </div>
-      <span id="syncStatus">Sync server: checking</span>
+      <div class="header-status">
+        <span id="sessionStatus">Not logged in</span>
+        <button id="logoutButton" class="logout-button hidden" type="button">Logout</button>
+      </div>
     </header>
 
-    <main>
-      <section class="panel">
-        <h2>Quick Registration</h2>
-        <div class="grid">
-          <form id="lineForm">
-            <h3>Tea Line</h3>
-            <input name="name" placeholder="Line name" required />
-            <button type="submit">Save line</button>
-          </form>
-          <form id="lineUserForm">
-            <h3>Line User</h3>
-            <input name="username" placeholder="Username" required />
-            <input name="displayName" placeholder="Display name" required />
-            <input name="password" placeholder="Local password" required />
-            <button type="submit">Save line user</button>
-          </form>
-          <form id="supplierForm">
-            <h3>Supplier</h3>
-            <input name="code" placeholder="Supplier code" required />
-            <input name="name" placeholder="Supplier name" required />
-            <input name="lineName" placeholder="Line name" required />
-            <label><input type="checkbox" name="deductionEnabled" /> 2% deduction</label>
-            <label><input type="checkbox" name="ownTransportAdditionEnabled" /> Own transport addition</label>
-            <label><input type="checkbox" name="factoryTransportDeductionEnabled" /> Factory transport deduction</label>
-            <button type="submit">Save supplier</button>
-          </form>
-        </div>
-      </section>
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-      <section class="panel">
-        <h2>Staging Review</h2>
-        <table id="stagingTable">
-          <thead>
-            <tr>
-              <th>Supplier</th>
-              <th>Date</th>
-              <th>Bags</th>
-              <th>Gross</th>
-              <th>Net</th>
-              <th>Print</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </section>
-
-      <section class="panel">
-        <h2>Green Leaf Book</h2>
-        <div class="toolbar">
-          <input id="bookMonth" type="month" />
-          <button id="loadBook">Load month</button>
+    <main id="loginView" class="login-view">
+      <section class="login-shell">
+        <div class="login-copy">
+          <div class="login-brand">
+            <img class="brand-logo login-logo" src="../../logo/KudamalanaLogo1.png" alt="Kudamalana Tea Factory logo" />
+            <span class="eyebrow">Factory office</span>
+            <h2>Secure local access</h2>
+            <p class="login-description">Sign in to manage suppliers, review tablet imports, and prepare monthly green leaf books while the factory runs offline.</p>
+          </div>
+          <div class="login-facts">
+            <span>Offline SQLite data</span>
+            <span>Tablet sync on local Wi-Fi</span>
+            <span>Office-only operations</span>
+          </div>
         </div>
-        <div class="book-wrap">
-          <table id="bookTable"></table>
-        </div>
+        <form id="loginForm" class="login-card">
+          <h3>Office Login</h3>
+          <label>
+            Username
+            <input name="username" placeholder="Enter username" autocomplete="username" required />
+          </label>
+          <label>
+            Password
+            <div class="password-field">
+              <input id="loginPassword" name="password" placeholder="Enter password" type="password" autocomplete="current-password" required />
+              <button id="toggleLoginPassword" class="password-toggle" type="button" aria-controls="loginPassword" aria-pressed="false">Show</button>
+            </div>
+          </label>
+          <button type="submit">Login</button>
+          <span id="loginMessage" class="message"></span>
+        </form>
       </section>
     </main>
+
+    <main id="appView" class="app-shell hidden">
+      <aside class="sidebar">
+        <div class="sidebar-title">
+          <span class="eyebrow">Office menu</span>
+          <strong>Operations</strong>
+        </div>
+        <nav class="menu" aria-label="Office sections">
+          <button class="menu-item active" type="button" data-view="dashboardView">Dashboard</button>
+          <button class="menu-item" type="button" data-view="teaLinesView">Tea Lines</button>
+          <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
+          <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
+          <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
+          <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
+          <button class="menu-item" type="button" data-view="profileView">Profile</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <section id="dashboardView" class="view active-view">
+          <div class="view-heading hero-heading">
+            <div>
+              <span class="eyebrow">Today</span>
+              <h2>Factory Office Dashboard</h2>
+              <p>Choose a section from the office menu to continue daily work.</p>
+            </div>
+          </div>
+          <div class="summary-grid">
+            <button class="summary-card" type="button" data-view-shortcut="teaLinesView">
+              <strong>Tea Lines</strong>
+              <span>Manage collection routes used by field tablets.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="lineUsersView">
+              <strong>Line Users</strong>
+              <span>Manage tablet users who collect tea leaves.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="suppliersView">
+              <strong>Suppliers</strong>
+              <span>Manage supplier master data and payment flags.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="stagingView">
+              <strong>Staging Review</strong>
+              <span>Review tablet imports and post final net weights.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="bookView">
+              <strong>Green Leaf Book</strong>
+              <span>Open month-wise supplier payment calculations.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="profileView">
+              <strong>Profile</strong>
+              <span>Update your office account details.</span>
+            </button>
+          </div>
+        </section>
+
+        <section id="teaLinesView" class="view">
+          <div class="view-heading">
+            <h2>Tea Lines</h2>
+            <p>Create and update tea collection lines used by suppliers and tablets.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Field route</span>
+                <h3>Register Tea Line</h3>
+                <p>Create the collection line that suppliers belong to.</p>
+              </div>
+              <form id="lineForm" class="form-card">
+                <input name="id" type="hidden" />
+                <label>
+                  Line name
+                  <input name="name" placeholder="Example: Line A" required />
+                </label>
+                <div class="form-actions">
+                  <button type="submit">Save tea line</button>
+                  <button class="ghost-button" type="button" data-clear-form="lineForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card">
+                <div class="list-header">
+                  <h4>Registered Tea Lines</h4>
+                  <input id="teaLineFilter" class="table-filter" placeholder="Filter by name" />
+                </div>
+                <table id="teaLinesTable">
+                  <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="lineUsersView" class="view">
+          <div class="view-heading">
+            <h2>Line Users</h2>
+            <p>Create and update local tablet users for field collection rounds.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Tablet access</span>
+                <h3>Register Line User</h3>
+                <p>Create local tablet login details for field collection users.</p>
+              </div>
+              <form id="lineUserForm" class="form-card">
+                <input name="id" type="hidden" />
+                <label>
+                  Username
+                  <input name="username" placeholder="line-user-name" required />
+                </label>
+                <label>
+                  Display name
+                  <input name="displayName" placeholder="Collector name" required />
+                </label>
+                <label>
+                  Local password
+                  <div class="password-field">
+                    <input id="lineUserPassword" name="password" placeholder="Leave blank to keep current password" type="password" />
+                    <button class="password-toggle" type="button" data-toggle-password="lineUserPassword" aria-controls="lineUserPassword" aria-pressed="false">Show</button>
+                  </div>
+                </label>
+                <div class="form-actions">
+                  <button type="submit">Save line user</button>
+                  <button class="ghost-button" type="button" data-clear-form="lineUserForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card">
+                <div class="list-header">
+                  <h4>Registered Line Users</h4>
+                  <input id="lineUserFilter" class="table-filter" placeholder="Filter by name" />
+                </div>
+                <table id="lineUsersTable">
+                  <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="suppliersView" class="view">
+          <div class="view-heading">
+            <h2>Suppliers</h2>
+            <p>Create and update supplier identity, assigned line, and calculation flags.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Supplier master data</span>
+                <h3>Register Supplier</h3>
+                <p>Save supplier identity, assigned tea line, and monthly calculation flags.</p>
+              </div>
+              <form id="supplierForm" class="form-card supplier-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Supplier code
+                  <input name="code" placeholder="S001" required />
+                </label>
+                <label>
+                  Supplier name
+                  <input name="name" placeholder="Supplier full name" required />
+                </label>
+                <label>
+                  Tea line
+                  <input name="lineName" list="teaLineOptions" placeholder="Select or type tea line" required />
+                </label>
+                <div class="check-list">
+                  <label><input type="checkbox" name="deductionEnabled" /> 2% end-month deduction</label>
+                  <label><input type="checkbox" name="ownTransportAdditionEnabled" /> Own transport addition</label>
+                  <label><input type="checkbox" name="factoryTransportDeductionEnabled" /> Factory transport deduction</label>
+                </div>
+                <div class="form-actions supplier-actions">
+                  <button type="submit">Save supplier</button>
+                  <button class="ghost-button" type="button" data-clear-form="supplierForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header supplier-filter-bar">
+                  <h4>Registered Suppliers</h4>
+                  <input id="supplierNameFilter" class="table-filter" placeholder="Filter by supplier name" />
+                  <input id="supplierLineFilter" class="table-filter" placeholder="Filter by line" />
+                </div>
+                <table id="suppliersTable">
+                  <thead><tr><th>Code</th><th>Name</th><th>Line</th><th>Flags</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="stagingView" class="view">
+          <div class="view-heading">
+            <h2>Staging Review</h2>
+            <p>Edit imported tablet records before posting them permanently.</p>
+          </div>
+          <section class="panel">
+            <table id="stagingTable">
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Date</th>
+                  <th>Bags</th>
+                  <th>Gross</th>
+                  <th>Net</th>
+                  <th>Print</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+        </section>
+
+        <section id="bookView" class="view">
+          <div class="view-heading">
+            <h2>Green Leaf Book</h2>
+            <p>Load a calendar month to view supplier-wise daily intake and payment totals.</p>
+          </div>
+          <section class="panel">
+            <div class="toolbar">
+              <input id="bookMonth" type="month" />
+              <button id="loadBook">Load month</button>
+            </div>
+            <div class="book-wrap">
+              <table id="bookTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <section id="profileView" class="view">
+          <section class="panel profile-panel">
+            <div>
+              <h2>Profile Management</h2>
+              <p>Update the currently logged-in office user's display name or password.</p>
+            </div>
+            <form id="profileForm" class="profile-form">
+              <input name="displayName" placeholder="Display name" required />
+              <input name="password" placeholder="New password (optional)" type="password" autocomplete="new-password" />
+              <button type="submit">Save profile</button>
+              <span id="profileMessage" class="message"></span>
+            </form>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <div id="editModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+      <section class="modal">
+        <div class="modal-header">
+          <div>
+            <span id="editModalEyebrow" class="eyebrow">Edit</span>
+            <h2 id="editModalTitle">Edit record</h2>
+          </div>
+          <button id="closeEditModal" class="ghost-button" type="button">Close</button>
+        </div>
+
+        <div id="editModalBody"></div>
+      </section>
+    </div>
+
+    <datalist id="teaLineOptions"></datalist>
 
     <script src="./app.js"></script>
   </body>

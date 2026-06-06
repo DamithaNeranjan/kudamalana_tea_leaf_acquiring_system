@@ -5,8 +5,9 @@ Offline-first tea leaf intake and payment system for a tea factory.
 ## Applications
 
 - `apps/mobile-android`: Native Android tablet app skeleton for field collection, offline storage, local login, Bluetooth receipt printing, and local Wi-Fi sync.
-- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth and stores local data in SQLite.
+- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for hosted MySQL sync and web green leaf book access.
+- `apps/web`: Static director/super-admin web interface.
 - `packages/shared`: Shared calculation and identity helpers used by desktop/backend tests.
 
 ## Current runnable commands
@@ -29,9 +30,16 @@ The backend seeds a default super admin for development:
 
 Change this before production deployment.
 
+The desktop app seeds a default office user for local development:
+
+- Username: `office`
+- Password: `office123`
+
+Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-text desktop passwords are upgraded after successful login.
+
 ## Data Flow
 
-1. Desktop registers line users, tea lines, suppliers, and monthly settings.
+1. Desktop office users log in locally and register line users, tea lines, suppliers, and monthly settings.
 2. Android tablets sync master data from the desktop over local Wi-Fi before collection rounds.
 3. Tablets record collection entries offline and print English receipts.
 4. Tablets upload unsynced entries back to the desktop over local Wi-Fi.
@@ -48,6 +56,14 @@ apps/desktop/desktop-data/tea-local-db.sqlite
 ```
 
 Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workbench is for the hosted backend MySQL database, not the desktop offline database.
+
+## Desktop UI Notes
+
+- The app opens to an office login screen.
+- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+- Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
+- Suppliers must be assigned to an already registered active tea line.
+- The desktop window uses `apps/logo/KudamalanaLogo1.png` for visible branding and the Electron window icon.
 
 ## Documentation
 

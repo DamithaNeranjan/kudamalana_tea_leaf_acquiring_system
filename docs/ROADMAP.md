@@ -21,8 +21,8 @@
 
 ## Phase 3: Cloud And Web
 
-- Replace backend memory store with MySQL persistence.
-- Add backend migrations and production authentication.
+- Add backend migrations.
+- Upgrade backend password hashing and session expiry for production authentication.
 - Implement desktop-to-cloud sync with retry/error history.
 - Expand director web app with month filters and print/export support.
 - Add role-based access controls and audit logs.

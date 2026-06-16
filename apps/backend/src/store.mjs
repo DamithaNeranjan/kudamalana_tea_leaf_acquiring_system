@@ -106,6 +106,11 @@ export function createMemoryStore() {
       return publicUser(user);
     },
 
+    logout(sessionToken) {
+      sessions.delete(sessionToken);
+      return { ok: true };
+    },
+
     syncFromDesktop(sessionToken, payload) {
       const user = requireRole(sessionToken, ["super_admin", "office_user"]);
       upsertMany(suppliers, payload.suppliers);

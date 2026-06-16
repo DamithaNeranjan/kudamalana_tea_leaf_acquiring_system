@@ -2,6 +2,27 @@ let apiUrl = "http://localhost:8080";
 let token = "";
 let currentUser = null;
 
+function showLoggedOut() {
+  token = "";
+  currentUser = null;
+  document.querySelector("#session").textContent = "Not signed in";
+  document.querySelector("#logoutButton").classList.add("hidden");
+  document.querySelector("#loginPanel").classList.remove("hidden");
+  document.querySelector("#adminPanel").classList.add("hidden");
+  document.querySelector("#bookPanel").classList.add("hidden");
+  document.querySelector("#book").innerHTML = "";
+  document.querySelector("#loginMessage").textContent = "";
+  document.querySelector("#loginForm").reset();
+}
+
+function showLoggedIn(user) {
+  document.querySelector("#session").textContent = `${user.displayName} (${user.role})`;
+  document.querySelector("#logoutButton").classList.remove("hidden");
+  document.querySelector("#loginPanel").classList.add("hidden");
+  document.querySelector("#bookPanel").classList.remove("hidden");
+  document.querySelector("#adminPanel").classList.toggle("hidden", user.role !== "super_admin");
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${apiUrl}${path}`, {
     headers: {
@@ -17,20 +38,40 @@ async function request(path, options = {}) {
 
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const message = document.querySelector("#loginMessage");
+  message.textContent = "Checking login...";
   const form = new FormData(event.currentTarget);
-  apiUrl = form.get("apiUrl");
-  const login = await request("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({
-      username: form.get("username"),
-      password: form.get("password")
-    })
-  });
-  token = login.token;
-  currentUser = login.user;
-  document.querySelector("#session").textContent = `${currentUser.displayName} (${currentUser.role})`;
-  document.querySelector("#bookPanel").classList.remove("hidden");
-  document.querySelector("#adminPanel").classList.toggle("hidden", currentUser.role !== "super_admin");
+  try {
+    const login = await request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: form.get("username"),
+        password: form.get("password")
+      })
+    });
+    if (!login.user) throw new Error("Login response did not include user details");
+    token = login.token;
+    currentUser = login.user;
+    showLoggedIn(currentUser);
+    message.textContent = "";
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
+document.querySelector("#toggleLoginPassword").addEventListener("click", (event) => {
+  const input = document.querySelector("#loginPassword");
+  const isHidden = input.type === "password";
+  input.type = isHidden ? "text" : "password";
+  event.currentTarget.textContent = isHidden ? "Hide" : "Show";
+  event.currentTarget.setAttribute("aria-pressed", String(isHidden));
+});
+
+document.querySelector("#logoutButton").addEventListener("click", () => {
+  if (token) {
+    request("/auth/logout", { method: "POST" }).catch(() => {});
+  }
+  showLoggedOut();
 });
 
 document.querySelector("#directorForm").addEventListener("submit", async (event) => {

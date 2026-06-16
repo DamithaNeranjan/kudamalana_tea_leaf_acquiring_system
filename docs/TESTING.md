@@ -13,7 +13,7 @@ The current suite covers:
 - monthly green leaf book calculations
 - supplier-month price and transport overrides
 - advance payment suggestion
-- backend login, director creation, desktop sync, and green leaf book viewing
+- backend login, logout, director creation, desktop sync, and green leaf book viewing
 - desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, and monthly book impact
 
 ## Manual Checks
@@ -59,3 +59,22 @@ Then open:
 ```text
 http://127.0.0.1:8080/health
 ```
+
+Web app:
+
+```powershell
+cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System"
+python -m http.server 5173
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173/apps/web/
+```
+
+Manual web UI checks:
+
+- Login with `superadmin` / `admin123`.
+- Confirm the session name and role appear in the top-right header beside Logout.
+- Confirm Logout returns to the login screen and hides protected panels.

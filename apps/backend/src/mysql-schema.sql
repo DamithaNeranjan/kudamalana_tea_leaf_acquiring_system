@@ -1,4 +1,4 @@
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(80) PRIMARY KEY,
   username VARCHAR(120) NOT NULL UNIQUE,
   display_name VARCHAR(160) NOT NULL,
@@ -8,13 +8,20 @@ CREATE TABLE users (
   created_at DATETIME NOT NULL
 );
 
-CREATE TABLE tea_lines (
+CREATE TABLE IF NOT EXISTS sessions (
+  token VARCHAR(120) PRIMARY KEY,
+  user_id VARCHAR(80) NOT NULL,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS tea_lines (
   id VARCHAR(80) PRIMARY KEY,
   name VARCHAR(160) NOT NULL UNIQUE,
   active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
   id VARCHAR(80) PRIMARY KEY,
   code VARCHAR(40) NOT NULL UNIQUE,
   name VARCHAR(180) NOT NULL,
@@ -28,7 +35,7 @@ CREATE TABLE suppliers (
   FOREIGN KEY (line_id) REFERENCES tea_lines(id)
 );
 
-CREATE TABLE monthly_settings (
+CREATE TABLE IF NOT EXISTS monthly_settings (
   month CHAR(7) PRIMARY KEY,
   tea_price_per_kg DECIMAL(10,2) NOT NULL DEFAULT 200.00,
   deduction_percent DECIMAL(5,2) NOT NULL DEFAULT 2.00,
@@ -36,7 +43,7 @@ CREATE TABLE monthly_settings (
   factory_transport_deduction_per_kg DECIMAL(10,2) NOT NULL DEFAULT 3.00
 );
 
-CREATE TABLE supplier_month_overrides (
+CREATE TABLE IF NOT EXISTS supplier_month_overrides (
   id VARCHAR(80) PRIMARY KEY,
   supplier_id VARCHAR(80) NOT NULL,
   month CHAR(7) NOT NULL,
@@ -48,7 +55,7 @@ CREATE TABLE supplier_month_overrides (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE collection_entries (
+CREATE TABLE IF NOT EXISTS collection_entries (
   id VARCHAR(80) PRIMARY KEY,
   mobile_record_id VARCHAR(80) UNIQUE,
   supplier_id VARCHAR(80) NOT NULL,
@@ -68,7 +75,7 @@ CREATE TABLE collection_entries (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE advances (
+CREATE TABLE IF NOT EXISTS advances (
   id VARCHAR(80) PRIMARY KEY,
   supplier_id VARCHAR(80) NOT NULL,
   date DATE NOT NULL,
@@ -77,7 +84,7 @@ CREATE TABLE advances (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE fertilizer_installments (
+CREATE TABLE IF NOT EXISTS fertilizer_installments (
   id VARCHAR(80) PRIMARY KEY,
   fertilizer_issue_id VARCHAR(80) NOT NULL,
   supplier_id VARCHAR(80) NOT NULL,
@@ -86,7 +93,7 @@ CREATE TABLE fertilizer_installments (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE tea_packets (
+CREATE TABLE IF NOT EXISTS tea_packets (
   id VARCHAR(80) PRIMARY KEY,
   supplier_id VARCHAR(80) NOT NULL,
   date DATE NOT NULL,
@@ -97,7 +104,7 @@ CREATE TABLE tea_packets (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE arrears_ledger (
+CREATE TABLE IF NOT EXISTS arrears_ledger (
   id VARCHAR(80) PRIMARY KEY,
   supplier_id VARCHAR(80) NOT NULL,
   effective_month CHAR(7) NOT NULL,
@@ -106,7 +113,7 @@ CREATE TABLE arrears_ledger (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
-CREATE TABLE sync_log (
+CREATE TABLE IF NOT EXISTS sync_log (
   id VARCHAR(80) PRIMARY KEY,
   source VARCHAR(80) NOT NULL,
   synced_at DATETIME NOT NULL,

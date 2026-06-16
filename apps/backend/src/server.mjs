@@ -2,6 +2,7 @@ import http from "node:http";
 import { pathToFileURL } from "node:url";
 import { buildGreenLeafBook } from "../../../packages/shared/src/index.mjs";
 import { createMemoryStore } from "./store.mjs";
+import { createMySqlStore, loadBackendEnv } from "./mysqlStore.mjs";
 
 export function createBackendServer({ store = createMemoryStore() } = {}) {
   async function parseBody(request) {
@@ -35,17 +36,20 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       }
       if (request.method === "POST" && url.pathname === "/auth/login") {
         const payload = await parseBody(request);
-        return send(response, 200, store.login(payload.username, payload.password));
+        return send(response, 200, await store.login(payload.username, payload.password));
+      }
+      if (request.method === "POST" && url.pathname === "/auth/logout") {
+        return send(response, 200, await store.logout(bearer(request)));
       }
       if (request.method === "POST" && url.pathname === "/admin/directors") {
-        return send(response, 201, store.createDirector(bearer(request), await parseBody(request)));
+        return send(response, 201, await store.createDirector(bearer(request), await parseBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/sync/desktop") {
-        return send(response, 200, store.syncFromDesktop(bearer(request), await parseBody(request)));
+        return send(response, 200, await store.syncFromDesktop(bearer(request), await parseBody(request)));
       }
       if (request.method === "GET" && url.pathname === "/green-leaf-book") {
         const month = url.searchParams.get("month");
-        const input = store.getGreenLeafInput(bearer(request), month);
+        const input = await store.getGreenLeafInput(bearer(request), month);
         return send(response, 200, buildGreenLeafBook(input));
       }
       return send(response, 404, { error: "Not found" });
@@ -56,8 +60,21 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await loadBackendEnv();
   const port = Number(process.env.PORT || 8080);
-  createBackendServer().listen(port, () => {
+  const store = await createMySqlStore();
+  const server = createBackendServer({ store });
+  server.listen(port, () => {
     console.log(`Tea backend listening on http://localhost:${port}`);
   });
+
+  async function shutdown() {
+    server.close(async () => {
+      await store.close();
+      process.exit(0);
+    });
+  }
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }

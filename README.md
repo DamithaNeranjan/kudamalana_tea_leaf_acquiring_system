@@ -21,6 +21,8 @@ npm.cmd run desktop:sync
 
 PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
 
+The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission.
+
 ## Default Accounts
 
 The backend seeds a default super admin for development:
@@ -46,6 +48,12 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 5. Desktop imports uploaded entries into staging, office users review/edit net weights, then post permanent entries.
 6. Desktop syncs finalized data to the hosted Node.js + MySQL backend.
 7. Directors view month-wise green leaf books in the web app/backend layer.
+
+## Web Login Notes
+
+- The web app uses the local backend URL `http://localhost:8080` by default.
+- Successful login returns a bearer token stored only in browser memory.
+- Logout revokes the current backend session and returns the browser to the login screen.
 
 ## Desktop Local Database
 

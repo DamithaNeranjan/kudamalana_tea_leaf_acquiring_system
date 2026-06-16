@@ -66,6 +66,8 @@ node src/server.mjs
 
 ## Run Backend API
 
+Configure MySQL values in `.env` first. The backend reads `.env`, creates the configured database and missing tables when the MySQL user has permission, seeds the development super admin, and stores web/director data in MySQL.
+
 ```powershell
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System"
 npm.cmd run backend

@@ -67,7 +67,42 @@ http://127.0.0.1:8080
 
 ### `POST /auth/login`
 
-Returns a bearer token for authenticated requests.
+Returns a bearer token and public user details for authenticated requests.
+
+Payload:
+
+```json
+{
+  "username": "superadmin",
+  "password": "admin123"
+}
+```
+
+Response:
+
+```json
+{
+  "token": "session-token",
+  "user": {
+    "id": "user-id",
+    "username": "superadmin",
+    "displayName": "Super Admin",
+    "role": "super_admin",
+    "active": true,
+    "createdAt": "2026-06-16 10:30:00"
+  }
+}
+```
+
+### `POST /auth/logout`
+
+Deletes the current bearer token from backend sessions.
+
+Requires:
+
+```text
+Authorization: Bearer <token>
+```
 
 ### `POST /admin/directors`
 
@@ -81,3 +116,9 @@ Accepts finalized desktop data for cloud sync.
 
 Returns a director-readable monthly green leaf book from synced backend data.
 
+## Authentication Notes
+
+- Authenticated backend requests use `Authorization: Bearer <token>`.
+- Web tokens are stored only in browser JavaScript memory, not local storage.
+- Backend sessions are stored in MySQL and checked on protected endpoints.
+- Role checks restrict director creation and desktop sync endpoints.

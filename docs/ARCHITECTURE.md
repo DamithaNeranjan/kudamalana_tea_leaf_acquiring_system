@@ -16,6 +16,8 @@ The desktop app is the operational source of truth while the factory is offline.
 
 The hosted backend is used for cloud backup/reporting and for the director web app.
 
+The backend stores web users, director accounts, sessions, synced supplier data, collection entries, monthly settings, and green leaf book source data in MySQL.
+
 ## Data Flow
 
 1. Office users log in locally and register line users, tea lines, suppliers, and monthly settings in the desktop app.
@@ -41,3 +43,9 @@ The hosted backend is used for cloud backup/reporting and for the director web a
 - Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Supplier screens use registered tea lines as the allowed tea-line source.
+
+## Web UI Structure
+
+- Header: Kudamalana Tea Factory branding, current web session, and logout action.
+- Login: desktop-aligned two-column portal login with branded copy and credential form.
+- Content: super-admin director creation and monthly green leaf book viewing.

@@ -6,8 +6,8 @@ Offline-first tea leaf intake and payment system for a tea factory.
 
 - `apps/mobile-android`: Native Android tablet app skeleton for field collection, offline storage, local login, Bluetooth receipt printing, and local Wi-Fi sync.
 - `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, and green leaf book views.
-- `apps/backend`: Node.js API scaffold for hosted MySQL sync and web green leaf book access.
-- `apps/web`: Static director/super-admin web interface.
+- `apps/backend`: Node.js API scaffold for hosted MySQL sync, web user management, and green leaf book access.
+- `apps/web`: React/Vite web interface for super admins, directors, and office users.
 - `packages/shared`: Shared calculation and identity helpers used by desktop/backend tests.
 
 ## Current runnable commands
@@ -17,6 +17,7 @@ npm.cmd install
 npm.cmd test
 npm.cmd run backend
 npm.cmd run desktop:sync
+npm.cmd run web:dev
 ```
 
 PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
@@ -51,9 +52,14 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 
 ## Web Login Notes
 
-- The web app uses the local backend URL `http://localhost:8080` by default.
-- Successful login returns a bearer token stored only in browser memory.
-- Logout revokes the current backend session and returns the browser to the login screen.
+- The web app uses backend port `8080` on the same host used to open the web page.
+- Successful web login stores the backend session token in an HttpOnly `SameSite=Lax` cookie.
+- Reloading the web app restores the signed-in user through `/auth/me`.
+- Logout revokes the current backend session, clears the session cookie, and returns the browser to the login screen.
+- Super admins can create, edit, activate, and deactivate director and office-user accounts.
+- Directors can view director and office-user lists without making changes.
+- Inactive web users are blocked from login.
+- The web app uses the shared Kudamalana logo as its favicon and app branding.
 
 ## Desktop Local Database
 

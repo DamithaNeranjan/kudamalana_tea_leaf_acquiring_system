@@ -12,12 +12,22 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   }
 
-  function send(response, status, payload) {
+  function corsHeaders(request) {
+    const origin = request.headers.origin;
+    return {
+      "access-control-allow-origin": origin || "*",
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": "content-type, authorization",
+      "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+      vary: "Origin"
+    };
+  }
+
+  function send(request, response, status, payload, headers = {}) {
     response.writeHead(status, {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
-      "access-control-allow-headers": "content-type, authorization",
-      "access-control-allow-methods": "GET,POST,OPTIONS"
+      ...corsHeaders(request),
+      ...headers
     });
     response.end(JSON.stringify(payload));
   }
@@ -27,34 +37,93 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
     return header.startsWith("Bearer ") ? header.slice(7) : "";
   }
 
+  function cookieToken(request) {
+    const cookies = Object.fromEntries(
+      String(request.headers.cookie || "")
+        .split(";")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => {
+          const index = part.indexOf("=");
+          return index === -1
+            ? [part, ""]
+            : [decodeURIComponent(part.slice(0, index)), decodeURIComponent(part.slice(index + 1))];
+        })
+    );
+    return cookies.tea_session || "";
+  }
+
+  function sessionToken(request) {
+    return bearer(request) || cookieToken(request);
+  }
+
+  function sessionCookie(token) {
+    const secure = process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
+    return [
+      `tea_session=${encodeURIComponent(token)}`,
+      "Path=/",
+      "HttpOnly",
+      "SameSite=Lax",
+      secure ? "Secure" : "",
+      "Max-Age=28800"
+    ]
+      .filter(Boolean)
+      .join("; ");
+  }
+
+  function clearSessionCookie() {
+    return "tea_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+  }
+
   return http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://localhost");
-      if (request.method === "OPTIONS") return send(response, 204, {});
+      if (request.method === "OPTIONS") return send(request, response, 204, {});
       if (request.method === "GET" && url.pathname === "/health") {
-        return send(response, 200, { ok: true, service: "tea-backend" });
+        return send(request, response, 200, { ok: true, service: "tea-backend" });
       }
       if (request.method === "POST" && url.pathname === "/auth/login") {
         const payload = await parseBody(request);
-        return send(response, 200, await store.login(payload.username, payload.password));
+        const login = await store.login(payload.username, payload.password);
+        return send(request, response, 200, login, { "set-cookie": sessionCookie(login.token) });
       }
       if (request.method === "POST" && url.pathname === "/auth/logout") {
-        return send(response, 200, await store.logout(bearer(request)));
+        return send(request, response, 200, await store.logout(sessionToken(request)), {
+          "set-cookie": clearSessionCookie()
+        });
+      }
+      if (request.method === "GET" && url.pathname === "/auth/me") {
+        return send(request, response, 200, { user: await store.getCurrentUser(sessionToken(request)) });
+      }
+      if (request.method === "GET" && url.pathname === "/admin/users") {
+        return send(request, response, 200, {
+          users: await store.listUsers(sessionToken(request), url.searchParams.get("role"))
+        });
+      }
+      if (request.method === "POST" && url.pathname === "/admin/users") {
+        return send(request, response, 201, await store.createUser(sessionToken(request), await parseBody(request)));
+      }
+      if (request.method === "PATCH" && url.pathname.startsWith("/admin/users/")) {
+        const userId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.updateUser(sessionToken(request), userId, await parseBody(request)));
+      }
+      if (request.method === "GET" && url.pathname === "/admin/directors") {
+        return send(request, response, 200, { directors: await store.listDirectors(sessionToken(request)) });
       }
       if (request.method === "POST" && url.pathname === "/admin/directors") {
-        return send(response, 201, await store.createDirector(bearer(request), await parseBody(request)));
+        return send(request, response, 201, await store.createDirector(sessionToken(request), await parseBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/sync/desktop") {
-        return send(response, 200, await store.syncFromDesktop(bearer(request), await parseBody(request)));
+        return send(request, response, 200, await store.syncFromDesktop(sessionToken(request), await parseBody(request)));
       }
       if (request.method === "GET" && url.pathname === "/green-leaf-book") {
         const month = url.searchParams.get("month");
-        const input = await store.getGreenLeafInput(bearer(request), month);
-        return send(response, 200, buildGreenLeafBook(input));
+        const input = await store.getGreenLeafInput(sessionToken(request), month);
+        return send(request, response, 200, buildGreenLeafBook(input));
       }
-      return send(response, 404, { error: "Not found" });
+      return send(request, response, 404, { error: "Not found" });
     } catch (error) {
-      return send(response, error.status || 500, { error: error.message || "Internal server error" });
+      return send(request, response, error.status || 500, { error: error.message || "Internal server error" });
     }
   });
 }

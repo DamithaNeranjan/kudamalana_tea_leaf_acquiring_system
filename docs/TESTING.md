@@ -13,7 +13,7 @@ The current suite covers:
 - monthly green leaf book calculations
 - supplier-month price and transport overrides
 - advance payment suggestion
-- backend login, logout, director creation, desktop sync, and green leaf book viewing
+- backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
 - desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, and monthly book impact
 
 ## Manual Checks
@@ -64,17 +64,22 @@ Web app:
 
 ```powershell
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System"
-python -m http.server 5173
+npm.cmd run web:dev
 ```
 
 Then open:
 
 ```text
-http://127.0.0.1:5173/apps/web/
+http://127.0.0.1:5173/
 ```
 
 Manual web UI checks:
 
 - Login with `superadmin` / `admin123`.
 - Confirm the session name and role appear in the top-right header beside Logout.
+- Refresh the page and confirm the web session is restored from the HttpOnly cookie.
 - Confirm Logout returns to the login screen and hides protected panels.
+- As super admin, confirm Directors and Office Users allow create, edit, activate, and deactivate actions.
+- As a director, confirm Directors and Office Users are visible as read-only listing pages.
+- Confirm inactive users cannot log in.
+- Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.

@@ -124,6 +124,14 @@ async function seedSuperAdmin(pool) {
   );
 }
 
+function assertManagedRole(role) {
+  if (!["director", "office_user"].includes(role)) {
+    const error = new Error("role must be director or office_user");
+    error.status = 400;
+    throw error;
+  }
+}
+
 export async function createMySqlStore(config = dbConfigFromEnv()) {
   await ensureDatabase(config);
   const pool = mysql.createPool(config);
@@ -315,6 +323,11 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           error.status = 401;
           throw error;
         }
+        if (!fromBool(user.active)) {
+          const error = new Error("User account is inactive");
+          error.status = 403;
+          throw error;
+        }
         const token = randomBytes(24).toString("hex");
         await conn.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)", [
           token,
@@ -331,13 +344,14 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       }
     },
 
-    async createDirector(sessionToken, input) {
+    async createUser(sessionToken, input) {
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
         await requireRole(conn, sessionToken, ["super_admin"]);
+        assertManagedRole(input?.role);
         if (!input?.username || !input?.password || !input?.displayName) {
-          const error = new Error("username, password, and displayName are required");
+          const error = new Error("role, username, password, and displayName are required");
           error.status = 400;
           throw error;
         }
@@ -345,7 +359,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           id: makeId("user"),
           username: input.username,
           displayName: input.displayName,
-          role: "director",
+          role: input.role,
           passwordHash: hashPassword(input.password),
           active: true,
           createdAt: toMysqlDateTime()
@@ -377,9 +391,84 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       }
     },
 
+    async createDirector(sessionToken, input) {
+      return this.createUser(sessionToken, { ...input, role: "director" });
+    },
+
+    async listUsers(sessionToken, role) {
+      assertManagedRole(role);
+      const conn = await pool.getConnection();
+      try {
+        await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [rows] = await conn.execute(
+          "SELECT * FROM users WHERE role = ? ORDER BY display_name ASC",
+          [role]
+        );
+        return rows.map(publicUser);
+      } finally {
+        conn.release();
+      }
+    },
+
+    async listDirectors(sessionToken) {
+      return this.listUsers(sessionToken, "director");
+    },
+
+    async updateUser(sessionToken, userId, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await requireRole(conn, sessionToken, ["super_admin"]);
+        const [rows] = await conn.execute(
+          "SELECT * FROM users WHERE id = ? AND role IN (?, ?)",
+          [userId, "director", "office_user"]
+        );
+        if (!rows[0]) {
+          const error = new Error("Managed user not found");
+          error.status = 404;
+          throw error;
+        }
+
+        const current = rows[0];
+        const nextUsername = input.username || current.username;
+        const nextDisplayName = input.displayName || current.display_name;
+        const nextActive = typeof input.active === "boolean" ? toBool(input.active) : current.active;
+        const nextPasswordHash = input.password ? hashPassword(input.password) : current.password_hash;
+
+        await conn.execute(
+          `UPDATE users
+           SET username = ?, display_name = ?, active = ?, password_hash = ?
+           WHERE id = ?`,
+          [nextUsername, nextDisplayName, nextActive, nextPasswordHash, userId]
+        );
+        const [updatedRows] = await conn.execute("SELECT * FROM users WHERE id = ?", [userId]);
+        await conn.commit();
+        return publicUser(updatedRows[0]);
+      } catch (error) {
+        await conn.rollback();
+        if (error.code === "ER_DUP_ENTRY") {
+          const conflict = new Error("Username already exists");
+          conflict.status = 409;
+          throw conflict;
+        }
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
     async logout(sessionToken) {
       await pool.execute("DELETE FROM sessions WHERE token = ?", [sessionToken]);
       return { ok: true };
+    },
+
+    async getCurrentUser(sessionToken) {
+      const conn = await pool.getConnection();
+      try {
+        return publicUser(await requireRole(conn, sessionToken, ["super_admin", "office_user", "director"]));
+      } finally {
+        conn.release();
+      }
     },
 
     async syncFromDesktop(sessionToken, payload) {

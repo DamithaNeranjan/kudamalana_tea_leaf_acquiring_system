@@ -67,7 +67,8 @@ http://127.0.0.1:8080
 
 ### `POST /auth/login`
 
-Returns a bearer token and public user details for authenticated requests.
+Returns a bearer token and public user details for API clients. Browser clients also receive the same session token as an HttpOnly `tea_session` cookie.
+Inactive users are rejected with `403`.
 
 Payload:
 
@@ -96,17 +97,66 @@ Response:
 
 ### `POST /auth/logout`
 
-Deletes the current bearer token from backend sessions.
+Deletes the current bearer token or `tea_session` cookie token from backend sessions, and clears the browser cookie.
 
-Requires:
+Requires one of:
 
 ```text
 Authorization: Bearer <token>
+Cookie: tea_session=<token>
 ```
+
+### `GET /auth/me`
+
+Returns the currently signed-in user from the bearer token or `tea_session` cookie. The web app calls this after reload to restore the visible session.
 
 ### `POST /admin/directors`
 
 Super admin-only endpoint for director account creation.
+
+### `GET /admin/directors`
+
+Super admin and director endpoint that lists existing director accounts. Directors receive view-only access.
+
+### `POST /admin/users`
+
+Super admin-only endpoint for creating managed web users.
+
+Supported roles:
+
+- `director`
+- `office_user`
+
+Payload:
+
+```json
+{
+  "role": "office_user",
+  "username": "office-web",
+  "password": "temporary-password",
+  "displayName": "Office User"
+}
+```
+
+### `GET /admin/users?role=director`
+
+Super admin and director endpoint that lists users for a managed role. Use `role=director` or `role=office_user`.
+Directors receive view-only access.
+
+### `PATCH /admin/users/:id`
+
+Super admin-only endpoint for editing, activating, or deactivating managed users.
+
+Payload fields are optional:
+
+```json
+{
+  "displayName": "Updated Name",
+  "username": "updated-username",
+  "password": "new-password",
+  "active": false
+}
+```
 
 ### `POST /sync/desktop`
 
@@ -114,11 +164,13 @@ Accepts finalized desktop data for cloud sync.
 
 ### `GET /green-leaf-book?month=YYYY-MM`
 
-Returns a director-readable monthly green leaf book from synced backend data.
+Returns a role-protected monthly green leaf book from synced backend data.
 
 ## Authentication Notes
 
-- Authenticated backend requests use `Authorization: Bearer <token>`.
-- Web tokens are stored only in browser JavaScript memory, not local storage.
+- API clients can authenticate with `Authorization: Bearer <token>`.
+- Browser clients authenticate with an HttpOnly `SameSite=Lax` `tea_session` cookie.
+- The cookie is marked `Secure` when `COOKIE_SECURE=true` or `NODE_ENV=production`.
 - Backend sessions are stored in MySQL and checked on protected endpoints.
-- Role checks restrict director creation and desktop sync endpoints.
+- Inactive users cannot log in and inactive existing sessions are rejected on protected endpoints.
+- Role checks restrict user management and desktop sync endpoints. Super admins can manage directors and office users; directors can view those lists; office users cannot access user management.

@@ -68,6 +68,14 @@ export function createMemoryStore() {
     }
   }
 
+  function assertManagedRole(role) {
+    if (!["director", "office_user"].includes(role)) {
+      const error = new Error("role must be director or office_user");
+      error.status = 400;
+      throw error;
+    }
+  }
+
   return {
     login(username, password) {
       const user = [...users.values()].find((candidate) => candidate.username === username);
@@ -76,15 +84,21 @@ export function createMemoryStore() {
         error.status = 401;
         throw error;
       }
+      if (!user.active) {
+        const error = new Error("User account is inactive");
+        error.status = 403;
+        throw error;
+      }
       const token = randomBytes(24).toString("hex");
       sessions.set(token, { token, userId: user.id, createdAt: new Date().toISOString() });
       return { token, user: publicUser(user) };
     },
 
-    createDirector(sessionToken, input) {
+    createUser(sessionToken, input) {
       requireRole(sessionToken, ["super_admin"]);
+      assertManagedRole(input?.role);
       if (!input?.username || !input?.password || !input?.displayName) {
-        const error = new Error("username, password, and displayName are required");
+        const error = new Error("role, username, password, and displayName are required");
         error.status = 400;
         throw error;
       }
@@ -97,7 +111,7 @@ export function createMemoryStore() {
         id: makeId("user"),
         username: input.username,
         displayName: input.displayName,
-        role: "director",
+        role: input.role,
         passwordHash: hashPassword(input.password),
         active: true,
         createdAt: new Date().toISOString()
@@ -106,9 +120,53 @@ export function createMemoryStore() {
       return publicUser(user);
     },
 
+    createDirector(sessionToken, input) {
+      return this.createUser(sessionToken, { ...input, role: "director" });
+    },
+
+    listUsers(sessionToken, role) {
+      requireRole(sessionToken, ["super_admin", "director"]);
+      assertManagedRole(role);
+      return [...users.values()]
+        .filter((user) => user.role === role)
+        .map(publicUser)
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    },
+
+    listDirectors(sessionToken) {
+      return this.listUsers(sessionToken, "director");
+    },
+
+    updateUser(sessionToken, userId, input) {
+      requireRole(sessionToken, ["super_admin"]);
+      const user = users.get(userId);
+      if (!user || !["director", "office_user"].includes(user.role)) {
+        const error = new Error("Managed user not found");
+        error.status = 404;
+        throw error;
+      }
+      if (input.username && input.username !== user.username) {
+        if ([...users.values()].some((candidate) => candidate.username === input.username && candidate.id !== userId)) {
+          const error = new Error("Username already exists");
+          error.status = 409;
+          throw error;
+        }
+        user.username = input.username;
+      }
+      if (input.displayName) user.displayName = input.displayName;
+      if (typeof input.active === "boolean") user.active = input.active;
+      if (input.password) user.passwordHash = hashPassword(input.password);
+      users.set(userId, user);
+      return publicUser(user);
+    },
+
     logout(sessionToken) {
       sessions.delete(sessionToken);
       return { ok: true };
+    },
+
+    getCurrentUser(sessionToken) {
+      return publicUser(requireRole(sessionToken, ["super_admin", "office_user", "director"]));
     },
 
     syncFromDesktop(sessionToken, payload) {

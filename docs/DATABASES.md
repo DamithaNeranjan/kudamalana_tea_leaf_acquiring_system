@@ -22,7 +22,7 @@ apps/desktop/src/sqlite-schema.sql
 
 ## Hosted Backend Database
 
-The backend API uses MySQL for hosted data persistence. Web login, director creation, desktop sync uploads, sessions, and director green leaf book reads all go through the MySQL-backed store.
+The backend API uses MySQL for hosted data persistence. Web login, director and office-user management, desktop sync uploads, sessions, and green leaf book reads all go through the MySQL-backed store.
 
 Reference schema:
 
@@ -52,7 +52,7 @@ The backend creates the configured database, creates missing tables from `apps/b
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
 - Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
-- Backend web/director users and sessions are stored in MySQL.
-- Backend logout deletes the current bearer token from the `sessions` table.
+- Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
+- Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
 - Suppliers are validated against active registered tea lines before saving.
 - Local runtime data, WAL files, and logs are excluded from Git.

@@ -3,85 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/logo/KudamalanaLogo1.png" />
     <title>Kudamalana Director Portal</title>
-    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand-lockup">
-        <img class="brand-logo topbar-logo" src="../logo/KudamalanaLogo1.png" alt="Kudamalana Tea Factory logo" />
-        <div>
-          <h1>Kudamalana Tea Factory - Directors</h1>
-          <p>Hosted green leaf book access</p>
-        </div>
-      </div>
-      <div class="header-status">
-        <span id="session" class="session-chip">Not signed in</span>
-        <button id="logoutButton" class="logout-button hidden" type="button">Logout</button>
-      </div>
-    </header>
-
-    <main class="login-view" id="loginPanel">
-      <section class="login-shell">
-        <div class="login-copy">
-          <div class="login-brand">
-            <img class="brand-logo login-logo" src="../logo/KudamalanaLogo1.png" alt="Kudamalana Tea Factory logo" />
-            <span class="eyebrow">Director portal</span>
-            <h2>Green leaf book access</h2>
-            <p class="login-description">Sign in to review synced factory data and month-wise supplier payment totals.</p>
-          </div>
-          <div class="login-facts">
-            <span>MySQL hosted records</span>
-            <span>Director and admin roles</span>
-            <span>Monthly payment views</span>
-          </div>
-        </div>
-
-        <form id="loginForm" class="login-card">
-          <div class="login-card-heading">
-            <span class="eyebrow">Welcome back</span>
-            <h3>Portal Login</h3>
-          </div>
-          <label>
-            Username
-            <input name="username" placeholder="Enter username" autocomplete="username" required />
-          </label>
-          <label>
-            Password
-            <div class="password-field">
-              <input id="loginPassword" name="password" placeholder="Enter password" type="password" autocomplete="current-password" required />
-              <button id="toggleLoginPassword" class="password-toggle" type="button" aria-controls="loginPassword" aria-pressed="false">Show</button>
-            </div>
-          </label>
-          <button type="submit">Login</button>
-          <span id="loginMessage" class="message" aria-live="polite"></span>
-        </form>
-      </section>
-    </main>
-
-    <main class="app-shell">
-      <section class="panel hidden" id="adminPanel">
-        <h2>Create Director</h2>
-        <form id="directorForm">
-          <input name="displayName" placeholder="Display name" required />
-          <input name="username" placeholder="Username" required />
-          <input name="password" placeholder="Password" type="password" required />
-          <button type="submit">Create</button>
-        </form>
-      </section>
-
-      <section class="panel hidden" id="bookPanel">
-        <h2>Monthly Green Leaf Book</h2>
-        <div class="toolbar">
-          <input id="month" type="month" />
-          <button id="loadBook">Load</button>
-        </div>
-        <div class="table-wrap">
-          <table id="book"></table>
-        </div>
-      </section>
-    </main>
-
-    <script src="./app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

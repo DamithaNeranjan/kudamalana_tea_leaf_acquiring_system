@@ -210,6 +210,53 @@ main {
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
 }
 
+.pairing-panel {
+  align-items: center;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(280px, 1fr) 320px;
+}
+
+.pairing-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.pairing-copy h3 {
+  font-size: 24px;
+}
+
+.pairing-copy p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.pairing-card {
+  align-items: center;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  padding: 18px;
+}
+
+.pairing-card img {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 260px;
+  min-width: 260px;
+  padding: 10px;
+}
+
+.pairing-card strong {
+  color: var(--brand-strong);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .message {
   color: var(--danger);
   min-height: 20px;
@@ -691,6 +738,7 @@ th:first-child {
   .login-shell,
   .profile-panel,
   .profile-form,
+  .pairing-panel,
   .registration-section,
   .supplier-form {
     grid-template-columns: 1fr;

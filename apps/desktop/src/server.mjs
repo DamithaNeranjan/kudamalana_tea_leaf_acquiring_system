@@ -1,6 +1,8 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
+import { networkInterfaces } from "node:os";
 import { pathToFileURL } from "node:url";
+import QRCode from "qrcode";
 import { buildGreenLeafBook, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 import { LocalStore } from "./localStore.mjs";
 
@@ -39,6 +41,23 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
     return sessions.get(token);
   }
 
+  function localSyncUrls(request) {
+    const port = Number(process.env.DESKTOP_SYNC_PORT || 7070);
+    const candidates = [];
+    for (const addresses of Object.values(networkInterfaces())) {
+      for (const address of addresses || []) {
+        if (address.family === "IPv4" && !address.internal) {
+          candidates.push(`http://${address.address}:${port}`);
+        }
+      }
+    }
+    const host = request.headers.host?.split(":")[0];
+    if (host && host !== "127.0.0.1" && host !== "localhost") {
+      candidates.unshift(`http://${host}:${port}`);
+    }
+    return [...new Set(candidates)];
+  }
+
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://desktop.local");
@@ -48,6 +67,9 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
       }
       if (request.method === "GET" && url.pathname === "/sync/master-data") {
         return send(response, 200, store.getMasterData());
+      }
+      if (request.method === "POST" && url.pathname === "/sync/login") {
+        return send(response, 200, { user: store.loginLineUser(await body(request)) });
       }
       if (request.method === "POST" && url.pathname === "/sync/collections") {
         const payload = await body(request);
@@ -76,6 +98,29 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         if (request.method === "POST" && url.pathname === "/office/logout") {
           sessions.delete(bearer(request));
           return send(response, 200, { ok: true });
+        }
+        if (request.method === "GET" && url.pathname === "/office/pairing-info") {
+          const urls = localSyncUrls(request);
+          const primaryUrl = urls[0] || `http://127.0.0.1:${Number(process.env.DESKTOP_SYNC_PORT || 7070)}`;
+          const pairingPayload = JSON.stringify({
+            type: "kudamalana-tablet-sync",
+            version: 1,
+            syncUrl: primaryUrl
+          });
+          return send(response, 200, {
+            primaryUrl,
+            urls,
+            pairingPayload,
+            qrDataUrl: await QRCode.toDataURL(pairingPayload, {
+              errorCorrectionLevel: "M",
+              margin: 1,
+              width: 260,
+              color: {
+                dark: "#17351F",
+                light: "#FFFFFF"
+              }
+            })
+          });
         }
       }
       if (request.method === "POST" && url.pathname === "/office/line-users") {

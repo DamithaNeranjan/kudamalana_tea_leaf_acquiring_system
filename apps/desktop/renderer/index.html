@@ -70,6 +70,7 @@
           <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
+          <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
           <button class="menu-item" type="button" data-view="profileView">Profile</button>
         </nav>
       </aside>
@@ -282,6 +283,26 @@
             </div>
             <div class="book-wrap">
               <table id="bookTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <section id="pairingView" class="view">
+          <div class="view-heading">
+            <h2>Pair Tablet</h2>
+            <p>Show this QR code to the tablet so it can save the current office sync address.</p>
+          </div>
+          <section class="panel pairing-panel">
+            <div class="pairing-copy">
+              <span class="eyebrow">Office user pairing</span>
+              <h3>Connect a field tablet</h3>
+              <p>The tablet must be on the same Wi-Fi network or hotspot as this desktop computer.</p>
+              <button id="refreshPairingQr" type="button">Refresh QR code</button>
+              <span id="pairingMessage" class="message"></span>
+            </div>
+            <div class="pairing-card">
+              <img id="pairingQr" alt="Tablet pairing QR code" />
+              <strong id="pairingUrl"></strong>
             </div>
           </section>
         </section>

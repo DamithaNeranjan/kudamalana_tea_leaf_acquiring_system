@@ -130,9 +130,30 @@ export class LocalStore {
          LIMIT 1`
       )
       .get(username);
-    if (!row || !verifyPassword(password, row.passwordHash)) throw new Error("Invalid username or password");
+    if (!row || !verifyPassword(password, row.passwordHash)) {
+      const error = new Error("Invalid username or password");
+      error.status = 401;
+      throw error;
+    }
     if (!isHashedPassword(row.passwordHash)) {
       this.db.prepare("UPDATE office_users SET password_hash = ? WHERE id = ?").run(hashPassword(password), row.id);
+    }
+    const { passwordHash, ...user } = row;
+    return user;
+  }
+
+  loginLineUser({ username, password }) {
+    const row = this.db
+      .prepare(
+        `SELECT id, username, display_name AS displayName, password_hash AS passwordHash
+         FROM line_users
+         WHERE username = ? AND active = 1
+         LIMIT 1`
+      )
+      .get(username);
+    if (!row || !verifyPassword(password, row.passwordHash)) throw new Error("Invalid username or password");
+    if (!isHashedPassword(row.passwordHash)) {
+      this.db.prepare("UPDATE line_users SET password_hash = ? WHERE id = ?").run(hashPassword(password), row.id);
     }
     const { passwordHash, ...user } = row;
     return user;

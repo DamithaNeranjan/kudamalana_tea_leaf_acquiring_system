@@ -50,6 +50,7 @@ password: office123
 ```
 
 The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 
 The visible logo and Electron window icon use:
 
@@ -63,6 +64,26 @@ apps/logo/KudamalanaLogo1.png
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System\apps\desktop"
 node src/server.mjs
 ```
+
+## Run Android Tablet App
+
+Open this folder in Android Studio:
+
+```text
+C:\Users\Damitha\Documents\Tea Leaf Acquiring System\apps\mobile-android
+```
+
+Use a compatible Android Studio/Gradle setup and JDK 17. The tablet app expects the desktop app or desktop sync server to be running on the same Wi-Fi or hotspot network.
+
+Daily tablet setup:
+
+1. Log in to the desktop app as the office user.
+2. Open Pair Tablet and show the QR code.
+3. On the tablet, tap Pair / Change Server on the login screen and scan the QR code.
+4. Log in with an active line-user account created in the desktop app.
+5. Download master data from Sync Data before collection.
+
+For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checking the GOOJPRT PT-210 printer status.
 
 ## Run Backend API
 

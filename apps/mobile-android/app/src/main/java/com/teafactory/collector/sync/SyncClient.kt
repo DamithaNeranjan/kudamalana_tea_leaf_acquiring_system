@@ -5,12 +5,32 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 
 class SyncClient(
     private val baseUrl: String,
     private val client: OkHttpClient = OkHttpClient()
 ) {
     private val jsonType = "application/json; charset=utf-8".toMediaType()
+
+    fun login(username: String, password: String): String {
+        val payload = """{"username":"${escapeJson(username)}","password":"${escapeJson(password)}"}"""
+        val request = Request.Builder()
+            .url("$baseUrl/sync/login")
+            .post(payload.toRequestBody(jsonType))
+            .build()
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val errorMessage = runCatching { JSONObject(responseBody).optString("error") }
+                    .getOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "Login failed: ${response.code}"
+                error(errorMessage)
+            }
+            return responseBody
+        }
+    }
 
     fun fetchMasterData(): String {
         val request = Request.Builder()
@@ -52,4 +72,11 @@ class SyncClient(
             return response.body?.string().orEmpty()
         }
     }
+
+    private fun escapeJson(value: String): String =
+        value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
 }

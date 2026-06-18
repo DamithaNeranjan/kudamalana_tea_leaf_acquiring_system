@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tea/shared": "file:../../packages/shared",
-    "electron": "^33.2.1"
+    "electron": "^33.2.1",
+    "qrcode": "^1.5.4"
   }
 }

@@ -23,6 +23,31 @@ Returns:
 - suppliers
 - monthly settings
 
+### `POST /sync/login`
+
+Used by the tablet login screen after QR pairing. Authenticates an active desktop line user.
+
+Payload:
+
+```json
+{
+  "username": "lineuser1",
+  "password": "lineUser1"
+}
+```
+
+Response:
+
+```json
+{
+  "user": {
+    "id": "line_user_id",
+    "username": "lineuser1",
+    "displayName": "Line User 1"
+  }
+}
+```
+
 ### `POST /sync/collections`
 
 Used by tablets at the end of the day.
@@ -56,6 +81,21 @@ The desktop app imports these records into staging and skips duplicates by `id`.
 ### `GET /office/green-leaf-book?month=YYYY-MM`
 
 Returns the calculated monthly green leaf book.
+
+### `GET /office/pairing-info`
+
+Office-session protected endpoint used by the desktop Pair Tablet screen. Returns the current desktop sync URL and a QR code data URL.
+
+Response:
+
+```json
+{
+  "primaryUrl": "http://192.168.1.50:7070",
+  "urls": ["http://192.168.1.50:7070"],
+  "pairingPayload": "{\"type\":\"kudamalana-tablet-sync\",\"version\":1,\"syncUrl\":\"http://192.168.1.50:7070\"}",
+  "qrDataUrl": "data:image/png;base64,..."
+}
+```
 
 ## Backend API
 

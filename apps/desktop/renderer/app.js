@@ -61,6 +61,7 @@ function showView(viewId) {
   for (const item of document.querySelectorAll(".menu-item")) {
     item.classList.toggle("active", item.dataset.view === viewId);
   }
+  if (viewId === "pairingView" && officeToken) refreshPairingQr();
 }
 
 function formJson(form) {
@@ -192,6 +193,24 @@ async function refreshState() {
       </tr>`
     )
     .join("");
+}
+
+async function refreshPairingQr() {
+  const message = document.querySelector("#pairingMessage");
+  const qrImage = document.querySelector("#pairingQr");
+  const urlText = document.querySelector("#pairingUrl");
+  message.textContent = "Preparing QR code...";
+  try {
+    const pairing = await api("/office/pairing-info");
+    const qrPayload = pairing.pairingPayload || pairing.primaryUrl;
+    qrImage.src = pairing.qrDataUrl || (await window.teaDesktop?.createQrDataUrl(qrPayload));
+    urlText.textContent = pairing.primaryUrl;
+    message.textContent = "";
+  } catch (error) {
+    message.textContent = error.message;
+    qrImage.removeAttribute("src");
+    urlText.textContent = "";
+  }
 }
 
 function renderRegistrationTables(state) {
@@ -474,5 +493,7 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
     </thead>
     <tbody>${rows}</tbody>`;
 });
+
+document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 
 document.querySelector("#bookMonth").value = new Date().toISOString().slice(0, 7);

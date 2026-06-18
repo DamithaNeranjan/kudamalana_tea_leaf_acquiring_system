@@ -21,13 +21,14 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Data Flow
 
 1. Office users log in locally and register line users, tea lines, suppliers, and monthly settings in the desktop app.
-2. Tablets download master data from the desktop over local Wi-Fi before collection rounds.
-3. Tablets record collections offline and print English receipts.
-4. Tablets upload unsynced collections back to the desktop.
-5. Desktop imports records into staging.
-6. Office users review/edit net weights and post permanent entries.
-7. Desktop syncs finalized data to the hosted backend.
-8. Directors view monthly green leaf books and managed user lists in the web app.
+2. Office users open Pair Tablet and let tablets scan the desktop-generated QR code to save the current local sync URL.
+3. Tablets authenticate as active line users and download active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
+4. Tablets record collections offline, preview receipts, track GOOJPRT PT-210 Bluetooth printer status, and keep editable unsynced records locally.
+5. Tablets upload unsynced collections back to the desktop.
+6. Desktop imports records into staging.
+7. Office users review/edit net weights and post permanent entries.
+8. Desktop syncs finalized data to the hosted backend.
+9. Directors view monthly green leaf books and managed user lists in the web app.
 
 ## Sync Principles
 
@@ -36,13 +37,23 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Monthly calculations are calendar-month based.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
+- Tablet collection starts from tea line selection; supplier choices are filtered to active suppliers belonging to the selected active line.
 
 ## Desktop UI Structure
 
 - Header: Kudamalana Tea Factory branding, current office session, and logout action.
-- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, Pair Tablet, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Supplier screens use registered tea lines as the allowed tea-line source.
+
+## Mobile UI Structure
+
+- Login: branded line-user login with Pair / Change Server QR scan action.
+- Tablet menu: Tea Collection, Recorded Data, Sync Data, and Master Data.
+- Tea Collection: selects active tea line, filters active supplier names to that line, enters bags/gross weight, then opens receipt preview.
+- Recorded Data: shows locally saved unsynced records and allows editing before upload.
+- Sync Data: downloads master data and uploads unsynced collections.
+- Master Data: separates synced tea lines and active suppliers into separate sections.
 
 ## Web UI Structure
 

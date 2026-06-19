@@ -3,6 +3,7 @@ package com.teafactory.collector
 import android.app.Activity
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -41,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -78,6 +80,7 @@ import com.teafactory.collector.data.CollectionRecordEntity
 import com.teafactory.collector.data.SupplierEntity
 import com.teafactory.collector.data.TeaDatabase
 import com.teafactory.collector.data.TeaLineEntity
+import com.teafactory.collector.printing.EscPosReceiptFormatter
 import com.teafactory.collector.sync.SyncClient
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -88,6 +91,8 @@ import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlin.concurrent.thread
 import kotlinx.coroutines.runBlocking
+
+private val SERIAL_PORT_PROFILE_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
 private val Ink = Color(0xFF172116)
 private val Muted = Color(0xFF62705F)
@@ -103,6 +108,10 @@ private val Danger = Color(0xFF8A241F)
 private const val DEFAULT_OFFICE_SYNC_URL = "http://192.168.1.125:7070"
 private const val PREFS_NAME = "tea_collector_settings"
 private const val PREF_SYNC_URL = "office_sync_url"
+private const val PREF_CACHED_USERNAME = "cached_username"
+private const val PREF_CACHED_PASSWORD = "cached_password"
+private const val PREF_CACHED_DISPLAY_NAME = "cached_display_name"
+private val RECEIPT_PRINTER_NAME_HINTS = listOf("MTP-2", "GOOJ", "PT-210", "PT210", "PRINTER")
 
 data class MobileSession(
     val username: String,
@@ -302,6 +311,23 @@ fun CollectorLoginScreen(onLoggedIn: (MobileSession) -> Unit) {
                             isErrorMessage = true
                             return@Button
                         }
+                        val cachedUsername = prefs.getString(PREF_CACHED_USERNAME, "").orEmpty()
+                        val cachedPassword = prefs.getString(PREF_CACHED_PASSWORD, "").orEmpty()
+                        val cachedDisplayName = prefs.getString(PREF_CACHED_DISPLAY_NAME, "").orEmpty()
+                        if (
+                            cachedUsername.equals(cleanUsername, ignoreCase = true) &&
+                            cachedPassword == password &&
+                            cachedDisplayName.isNotBlank()
+                        ) {
+                            onLoggedIn(
+                                MobileSession(
+                                    username = cachedUsername,
+                                    displayName = cachedDisplayName,
+                                    syncUrl = cleanUrl
+                                )
+                            )
+                            return@Button
+                        }
                         isLoading = true
                         message = "Checking login..."
                         isErrorMessage = false
@@ -314,6 +340,11 @@ fun CollectorLoginScreen(onLoggedIn: (MobileSession) -> Unit) {
                                     displayName = user.getString("displayName"),
                                     syncUrl = cleanUrl
                                 )
+                                prefs.edit()
+                                    .putString(PREF_CACHED_USERNAME, session.username)
+                                    .putString(PREF_CACHED_PASSWORD, password)
+                                    .putString(PREF_CACHED_DISPLAY_NAME, session.displayName)
+                                    .apply()
                                 activity?.runOnUiThread {
                                     isLoading = false
                                     message = ""
@@ -325,7 +356,7 @@ fun CollectorLoginScreen(onLoggedIn: (MobileSession) -> Unit) {
                                     isLoading = false
                                     val errorMessage = error.message.orEmpty()
                                     message = if (isConnectionError(errorMessage)) {
-                                        "Failed to connect to Desktop App on ${desktopHost(cleanUrl)}. Check Wi-Fi Connection."
+                                        "Failed to connect to Desktop App on ${desktopHost(cleanUrl)}. Login offline after one successful online login."
                                     } else {
                                         errorMessage.ifBlank { "Login failed." }
                                     }
@@ -338,7 +369,20 @@ fun CollectorLoginScreen(onLoggedIn: (MobileSession) -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = Brand),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (isLoading) "Logging in..." else "Login")
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        }
+                        Text(if (isLoading) "Logging in..." else "Login")
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 TextButton(
@@ -457,28 +501,64 @@ fun TeaLineEntity.toOption(): TeaLineOption =
 @Suppress("DEPRECATION")
 fun bluetoothPrinterStatus(context: Context): Pair<Boolean, String> {
     return try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!hasBluetoothConnectPermission(context)) {
             return false to "Bluetooth permission is required. Tap Connect printer and allow Nearby devices."
         }
-        val adapter = BluetoothAdapter.getDefaultAdapter()
-            ?: return false to "Bluetooth is not available on this tablet"
+        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false to "Bluetooth is not available on this tablet"
         if (!adapter.isEnabled) return false to "Bluetooth is turned off"
-        val pairedDevices = adapter.bondedDevices.orEmpty()
-        if (pairedDevices.isEmpty()) {
-            false to "No Bluetooth printer connected"
-        } else {
-            val printer = pairedDevices.firstOrNull { device ->
-                val name = device.name.orEmpty()
-                name.contains("GOOJ", ignoreCase = true) ||
-                    name.contains("PT-210", ignoreCase = true) ||
-                    name.contains("PT210", ignoreCase = true)
-            } ?: pairedDevices.first()
-            true to "Paired printer found: ${printer.name ?: "GOOJPRT PT-210"}. It will connect when printing starts."
-        }
+        val printers = pairedPrinterCandidates(adapter)
+        if (printers.isEmpty()) return false to "No paired Bluetooth printer found"
+        val firstPrinter = printers.first()
+        true to "Paired Bluetooth device found: ${firstPrinter.name ?: firstPrinter.address}. It will connect when printing starts."
     } catch (error: SecurityException) {
         false to "Bluetooth permission is required. Tap Connect printer and allow Nearby devices."
+    }
+}
+
+fun hasBluetoothConnectPermission(context: Context): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
+@Suppress("DEPRECATION")
+fun pairedPrinterCandidates(adapter: BluetoothAdapter): List<BluetoothDevice> {
+    val pairedDevices = adapter.bondedDevices.orEmpty().toList()
+    val preferred = pairedDevices.filter { device ->
+        val name = device.name.orEmpty()
+        RECEIPT_PRINTER_NAME_HINTS.any { hint -> name.contains(hint, ignoreCase = true) }
+    }
+    return preferred + pairedDevices.filterNot { device -> preferred.any { it.address == device.address } }
+}
+
+@Suppress("DEPRECATION")
+fun printReceiptToBluetoothPrinter(context: Context, record: CollectionRecordEntity): Pair<Boolean, String> {
+    return try {
+        if (!hasBluetoothConnectPermission(context)) {
+            return false to "Bluetooth permission is required. Tap Connect printer and allow Nearby devices."
+        }
+        val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false to "Bluetooth is not available on this tablet"
+        if (!adapter.isEnabled) return false to "Bluetooth is turned off"
+        val printers = pairedPrinterCandidates(adapter)
+        if (printers.isEmpty()) return false to "No paired Bluetooth printer found"
+        adapter.cancelDiscovery()
+        val receiptBytes = EscPosReceiptFormatter().format(record)
+        val failures = mutableListOf<String>()
+        for (printer in printers) {
+            try {
+                printer.createRfcommSocketToServiceRecord(SERIAL_PORT_PROFILE_UUID).use { socket ->
+                    socket.connect()
+                    socket.outputStream.use { output ->
+                        output.write(receiptBytes)
+                        output.flush()
+                    }
+                }
+                return true to "Receipt printed on ${printer.name ?: printer.address}."
+            } catch (error: Exception) {
+                failures += "${printer.name ?: printer.address}: ${error.message ?: "connection failed"}"
+            }
+        }
+        false to "Print failed on paired Bluetooth devices: ${failures.joinToString("; ")}"
+    } catch (error: Exception) {
+        false to "Print failed: ${error.message ?: "Could not connect to a paired Bluetooth printer"}"
     }
 }
 
@@ -548,8 +628,10 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     var unsyncedRecords by remember { mutableStateOf<List<CollectionRecordEntity>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     var previewRecord by remember { mutableStateOf<CollectionRecordEntity?>(null) }
+    var previewMode by remember { mutableStateOf("save") }
     var printerConnected by remember { mutableStateOf(false) }
     var printerStatus by remember { mutableStateOf("No Bluetooth printer connected") }
+    var isPrinting by remember { mutableStateOf(false) }
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -559,7 +641,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
             printerStatus = status.second
         } else {
             printerConnected = false
-            printerStatus = "Bluetooth permission denied. Allow Nearby devices to use the GOOJPRT PT-210."
+            printerStatus = "Bluetooth permission denied. Allow Nearby devices to use the paired receipt printer."
         }
     }
     var workspaceMessage by remember { mutableStateOf("") }
@@ -608,10 +690,21 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
         previewRecord = null
         clearEntryForm()
         workspaceMessage = if (printStatus == "printed") {
-            "Collection saved and marked as printed."
+            "Collection saved and receipt printed."
         } else {
-            "Collection saved. Printer was not connected."
+            "Collection saved without printing."
         }
+        workspaceMessageIsError = false
+    }
+
+    fun markExistingRecordPrinted(record: CollectionRecordEntity) {
+        val printedRecord = record.copy(printStatus = "printed")
+        thread {
+            runBlocking { database.teaDao().updateCollection(printedRecord) }
+        }
+        unsyncedRecords = unsyncedRecords.map { if (it.id == printedRecord.id) printedRecord else it }
+        previewRecord = null
+        workspaceMessage = "Receipt printed for ${record.supplierName}."
         workspaceMessageIsError = false
     }
 
@@ -630,12 +723,22 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     }
 
     previewRecord?.let { record ->
+        val isPrintOnlyPreview = previewMode == "print"
         AlertDialog(
-            onDismissRequest = { previewRecord = null },
-            title = { Text("Receipt Preview") },
+            onDismissRequest = { if (!isPrinting) previewRecord = null },
+            title = { Text(if (isPrintOnlyPreview) "Print Saved Receipt" else "Receipt Preview") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isPrintOnlyPreview) {
+                        Text("This will print the saved receipt only. The collection record will not be saved again.", color = Muted)
+                    }
                     Text("Printer status: $printerStatus", color = if (printerConnected) Success else Danger)
+                    if (isPrinting) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Brand, strokeWidth = 2.dp)
+                            Text("Printing receipt...", color = Muted)
+                        }
+                    }
                     Text("Supplier: ${record.supplierName}")
                     Text("Supplier code: ${record.supplierCode}")
                     Text("Tea line: ${record.lineName}")
@@ -647,10 +750,45 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
             },
             confirmButton = {
                 Button(
-                    onClick = { upsertPreviewRecord(if (printerConnected) "printed" else "printer_not_connected") },
+                    onClick = {
+                        if (!printerConnected) {
+                            if (isPrintOnlyPreview) {
+                                printerStatus = "Printer is not connected. Use Connect printer or Check status before printing."
+                                return@Button
+                            }
+                            upsertPreviewRecord("printer_not_connected")
+                            return@Button
+                        }
+                        isPrinting = true
+                        printerStatus = "Connecting to paired Bluetooth printer..."
+                        thread {
+                            val result = printReceiptToBluetoothPrinter(context, record)
+                            activityRun {
+                                isPrinting = false
+                                printerConnected = result.first
+                                printerStatus = result.second
+                                if (result.first) {
+                                    if (isPrintOnlyPreview) {
+                                        markExistingRecordPrinted(record)
+                                    } else {
+                                        upsertPreviewRecord("printed")
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isPrinting && (!isPrintOnlyPreview || printerConnected),
                     colors = ButtonDefaults.buttonColors(containerColor = Brand)
                 ) {
-                    Text(if (printerConnected) "Save and print" else "Save without print")
+                        Text(
+                            when {
+                            isPrinting -> "Printing..."
+                            isPrintOnlyPreview && printerConnected -> "Print receipt"
+                            printerConnected -> "Save and print"
+                            isPrintOnlyPreview -> "Connect printer first"
+                            else -> "Save without print"
+                        }
+                    )
                 }
             },
             dismissButton = {
@@ -662,7 +800,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                             ) {
                                 bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                             }
-                            printerStatus = "Open Bluetooth settings and pair/select the GOOJPRT PT-210"
+                            printerStatus = "Open Bluetooth settings and pair/select the receipt printer"
                             activity?.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                         }
                     ) {
@@ -891,6 +1029,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                             val status = bluetoothPrinterStatus(context)
                             printerConnected = status.first
                             printerStatus = status.second
+                            previewMode = "save"
                             previewRecord = record
                             workspaceMessage = ""
                             workspaceMessageIsError = false
@@ -1059,6 +1198,17 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                         Text(record.supplierName, color = Ink, fontWeight = FontWeight.Bold)
                                         Text("${record.lineName} | ${record.collectionDate} ${record.collectionTime}", color = Muted, fontSize = 12.sp)
                                         Text("Bags ${record.bagCount} | Gross ${record.grossWeightKg} kg | ${record.printStatus}", color = Muted, fontSize = 12.sp)
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            val status = bluetoothPrinterStatus(context)
+                                            printerConnected = status.first
+                                            printerStatus = status.second
+                                            previewMode = "print"
+                                            previewRecord = record
+                                        }
+                                    ) {
+                                        Text("Print", color = BrandStrong)
                                     }
                                     TextButton(
                                         onClick = {

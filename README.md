@@ -4,7 +4,7 @@ Offline-first tea leaf intake and payment system for a tea factory.
 
 ## Applications
 
-- `apps/mobile-android`: Native Android tablet app for field collection, offline saved records, line-user login, QR pairing to the desktop sync server, master-data download, local Wi-Fi upload, and GOOJPRT PT-210 receipt preview/printer status workflow.
+- `apps/mobile-android`: Native Android tablet app for field collection, offline saved records, offline-capable line-user login, QR pairing to the desktop sync server, master-data download, local Wi-Fi upload, and ESC/POS Bluetooth receipt printing.
 - `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for hosted MySQL sync, web user management, and green leaf book access.
 - `apps/web`: React/Vite web interface for super admins, directors, and office users.
@@ -44,8 +44,8 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 
 1. Desktop office users log in locally and register line users, tea lines, suppliers, and monthly settings.
 2. Office users open Pair Tablet in the desktop app and scan the QR code from the tablet to save the current desktop sync address.
-3. Android tablets sync active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
-4. Tablets record collection entries offline, preview receipts, and track Bluetooth printer status.
+3. Android tablets use the paired sync URL to log in once online, cache that line-user account for offline login, and sync active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
+4. Tablets record collection entries offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep the saved records editable until upload.
 5. Tablets upload unsynced entries back to the desktop over local Wi-Fi.
 6. Desktop imports uploaded entries into staging, office users review/edit net weights, then post permanent entries.
 7. Desktop syncs finalized data to the hosted Node.js + MySQL backend.

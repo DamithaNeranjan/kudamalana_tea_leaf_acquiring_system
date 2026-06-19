@@ -25,7 +25,7 @@ Returns:
 
 ### `POST /sync/login`
 
-Used by the tablet login screen after QR pairing. Authenticates an active desktop line user.
+Used by the tablet login screen after QR pairing. Authenticates an active desktop line user during online setup; the tablet caches the successful line-user login locally for later offline login.
 
 Payload:
 

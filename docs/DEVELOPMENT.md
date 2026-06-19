@@ -80,10 +80,10 @@ Daily tablet setup:
 1. Log in to the desktop app as the office user.
 2. Open Pair Tablet and show the QR code.
 3. On the tablet, tap Pair / Change Server on the login screen and scan the QR code.
-4. Log in with an active line-user account created in the desktop app.
+4. Log in with an active line-user account created in the desktop app. The first successful online login stores that account locally so the tablet can later log in offline.
 5. Download master data from Sync Data before collection.
 
-For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checking the GOOJPRT PT-210 printer status.
+For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checking printer status or printing. The tablet prints by opening a Bluetooth socket to a paired ESC/POS receipt printer; Android may show a printer as paired even when it is only connected during the actual print attempt.
 
 ## Run Backend API
 

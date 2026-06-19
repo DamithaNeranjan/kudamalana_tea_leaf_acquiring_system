@@ -22,8 +22,8 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 
 1. Office users log in locally and register line users, tea lines, suppliers, and monthly settings in the desktop app.
 2. Office users open Pair Tablet and let tablets scan the desktop-generated QR code to save the current local sync URL.
-3. Tablets authenticate as active line users and download active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
-4. Tablets record collections offline, preview receipts, track GOOJPRT PT-210 Bluetooth printer status, and keep editable unsynced records locally.
+3. Tablets authenticate once online as active line users, cache the line-user login locally for offline use, and download active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
+4. Tablets record collections offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep editable unsynced records locally.
 5. Tablets upload unsynced collections back to the desktop.
 6. Desktop imports records into staging.
 7. Office users review/edit net weights and post permanent entries.
@@ -51,7 +51,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Login: branded line-user login with Pair / Change Server QR scan action.
 - Tablet menu: Tea Collection, Recorded Data, Sync Data, and Master Data.
 - Tea Collection: selects active tea line, filters active supplier names to that line, enters bags/gross weight, then opens receipt preview.
-- Recorded Data: shows locally saved unsynced records and allows editing before upload.
+- Recorded Data: shows locally saved unsynced records and allows print-only reprints or editing before upload.
 - Sync Data: downloads master data and uploads unsynced collections.
 - Master Data: separates synced tea lines and active suppliers into separate sections.
 

@@ -488,6 +488,25 @@ main {
   grid-template-columns: 1fr;
 }
 
+.monthly-settings-form {
+  column-gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  row-gap: 16px;
+}
+
+.monthly-settings-form label {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
+.monthly-settings-form input {
+  width: 100%;
+}
+
+.monthly-settings-actions {
+  grid-column: 1 / -1;
+}
+
 .supplier-form .check-list,
 .supplier-form .supplier-actions {
   grid-column: 1 / -1;

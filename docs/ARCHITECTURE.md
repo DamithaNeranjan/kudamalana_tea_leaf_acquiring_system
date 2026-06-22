@@ -5,7 +5,7 @@ This repository is a monorepo for the tea leaf intake and payment system.
 ## Applications
 
 - `apps/mobile-android`: Native Android tablet application for field collection rounds.
-- `apps/desktop`: Electron desktop application and local Wi-Fi sync service for the factory office. It contains local office authentication, profile management, master-data management, staging review, collection-record audit, pairing, and green leaf book views.
+- `apps/desktop`: Electron desktop application and local Wi-Fi sync service for the factory office. It contains local office authentication, profile management, master-data management, monthly rate settings, staging review, collection-record audit, pairing, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for cloud sync and hosted MySQL-backed web access.
 - `apps/web`: React/Vite director and super-admin web interface.
 - `packages/shared`: Shared ID helpers and green leaf book calculation logic.
@@ -20,7 +20,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 
 ## Data Flow
 
-1. Office users log in locally and register line users, tea lines, suppliers, and monthly settings in the desktop app.
+1. Office users log in locally and register line users, tea lines, suppliers, and monthly Green Leaf Book rate settings in the desktop app.
 2. Office users open Pair Tablet and let tablets scan the desktop-generated QR code to save the current local sync URL.
 3. Tablets authenticate once online as active line users, cache the line-user login locally for offline use, and download active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
 4. Tablets record collections offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep editable unsynced records locally.
@@ -36,6 +36,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Desktop staging preserves original synced gross weight separately from edited values.
 - Posted collection entries preserve tablet saved time, tablet print time, print status, and the office user who posted the record.
 - Monthly calculations are calendar-month based.
+- Monthly Settings supplies the selected month's tea price, deduction percentage, transport add per kg, and transport deduction per kg.
 - Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
@@ -44,8 +45,9 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Desktop UI Structure
 
 - Header: Kudamalana Tea Factory branding, current office session, and logout action.
-- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
+- Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
 - Supplier screens use registered tea lines as the allowed tea-line source.
 - Staging Review supports manual import refresh, per-record posting, and confirmed Post all.
 - Collection Records is a read-only, paginated audit view with filters for supplier, tea line, date range, posted-by office user, and collector.

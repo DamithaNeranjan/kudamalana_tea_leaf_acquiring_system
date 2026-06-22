@@ -5,7 +5,7 @@ Offline-first tea leaf intake and payment system for a tea factory.
 ## Applications
 
 - `apps/mobile-android`: Native Android tablet app for field collection, offline saved records, offline-capable line-user login, QR pairing to the desktop sync server, master-data download, local Wi-Fi upload, and ESC/POS Bluetooth receipt printing.
-- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, collection-record audit, pairing, and green leaf book views.
+- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, monthly rate settings, staging review, collection-record audit, pairing, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for hosted MySQL sync, web user management, and green leaf book access.
 - `apps/web`: React/Vite web interface for super admins, directors, and office users.
 - `packages/shared`: Shared calculation and identity helpers used by desktop/backend tests.
@@ -42,7 +42,7 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 
 ## Data Flow
 
-1. Desktop office users log in locally and register line users, tea lines, suppliers, and monthly settings.
+1. Desktop office users log in locally and register line users, tea lines, suppliers, and monthly Green Leaf Book rate settings.
 2. Office users open Pair Tablet in the desktop app and scan the QR code from the tablet to save the current desktop sync address.
 3. Android tablets use the paired sync URL to log in once online, cache that line-user account for offline login, and sync active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
 4. Tablets record collection entries offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep the saved records editable until upload.
@@ -75,7 +75,8 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 ## Desktop UI Notes
 
 - The app opens to an office login screen.
-- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- Monthly Settings controls tea price per kg, month deduction percentage, transport add per kg, and transport deduction per kg for the selected Green Leaf Book month.
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
 - Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
 - Green Leaf Book uses posted collection entries for the selected month, including entries whose supplier master row is no longer available.

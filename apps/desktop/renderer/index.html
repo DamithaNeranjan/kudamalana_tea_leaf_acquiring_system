@@ -68,6 +68,7 @@
           <button class="menu-item" type="button" data-view="teaLinesView">Tea Lines</button>
           <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
           <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
+          <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
           <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
@@ -97,6 +98,10 @@
             <button class="summary-card" type="button" data-view-shortcut="suppliersView">
               <strong>Suppliers</strong>
               <span>Manage supplier master data and payment flags.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
+              <strong>Monthly Settings</strong>
+              <span>Set tea price, deduction, and transport rates for each month.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="stagingView">
               <strong>Staging Review</strong>
@@ -250,6 +255,67 @@
                 </div>
                 <table id="suppliersTable">
                   <thead><tr><th>Code</th><th>Name</th><th>Line</th><th>Flags</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="monthlySettingsView" class="view">
+          <div class="view-heading">
+            <h2>Monthly Settings</h2>
+            <p>Set the Green Leaf Book rates used for each calendar month.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Monthly calculation</span>
+                <h3>Green Leaf Book Rates</h3>
+                <p>These values control tea price, 2% month deduction, transport add, and transport deduction for the selected month.</p>
+              </div>
+              <form id="monthlySettingsForm" class="form-card monthly-settings-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Month
+                  <input name="month" type="month" required />
+                </label>
+                <label>
+                  Tea price per kg
+                  <input name="teaPricePerKg" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Month deduction percentage
+                  <input name="deductionPercent" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Transport add per kg
+                  <input name="ownTransportAdditionPerKg" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Transport deduction per kg
+                  <input name="factoryTransportDeductionPerKg" type="number" step="0.01" min="0" required />
+                </label>
+                <div class="form-actions monthly-settings-actions">
+                  <button type="submit">Save monthly settings</button>
+                  <button class="ghost-button" type="button" data-clear-form="monthlySettingsForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header">
+                  <h4>Saved Monthly Settings</h4>
+                </div>
+                <table id="monthlySettingsTable">
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>Tea price</th>
+                      <th>Deduction %</th>
+                      <th>Transport add</th>
+                      <th>Transport deduction</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
                   <tbody></tbody>
                 </table>
               </div>

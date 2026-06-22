@@ -12,6 +12,7 @@ The current suite covers:
 
 - monthly green leaf book calculations
 - supplier-month price and transport overrides
+- selected-month Green Leaf Book rate settings
 - green leaf book fallback rows for posted entries whose supplier master row is unavailable
 - advance payment suggestion
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
@@ -44,6 +45,7 @@ Manual desktop UI checks:
 - Login with `office` / `office123`.
 - Create a tea line, then create a supplier using that registered tea line.
 - Confirm supplier save rejects unregistered tea-line names.
+- Open Monthly Settings, save the selected month's tea price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.

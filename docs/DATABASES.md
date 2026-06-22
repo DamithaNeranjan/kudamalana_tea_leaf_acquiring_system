@@ -56,4 +56,5 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
 - Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
 - Suppliers are validated against active registered tea lines before saving.
+- Monthly settings are stored by calendar month and drive tea price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
 - Local runtime data, WAL files, and logs are excluded from Git.

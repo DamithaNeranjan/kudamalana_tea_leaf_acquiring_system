@@ -49,7 +49,7 @@ username: office
 password: office123
 ```
 
-The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 
 The visible logo and Electron window icon use:

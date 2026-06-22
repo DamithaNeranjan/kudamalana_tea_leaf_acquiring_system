@@ -74,6 +74,37 @@ test("supplier-month overrides can change price and transport behavior", () => {
   assert.equal(book.rows[0].balanceToPay, 2500);
 });
 
+test("uses the saved monthly setting for the selected month", () => {
+  const book = buildGreenLeafBook({
+    month: "2026-06",
+    suppliers,
+    monthlySettings: [
+      {
+        month: "2026-05",
+        teaPricePerKg: 200,
+        deductionPercent: 2,
+        ownTransportAdditionPerKg: 5,
+        factoryTransportDeductionPerKg: 3
+      },
+      {
+        month: "2026-06",
+        teaPricePerKg: 300,
+        deductionPercent: 4,
+        ownTransportAdditionPerKg: 8,
+        factoryTransportDeductionPerKg: 6
+      }
+    ],
+    entries: [
+      { supplierId: "sup_1", collectionDate: "2026-06-01", netWeightKg: 100 },
+      { supplierId: "sup_2", collectionDate: "2026-06-01", netWeightKg: 100 }
+    ]
+  });
+
+  assert.equal(book.rows[0].deductionKg, 4);
+  assert.equal(book.rows[0].ownTransportAddition, 768);
+  assert.equal(book.rows[1].factoryTransportDeduction, 600);
+});
+
 test("includes posted entries even when supplier master row is unavailable", () => {
   const book = buildGreenLeafBook({
     month: "2026-05",

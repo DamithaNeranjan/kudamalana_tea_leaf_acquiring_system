@@ -45,7 +45,10 @@ function sumBy(items, selector) {
 
 export function buildGreenLeafBook(input) {
   const month = normalizeMonth(input.month);
-  const settings = { ...DEFAULT_SETTINGS, ...(input.monthlySettings || {}) };
+  const monthSetting = Array.isArray(input.monthlySettings)
+    ? input.monthlySettings.find((setting) => setting.month === month)
+    : input.monthlySettings;
+  const settings = { ...DEFAULT_SETTINGS, ...(monthSetting || {}) };
   const entries = input.entries || [];
   const supplierMap = new Map((input.suppliers || []).map((supplier) => [supplier.id, supplier]));
   for (const entry of entries.filter((item) => sameMonth(item.collectionDate, month))) {

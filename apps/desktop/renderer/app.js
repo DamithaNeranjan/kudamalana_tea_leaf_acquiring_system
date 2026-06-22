@@ -144,6 +144,7 @@ document.addEventListener("click", (event) => {
   if (clearFormId) {
     document.querySelector(`#${clearFormId}`).reset();
     document.querySelector(`#${clearFormId} input[name="id"]`).value = "";
+    if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
   }
 });
 
@@ -370,6 +371,20 @@ function renderRegistrationTables(state) {
       </tr>`;
     })
     .join("");
+
+  document.querySelector("#monthlySettingsTable tbody").innerHTML = state.monthlySettings
+    .map(
+      (setting) => `
+      <tr>
+        <td>${escapeHtml(setting.month)}</td>
+        <td>${setting.teaPricePerKg}</td>
+        <td>${setting.deductionPercent}</td>
+        <td>${setting.ownTransportAdditionPerKg}</td>
+        <td>${setting.factoryTransportDeductionPerKg}</td>
+        <td><button class="table-action" type="button" data-edit-monthly-setting="${setting.id}">Edit</button></td>
+      </tr>`
+    )
+    .join("");
 }
 
 document.addEventListener("click", (event) => {
@@ -377,6 +392,7 @@ document.addEventListener("click", (event) => {
   const lineId = event.target.dataset.editLine;
   const lineUserId = event.target.dataset.editLineUser;
   const supplierId = event.target.dataset.editSupplier;
+  const monthlySettingId = event.target.dataset.editMonthlySetting;
   const toggleLineId = event.target.dataset.toggleLine;
   const toggleLineUserId = event.target.dataset.toggleLineUser;
   const toggleSupplierId = event.target.dataset.toggleSupplier;
@@ -394,6 +410,12 @@ document.addEventListener("click", (event) => {
   if (supplierId) {
     const supplier = latestState.suppliers.find((item) => item.id === supplierId);
     openEditModal("Edit Supplier", "Supplier master data", renderSupplierEditForm(supplier));
+  }
+
+  if (monthlySettingId) {
+    const setting = latestState.monthlySettings.find((item) => item.id === monthlySettingId);
+    populateMonthlySettingsForm(setting);
+    showView("monthlySettingsView");
   }
 
   if (toggleLineId) toggleActive("teaLines", toggleLineId, "/office/tea-lines", "Tea line");
@@ -538,6 +560,12 @@ document.querySelector("#supplierForm").addEventListener("submit", async (event)
   await saveForm(event.currentTarget, "/office/suppliers");
 });
 
+document.querySelector("#monthlySettingsForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/monthly-settings");
+  populateMonthlySettingsForm();
+});
+
 document.querySelector("#closeEditModal").addEventListener("click", closeEditModal);
 document.querySelector("#editModal").addEventListener("click", (event) => {
   if (event.target.id === "editModal") closeEditModal();
@@ -661,3 +689,24 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 
 document.querySelector("#bookMonth").value = localMonthValue();
+populateMonthlySettingsForm();
+
+function populateMonthlySettingsForm(setting = null) {
+  const form = document.querySelector("#monthlySettingsForm");
+  const current =
+    setting ||
+    latestState?.monthlySettings.find((item) => item.month === localMonthValue()) || {
+      id: "",
+      month: localMonthValue(),
+      teaPricePerKg: 200,
+      deductionPercent: 2,
+      ownTransportAdditionPerKg: 5,
+      factoryTransportDeductionPerKg: 3
+    };
+  form.elements.id.value = current.id || "";
+  form.elements.month.value = current.month || localMonthValue();
+  form.elements.teaPricePerKg.value = current.teaPricePerKg ?? 200;
+  form.elements.deductionPercent.value = current.deductionPercent ?? 2;
+  form.elements.ownTransportAdditionPerKg.value = current.ownTransportAdditionPerKg ?? 5;
+  form.elements.factoryTransportDeductionPerKg.value = current.factoryTransportDeductionPerKg ?? 3;
+}

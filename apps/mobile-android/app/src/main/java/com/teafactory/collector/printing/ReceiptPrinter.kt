@@ -14,8 +14,7 @@ data class PrintResult(
 )
 
 class EscPosReceiptFormatter {
-    fun format(record: CollectionRecordEntity): ByteArray {
-        val printedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+    fun format(record: CollectionRecordEntity, printedAt: String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))): ByteArray {
         val text = receiptLines(record, printedAt).joinToString("\r\n", postfix = "\r\n\r\n\r\n\r\n")
         return text.toByteArray(Charsets.UTF_8)
     }
@@ -31,9 +30,9 @@ class EscPosReceiptFormatter {
         lines += "Printed: $printedAt"
         lines += "Line: ${record.lineName}"
         lines += wrapped("Supplier", record.supplierName)
-        lines += "Bag count: ${record.bagCount}"
+        lines += "Bag Count: ${record.bagCount}"
         lines += "Gross KG: ${record.grossWeightKg}"
-        lines += wrapped("Collected by", record.lineUserName)
+        lines += wrapped("Collected By", record.lineUserName)
         lines += "-----------------------------"
         lines += "Keep this receipt for payment"
         return lines

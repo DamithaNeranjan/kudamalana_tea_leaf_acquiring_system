@@ -52,6 +52,8 @@ data class CollectionRecordEntity(
     val grossWeightKg: Double,
     val lineUserName: String,
     val printStatus: String,
+    val tabletSavedAt: String,
+    val printedAt: String?,
     val synced: Boolean
 )
 

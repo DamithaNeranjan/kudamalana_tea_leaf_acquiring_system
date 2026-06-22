@@ -52,6 +52,7 @@ The backend creates the configured database, creates missing tables from `apps/b
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
 - Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
+- Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record.
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
 - Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
 - Suppliers are validated against active registered tea lines before saving.

@@ -96,6 +96,8 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     const book = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
     assert.equal(book.rows[0].totalKg, 12);
     assert.equal(book.rows[0].balanceToPay, 2400);
+    const postedState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    assert.equal(postedState.collectionEntries[0].postedByOfficeUserName, "Factory Office");
 
     const logout = await fetch(`${baseUrl}/office/logout`, { method: "POST", headers: auth });
     assert.equal(logout.status, 200);

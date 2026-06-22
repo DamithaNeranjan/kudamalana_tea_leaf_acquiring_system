@@ -74,6 +74,7 @@ export class LocalStore {
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec("PRAGMA foreign_keys = ON;");
     this.db.exec(SCHEMA);
+    this.migrateSchema();
     this.seedDefaults();
 
     if (shouldMigrateJson) {
@@ -108,6 +109,31 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(`settings_${currentMonth()}`, currentMonth(), 200, 2, 5, 3, now());
+  }
+
+  migrateSchema() {
+    for (const column of [
+      ["posted_by_office_user_id", "TEXT"],
+      ["posted_by_office_user_name", "TEXT"],
+      ["tablet_saved_at", "TEXT"],
+      ["tablet_printed_at", "TEXT"]
+    ]) {
+      if (!this.hasColumn("collection_entries", column[0])) {
+        this.db.prepare(`ALTER TABLE collection_entries ADD COLUMN ${column[0]} ${column[1]}`).run();
+      }
+    }
+    for (const column of [
+      ["tablet_saved_at", "TEXT"],
+      ["tablet_printed_at", "TEXT"]
+    ]) {
+      if (!this.hasColumn("collection_staging", column[0])) {
+        this.db.prepare(`ALTER TABLE collection_staging ADD COLUMN ${column[0]} ${column[1]}`).run();
+      }
+    }
+  }
+
+  hasColumn(table, column) {
+    return this.db.prepare(`PRAGMA table_info(${table})`).all().some((info) => info.name === column);
   }
 
   async migrateJsonFile(jsonPath) {
@@ -362,12 +388,14 @@ export class LocalStore {
           lineName: record.lineName,
           collectionDate: record.collectionDate,
           collectionTime: record.collectionTime,
+          tabletSavedAt: record.tabletSavedAt || [record.collectionDate, record.collectionTime].filter(Boolean).join(" "),
           bagCount: Number(record.bagCount || 0),
           originalGrossWeightKg: Number(record.grossWeightKg || 0),
           grossWeightKg: Number(record.grossWeightKg || 0),
           netWeightKg: Number(record.netWeightKg ?? record.grossWeightKg ?? 0),
           lineUserName: record.lineUserName,
           printStatus: record.printStatus || "unknown",
+          tabletPrintedAt: record.printedAt || record.tabletPrintedAt || null,
           importedAt: now(),
           reviewedAt: null,
           status: "pending_review"
@@ -409,13 +437,15 @@ export class LocalStore {
     return this.stagingById(id);
   }
 
-  async postStaging(id) {
+  async postStaging(id, officeUser = null) {
     const staging = this.stagingById(id);
     if (!staging) throw new Error("Staging record not found");
     const entry = {
       ...staging,
       id: makeId("entry"),
-      postedAt: now()
+      postedAt: now(),
+      postedByOfficeUserId: officeUser?.id || null,
+      postedByOfficeUserName: officeUser?.displayName || officeUser?.username || null
     };
     this.db.exec("BEGIN");
     try {
@@ -467,8 +497,8 @@ export class LocalStore {
         `INSERT INTO collection_staging
          (id, mobile_record_id, device_id, supplier_id, supplier_code, supplier_name, line_id, line_name,
           collection_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
-          net_weight_kg, line_user_name, print_status, imported_at, reviewed_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          net_weight_kg, line_user_name, print_status, tablet_saved_at, tablet_printed_at, imported_at, reviewed_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         record.id,
@@ -487,6 +517,8 @@ export class LocalStore {
         Number(record.netWeightKg || 0),
         record.lineUserName,
         record.printStatus,
+        optional(record.tabletSavedAt),
+        optional(record.tabletPrintedAt),
         record.importedAt || now(),
         optional(record.reviewedAt),
         record.status || "pending_review"
@@ -499,8 +531,9 @@ export class LocalStore {
         `INSERT INTO collection_entries
          (id, mobile_record_id, supplier_id, supplier_code, supplier_name, line_id, line_name,
           collection_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
-          net_weight_kg, line_user_name, print_status, posted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          net_weight_kg, line_user_name, print_status, tablet_saved_at, tablet_printed_at,
+          posted_at, posted_by_office_user_id, posted_by_office_user_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         record.id,
@@ -518,7 +551,11 @@ export class LocalStore {
         Number(record.netWeightKg || 0),
         record.lineUserName,
         record.printStatus,
-        record.postedAt || now()
+        optional(record.tabletSavedAt),
+        optional(record.tabletPrintedAt),
+        record.postedAt || now(),
+        optional(record.postedByOfficeUserId),
+        optional(record.postedByOfficeUserName)
       );
   }
 
@@ -663,6 +700,8 @@ function mapStaging(row) {
     netWeightKg: row.net_weight_kg,
     lineUserName: row.line_user_name,
     printStatus: row.print_status,
+    tabletSavedAt: row.tablet_saved_at,
+    tabletPrintedAt: row.tablet_printed_at,
     importedAt: row.imported_at,
     reviewedAt: row.reviewed_at,
     status: row.status
@@ -686,7 +725,11 @@ function mapEntry(row) {
     netWeightKg: row.net_weight_kg,
     lineUserName: row.line_user_name,
     printStatus: row.print_status,
-    postedAt: row.posted_at
+    tabletSavedAt: row.tablet_saved_at,
+    tabletPrintedAt: row.tablet_printed_at,
+    postedAt: row.posted_at,
+    postedByOfficeUserId: row.posted_by_office_user_id,
+    postedByOfficeUserName: row.posted_by_office_user_name
   };
 }
 
@@ -767,6 +810,8 @@ CREATE TABLE IF NOT EXISTS collection_staging (
   net_weight_kg REAL NOT NULL,
   line_user_name TEXT NOT NULL,
   print_status TEXT NOT NULL,
+  tablet_saved_at TEXT,
+  tablet_printed_at TEXT,
   imported_at TEXT NOT NULL,
   reviewed_at TEXT,
   status TEXT NOT NULL
@@ -788,7 +833,11 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   net_weight_kg REAL NOT NULL,
   line_user_name TEXT NOT NULL,
   print_status TEXT NOT NULL,
-  posted_at TEXT NOT NULL
+  tablet_saved_at TEXT,
+  tablet_printed_at TEXT,
+  posted_at TEXT NOT NULL,
+  posted_by_office_user_id TEXT,
+  posted_by_office_user_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS advances (

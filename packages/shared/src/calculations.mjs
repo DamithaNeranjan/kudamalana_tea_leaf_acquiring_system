@@ -46,8 +46,22 @@ function sumBy(items, selector) {
 export function buildGreenLeafBook(input) {
   const month = normalizeMonth(input.month);
   const settings = { ...DEFAULT_SETTINGS, ...(input.monthlySettings || {}) };
-  const suppliers = input.suppliers || [];
   const entries = input.entries || [];
+  const supplierMap = new Map((input.suppliers || []).map((supplier) => [supplier.id, supplier]));
+  for (const entry of entries.filter((item) => sameMonth(item.collectionDate, month))) {
+    if (!supplierMap.has(entry.supplierId)) {
+      supplierMap.set(entry.supplierId, {
+        id: entry.supplierId,
+        code: entry.supplierCode || "",
+        name: entry.supplierName || "Unknown supplier",
+        lineName: entry.lineName || "",
+        deductionEnabled: false,
+        ownTransportAdditionEnabled: false,
+        factoryTransportDeductionEnabled: false
+      });
+    }
+  }
+  const suppliers = [...supplierMap.values()];
   const advances = input.advances || [];
   const fertilizerInstallments = input.fertilizerInstallments || [];
   const teaPackets = input.teaPackets || [];

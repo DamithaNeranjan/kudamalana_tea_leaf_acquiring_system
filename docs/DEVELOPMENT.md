@@ -49,7 +49,7 @@ username: office
 password: office123
 ```
 
-The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 
 The visible logo and Electron window icon use:
@@ -82,6 +82,7 @@ Daily tablet setup:
 3. On the tablet, tap Pair / Change Server on the login screen and scan the QR code.
 4. Log in with an active line-user account created in the desktop app. The first successful online login stores that account locally so the tablet can later log in offline.
 5. Download master data from Sync Data before collection.
+6. Upload completed records from Sync Data when the tablet is back on the local office network. The desktop receives them in Staging Review; posted records appear in Collection Records.
 
 For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checking printer status or printing. The tablet prints by opening a Bluetooth socket to a paired ESC/POS receipt printer; Android may show a printer as paired even when it is only connected during the actual print attempt.
 

@@ -50,6 +50,8 @@ class SyncClient(
               "id":"${record.id}",
               "collectionDate":"${record.collectionDate}",
               "collectionTime":"${record.collectionTime}",
+              "tabletSavedAt":"${escapeJson(record.tabletSavedAt)}",
+              "printedAt":${record.printedAt?.let { "\"${escapeJson(it)}\"" } ?: "null"},
               "lineId":"${record.lineId.orEmpty()}",
               "lineName":"${record.lineName}",
               "supplierId":"${record.supplierId}",

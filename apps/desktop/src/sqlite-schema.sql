@@ -74,6 +74,8 @@ CREATE TABLE collection_staging (
   net_weight_kg REAL NOT NULL,
   line_user_name TEXT NOT NULL,
   print_status TEXT NOT NULL,
+  tablet_saved_at TEXT,
+  tablet_printed_at TEXT,
   imported_at TEXT NOT NULL,
   reviewed_at TEXT,
   status TEXT NOT NULL
@@ -95,7 +97,11 @@ CREATE TABLE collection_entries (
   net_weight_kg REAL NOT NULL,
   line_user_name TEXT NOT NULL,
   print_status TEXT NOT NULL,
-  posted_at TEXT NOT NULL
+  tablet_saved_at TEXT,
+  tablet_printed_at TEXT,
+  posted_at TEXT NOT NULL,
+  posted_by_office_user_id TEXT,
+  posted_by_office_user_name TEXT
 );
 
 CREATE TABLE advances (

@@ -85,8 +85,7 @@ import com.teafactory.collector.sync.SyncClient
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlin.concurrent.thread
@@ -530,7 +529,7 @@ fun pairedPrinterCandidates(adapter: BluetoothAdapter): List<BluetoothDevice> {
 }
 
 @Suppress("DEPRECATION")
-fun printReceiptToBluetoothPrinter(context: Context, record: CollectionRecordEntity): Pair<Boolean, String> {
+fun printReceiptToBluetoothPrinter(context: Context, record: CollectionRecordEntity, printedAt: String): Pair<Boolean, String> {
     return try {
         if (!hasBluetoothConnectPermission(context)) {
             return false to "Bluetooth permission is required. Tap Connect printer and allow Nearby devices."
@@ -540,7 +539,7 @@ fun printReceiptToBluetoothPrinter(context: Context, record: CollectionRecordEnt
         val printers = pairedPrinterCandidates(adapter)
         if (printers.isEmpty()) return false to "No paired Bluetooth printer found"
         adapter.cancelDiscovery()
-        val receiptBytes = EscPosReceiptFormatter().format(record)
+        val receiptBytes = EscPosReceiptFormatter().format(record, printedAt)
         val failures = mutableListOf<String>()
         for (printer in printers) {
             try {
@@ -610,7 +609,9 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     val bagsFocusRequester = remember { FocusRequester() }
     val grossFocusRequester = remember { FocusRequester() }
     val database = remember {
-        Room.databaseBuilder(context, TeaDatabase::class.java, "tea_collector.db").build()
+        Room.databaseBuilder(context, TeaDatabase::class.java, "tea_collector.db")
+            .addMigrations(TeaDatabase.MIGRATION_1_2)
+            .build()
     }
     fun activityRun(action: () -> Unit) {
         activity?.runOnUiThread(action)
@@ -646,7 +647,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     }
     var workspaceMessage by remember { mutableStateOf("") }
     var workspaceMessageIsError by remember { mutableStateOf(false) }
-    var isSyncing by remember { mutableStateOf(false) }
+    var syncAction by remember { mutableStateOf<String?>(null) }
     var loadedLocalData by remember { mutableStateOf(false) }
     var activeWorkspaceView by remember { mutableStateOf("collection") }
     val filteredTeaLines = teaLines
@@ -676,9 +677,11 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
         editingRecordId = null
     }
 
-    fun upsertPreviewRecord(printStatus: String) {
+    fun currentDateTime(): String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+
+    fun upsertPreviewRecord(printStatus: String, printedAt: String? = null) {
         val record = previewRecord ?: return
-        val finalRecord = record.copy(printStatus = printStatus)
+        val finalRecord = record.copy(printStatus = printStatus, printedAt = printedAt)
         thread {
             runBlocking { database.teaDao().insertCollection(finalRecord) }
         }
@@ -697,8 +700,8 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
         workspaceMessageIsError = false
     }
 
-    fun markExistingRecordPrinted(record: CollectionRecordEntity) {
-        val printedRecord = record.copy(printStatus = "printed")
+    fun markExistingRecordPrinted(record: CollectionRecordEntity, printedAt: String) {
+        val printedRecord = record.copy(printStatus = "printed", printedAt = printedAt)
         thread {
             runBlocking { database.teaDao().updateCollection(printedRecord) }
         }
@@ -761,17 +764,18 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                         }
                         isPrinting = true
                         printerStatus = "Connecting to paired Bluetooth printer..."
+                        val printedAt = currentDateTime()
                         thread {
-                            val result = printReceiptToBluetoothPrinter(context, record)
+                            val result = printReceiptToBluetoothPrinter(context, record, printedAt)
                             activityRun {
                                 isPrinting = false
                                 printerConnected = result.first
                                 printerStatus = result.second
                                 if (result.first) {
                                     if (isPrintOnlyPreview) {
-                                        markExistingRecordPrinted(record)
+                                        markExistingRecordPrinted(record, printedAt)
                                     } else {
-                                        upsertPreviewRecord("printed")
+                                        upsertPreviewRecord("printed", printedAt)
                                     }
                                 }
                             }
@@ -1011,10 +1015,11 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                 workspaceMessageIsError = true
                                 return@Button
                             }
+                            val tabletSavedAt = currentDateTime()
                             val record = CollectionRecordEntity(
                                 id = editingRecordId ?: "mobile_${UUID.randomUUID()}",
-                                collectionDate = LocalDate.now().toString(),
-                                collectionTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                                collectionDate = tabletSavedAt.substring(0, 10),
+                                collectionTime = tabletSavedAt.substring(11),
                                 lineId = supplier.lineId,
                                 lineName = supplier.lineName,
                                 supplierId = supplier.id,
@@ -1024,6 +1029,8 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                 grossWeightKg = grossWeight,
                                 lineUserName = session.displayName,
                                 printStatus = "preview",
+                                tabletSavedAt = tabletSavedAt,
+                                printedAt = null,
                                 synced = false
                             )
                             val status = bluetoothPrinterStatus(context)
@@ -1073,7 +1080,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                     Text("Unsynced collections: ${unsyncedRecords.size}", color = Muted)
                     Button(
                         onClick = {
-                            isSyncing = true
+                            syncAction = "download"
                             workspaceMessage = "Downloading master data..."
                             workspaceMessageIsError = false
                             thread {
@@ -1088,27 +1095,29 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                     activityRun {
                                         teaLines = downloadedTeaLines
                                         suppliers = downloadedSuppliers
-                                        isSyncing = false
+                                        syncAction = null
                                         workspaceMessage = "Downloaded ${downloadedTeaLines.size} tea lines and ${downloadedSuppliers.size} suppliers."
                                         workspaceMessageIsError = false
+                                        Toast.makeText(context, workspaceMessage, Toast.LENGTH_LONG).show()
                                     }
                                 } catch (error: Exception) {
                                     activityRun {
-                                        isSyncing = false
+                                        syncAction = null
                                         workspaceMessage = if (isConnectionError(error.message.orEmpty())) {
                                             "Failed to connect to Desktop App on ${desktopHost(session.syncUrl)}"
                                         } else {
                                             error.message ?: "Master data download failed."
                                         }
                                         workspaceMessageIsError = true
+                                        Toast.makeText(context, workspaceMessage, Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
                         },
-                        enabled = !isSyncing,
+                        enabled = syncAction == null,
                         colors = ButtonDefaults.buttonColors(containerColor = Brand)
                     ) {
-                        Text(if (isSyncing) "Downloading..." else "Download master data")
+                        Text(if (syncAction == "download") "Downloading..." else "Download master data")
                     }
                     Button(
                         onClick = {
@@ -1117,12 +1126,14 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                 workspaceMessageIsError = false
                                 return@Button
                             }
-                            isSyncing = true
+                            syncAction = "upload"
                             workspaceMessage = "Uploading collections..."
                             workspaceMessageIsError = false
                             thread {
                                 try {
-                                    SyncClient(session.syncUrl).uploadCollections("tablet-collector", unsyncedRecords)
+                                    val uploadResponse = SyncClient(session.syncUrl).uploadCollections("tablet-collector", unsyncedRecords)
+                                    val importedCount = JSONObject(uploadResponse).optJSONArray("imported")?.length() ?: 0
+                                    val skippedCount = JSONObject(uploadResponse).optJSONArray("skipped")?.length() ?: 0
                                     runBlocking {
                                         unsyncedRecords.forEach { record ->
                                             database.teaDao().updateCollection(record.copy(synced = true))
@@ -1130,27 +1141,29 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                     }
                                     activityRun {
                                         unsyncedRecords = emptyList()
-                                        isSyncing = false
-                                        workspaceMessage = "Uploaded collections to desktop staging review."
+                                        syncAction = null
+                                        workspaceMessage = "Upload complete: $importedCount imported, $skippedCount skipped."
                                         workspaceMessageIsError = false
+                                        Toast.makeText(context, workspaceMessage, Toast.LENGTH_LONG).show()
                                     }
                                 } catch (error: Exception) {
                                     activityRun {
-                                        isSyncing = false
+                                        syncAction = null
                                         workspaceMessage = if (isConnectionError(error.message.orEmpty())) {
                                             "Failed to connect to Desktop App on ${desktopHost(session.syncUrl)}"
                                         } else {
                                             error.message ?: "Collection upload failed."
                                         }
                                         workspaceMessageIsError = true
+                                        Toast.makeText(context, workspaceMessage, Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
                         },
-                        enabled = !isSyncing,
+                        enabled = syncAction == null,
                         colors = ButtonDefaults.buttonColors(containerColor = Brand)
                     ) {
-                        Text(if (isSyncing) "Uploading..." else "Upload unsynced collections")
+                        Text(if (syncAction == "upload") "Uploading..." else "Upload unsynced collections")
                     }
                     Surface(color = Soft, shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Text(

@@ -6,8 +6,16 @@ const filters = {
   teaLineName: "",
   lineUserName: "",
   supplierName: "",
-  supplierLine: ""
+  supplierLine: "",
+  recordSupplier: "",
+  recordLine: "",
+  recordDateFrom: "",
+  recordDateTo: "",
+  recordPostedBy: "",
+  recordCollector: ""
 };
+let recordsPage = 1;
+const recordsPageSize = 10;
 
 async function api(path, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -42,6 +50,7 @@ function clearSession() {
   document.querySelector("#loginView").classList.remove("hidden");
   document.querySelector("#bookTable").innerHTML = "";
   document.querySelector("#stagingTable tbody").innerHTML = "";
+  document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#profileForm").reset();
   showView("dashboardView");
 }
@@ -62,6 +71,8 @@ function showView(viewId) {
     item.classList.toggle("active", item.dataset.view === viewId);
   }
   if (viewId === "pairingView" && officeToken) refreshPairingQr();
+  if (viewId === "stagingView" && officeToken) refreshState();
+  if (viewId === "recordsView" && officeToken) refreshState();
 }
 
 function formJson(form) {
@@ -148,6 +159,21 @@ for (const [selector, key] of [
   });
 }
 
+for (const [selector, key] of [
+  ["#recordSupplierFilter", "recordSupplier"],
+  ["#recordLineFilter", "recordLine"],
+  ["#recordDateFromFilter", "recordDateFrom"],
+  ["#recordDateToFilter", "recordDateTo"],
+  ["#recordPostedByFilter", "recordPostedBy"],
+  ["#recordCollectorFilter", "recordCollector"]
+]) {
+  document.querySelector(selector).addEventListener("input", (event) => {
+    filters[key] = event.target.value.trim().toLowerCase();
+    recordsPage = 1;
+    if (latestState) renderCollectionRecords(latestState.collectionEntries);
+  });
+}
+
 document.querySelector("#logoutButton").addEventListener("click", async () => {
   try {
     if (officeToken) await api("/office/logout", { method: "POST" });
@@ -179,6 +205,7 @@ async function refreshState() {
   const state = await api("/office/state");
   latestState = state;
   renderRegistrationTables(state);
+  renderCollectionRecords(state.collectionEntries);
   document.querySelector("#stagingTable tbody").innerHTML = state.collectionStaging
     .map(
       (row) => `
@@ -193,6 +220,74 @@ async function refreshState() {
       </tr>`
     )
     .join("");
+}
+
+function renderCollectionRecords(records = []) {
+  const filtered = records
+    .filter((record) => {
+      const supplier = String(record.supplierName || "").toLowerCase();
+      const line = String(record.lineName || "").toLowerCase();
+      const postedBy = String(record.postedByOfficeUserName || "").toLowerCase();
+      const collector = String(record.lineUserName || "").toLowerCase();
+      return (
+        supplier.includes(filters.recordSupplier) &&
+        line.includes(filters.recordLine) &&
+        postedBy.includes(filters.recordPostedBy) &&
+        collector.includes(filters.recordCollector) &&
+        (!filters.recordDateFrom || record.collectionDate >= filters.recordDateFrom) &&
+        (!filters.recordDateTo || record.collectionDate <= filters.recordDateTo)
+      );
+    })
+    .sort((a, b) => `${b.collectionDate} ${b.collectionTime || ""}`.localeCompare(`${a.collectionDate} ${a.collectionTime || ""}`));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / recordsPageSize));
+  recordsPage = Math.min(recordsPage, pageCount);
+  const start = (recordsPage - 1) * recordsPageSize;
+  const pageRecords = filtered.slice(start, start + recordsPageSize);
+  document.querySelector("#recordsTable tbody").innerHTML = pageRecords
+    .map(
+      (record) => `
+      <tr>
+        <td>${escapeHtml(record.tabletSavedAt || `${record.collectionDate} ${record.collectionTime || ""}`)}</td>
+        <td>${escapeHtml(record.supplierName)}</td>
+        <td>${escapeHtml(record.lineName || "")}</td>
+        <td>${record.bagCount}</td>
+        <td>${record.originalGrossWeightKg}</td>
+        <td>${record.grossWeightKg}</td>
+        <td>${record.netWeightKg}</td>
+        <td>${escapeHtml(record.printStatus || "-")}</td>
+        <td>${escapeHtml(record.tabletPrintedAt || "-")}</td>
+        <td>${escapeHtml(record.lineUserName)}</td>
+        <td>${escapeHtml(record.postedByOfficeUserName || "-")}</td>
+        <td>${escapeHtml(formatDateTime(record.postedAt))}</td>
+      </tr>`
+    )
+    .join("");
+  const shownEnd = Math.min(start + pageRecords.length, filtered.length);
+  document.querySelector("#recordsPageInfo").textContent = filtered.length
+    ? `Showing ${start + 1}-${shownEnd} of ${filtered.length}`
+    : "No records";
+  document.querySelector("#recordsPrevPage").disabled = recordsPage <= 1;
+  document.querySelector("#recordsNextPage").disabled = recordsPage >= pageCount;
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
+function localMonthValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
 }
 
 async function refreshPairingQr() {
@@ -344,6 +439,15 @@ function escapeAttribute(value) {
   return String(value ?? "").replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function checked(value) {
   return value ? "checked" : "";
 }
@@ -456,6 +560,66 @@ document.querySelector("#stagingTable").addEventListener("click", async (event) 
   await refreshState();
 });
 
+document.querySelector("#refreshStaging").addEventListener("click", async () => {
+  try {
+    await refreshState();
+    showToast("Staging imports refreshed.");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+});
+
+function openPostAllModal() {
+  const count = latestState?.collectionStaging?.length || 0;
+  if (!count) {
+    showToast("There are no staged records to post.", "error");
+    return;
+  }
+  document.querySelector("#confirmPostAllMessage").textContent =
+    `This will permanently post ${count} staged tablet record${count === 1 ? "" : "s"} using the net weights currently shown in the table.`;
+  document.querySelector("#confirmPostAllModal").classList.remove("hidden");
+}
+
+function closePostAllModal() {
+  document.querySelector("#confirmPostAllModal").classList.add("hidden");
+}
+
+async function postAllStagingRecords() {
+  const records = latestState?.collectionStaging || [];
+  closePostAllModal();
+  if (!records.length) return;
+  try {
+    for (const record of records) {
+      const netWeightKg = Number(document.querySelector(`[data-net="${record.id}"]`)?.value ?? record.netWeightKg);
+      await api(`/office/staging/${record.id}`, { method: "PUT", body: JSON.stringify({ netWeightKg }) });
+      await api(`/office/staging/${record.id}/post`, { method: "POST" });
+    }
+    await refreshState();
+    showToast(`Posted ${records.length} staged record${records.length === 1 ? "" : "s"}.`);
+  } catch (error) {
+    await refreshState();
+    showToast(error.message, "error");
+  }
+}
+
+document.querySelector("#postAllStaging").addEventListener("click", openPostAllModal);
+document.querySelector("#cancelPostAll").addEventListener("click", closePostAllModal);
+document.querySelector("#cancelPostAllTop").addEventListener("click", closePostAllModal);
+document.querySelector("#confirmPostAll").addEventListener("click", postAllStagingRecords);
+document.querySelector("#confirmPostAllModal").addEventListener("click", (event) => {
+  if (event.target.id === "confirmPostAllModal") closePostAllModal();
+});
+
+document.querySelector("#recordsPrevPage").addEventListener("click", () => {
+  recordsPage = Math.max(1, recordsPage - 1);
+  renderCollectionRecords(latestState?.collectionEntries || []);
+});
+
+document.querySelector("#recordsNextPage").addEventListener("click", () => {
+  recordsPage += 1;
+  renderCollectionRecords(latestState?.collectionEntries || []);
+});
+
 document.querySelector("#loadBook").addEventListener("click", async () => {
   const month = document.querySelector("#bookMonth").value;
   const book = await api(`/office/green-leaf-book?month=${month}`);
@@ -496,4 +660,4 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
 
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 
-document.querySelector("#bookMonth").value = new Date().toISOString().slice(0, 7);
+document.querySelector("#bookMonth").value = localMonthValue();

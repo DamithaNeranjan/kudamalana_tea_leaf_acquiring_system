@@ -5,7 +5,7 @@ Offline-first tea leaf intake and payment system for a tea factory.
 ## Applications
 
 - `apps/mobile-android`: Native Android tablet app for field collection, offline saved records, offline-capable line-user login, QR pairing to the desktop sync server, master-data download, local Wi-Fi upload, and ESC/POS Bluetooth receipt printing.
-- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, and green leaf book views.
+- `apps/desktop`: Electron desktop app scaffold and local Wi-Fi sync service. The desktop app is the offline operational source of truth, stores local data in SQLite, and includes office login, profile management, supplier/line/user maintenance, staging review, collection-record audit, pairing, and green leaf book views.
 - `apps/backend`: Node.js API scaffold for hosted MySQL sync, web user management, and green leaf book access.
 - `apps/web`: React/Vite web interface for super admins, directors, and office users.
 - `packages/shared`: Shared calculation and identity helpers used by desktop/backend tests.
@@ -47,7 +47,7 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 3. Android tablets use the paired sync URL to log in once online, cache that line-user account for offline login, and sync active tea lines and active suppliers from the desktop over local Wi-Fi before collection rounds.
 4. Tablets record collection entries offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep the saved records editable until upload.
 5. Tablets upload unsynced entries back to the desktop over local Wi-Fi.
-6. Desktop imports uploaded entries into staging, office users review/edit net weights, then post permanent entries.
+6. Desktop imports uploaded entries into staging, office users review/edit net weights, then post permanent entries individually or with Post all confirmation.
 7. Desktop syncs finalized data to the hosted Node.js + MySQL backend.
 8. Directors view month-wise green leaf books in the web app/backend layer.
 
@@ -75,8 +75,10 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 ## Desktop UI Notes
 
 - The app opens to an office login screen.
-- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Green Leaf Book, and Profile.
+- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
+- Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
+- Green Leaf Book uses posted collection entries for the selected month, including entries whose supplier master row is no longer available.
 - Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
 - Suppliers must be assigned to an already registered active tea line.
 - The desktop window uses `apps/logo/KudamalanaLogo1.png` for visible branding and the Electron window icon.

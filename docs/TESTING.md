@@ -12,9 +12,10 @@ The current suite covers:
 
 - monthly green leaf book calculations
 - supplier-month price and transport overrides
+- green leaf book fallback rows for posted entries whose supplier master row is unavailable
 - advance payment suggestion
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
-- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, and monthly book impact
+- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by audit tracking, and monthly book impact
 
 ## Manual Checks
 
@@ -46,6 +47,8 @@ Manual desktop UI checks:
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
+- Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.
+- Confirm Post all opens a confirmation modal before posting all staged records.
 
 Backend:
 
@@ -83,3 +86,4 @@ Manual web UI checks:
 - As a director, confirm Directors and Office Users are visible as read-only listing pages.
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
+- Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.

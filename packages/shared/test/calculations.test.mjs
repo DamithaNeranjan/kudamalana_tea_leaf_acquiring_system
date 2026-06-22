@@ -74,6 +74,26 @@ test("supplier-month overrides can change price and transport behavior", () => {
   assert.equal(book.rows[0].balanceToPay, 2500);
 });
 
+test("includes posted entries even when supplier master row is unavailable", () => {
+  const book = buildGreenLeafBook({
+    month: "2026-05",
+    suppliers: [],
+    entries: [
+      {
+        supplierId: "sup_missing",
+        supplierName: "Late Synced Supplier",
+        lineName: "Line B",
+        collectionDate: "2026-05-04",
+        netWeightKg: 18
+      }
+    ]
+  });
+
+  assert.equal(book.rows.length, 1);
+  assert.equal(book.rows[0].supplierName, "Late Synced Supplier");
+  assert.equal(book.rows[0].totalKg, 18);
+});
+
 test("suggests advance payment from unpaid effective month balance", () => {
   const suggestion = suggestAdvancePayment({
     month: "2026-05",

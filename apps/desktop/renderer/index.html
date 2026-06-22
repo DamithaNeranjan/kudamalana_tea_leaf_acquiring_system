@@ -69,6 +69,7 @@
           <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
           <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
+          <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
           <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
           <button class="menu-item" type="button" data-view="profileView">Profile</button>
@@ -101,9 +102,17 @@
               <strong>Staging Review</strong>
               <span>Review tablet imports and post final net weights.</span>
             </button>
+            <button class="summary-card" type="button" data-view-shortcut="recordsView">
+              <strong>Collection Records</strong>
+              <span>View posted mobile records and office adjustments.</span>
+            </button>
             <button class="summary-card" type="button" data-view-shortcut="bookView">
               <strong>Green Leaf Book</strong>
               <span>Open month-wise supplier payment calculations.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="pairingView">
+              <strong>Pair Tablet</strong>
+              <span>Show the QR code tablets scan before syncing daily work.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="profileView">
               <strong>Profile</strong>
@@ -250,8 +259,14 @@
 
         <section id="stagingView" class="view">
           <div class="view-heading">
-            <h2>Staging Review</h2>
-            <p>Edit imported tablet records before posting them permanently.</p>
+            <div>
+              <h2>Staging Review</h2>
+              <p>Edit imported tablet records before posting them permanently.</p>
+            </div>
+            <div class="heading-actions">
+              <button id="refreshStaging" type="button">Refresh imports</button>
+              <button id="postAllStaging" type="button">Post all</button>
+            </div>
           </div>
           <section class="panel">
             <table id="stagingTable">
@@ -271,12 +286,77 @@
           </section>
         </section>
 
+        <section id="recordsView" class="view">
+          <div class="view-heading">
+            <div>
+              <h2>Collection Records</h2>
+              <p>View posted mobile collection records and office review changes.</p>
+            </div>
+          </div>
+          <section class="panel records-panel">
+            <div class="filter-grid">
+              <label>
+                Supplier
+                <input id="recordSupplierFilter" placeholder="Name or code" />
+              </label>
+              <label>
+                Tea line
+                <input id="recordLineFilter" placeholder="Line name" />
+              </label>
+              <label>
+                Date from
+                <input id="recordDateFromFilter" type="date" />
+              </label>
+              <label>
+                Date to
+                <input id="recordDateToFilter" type="date" />
+              </label>
+              <label>
+                Posted by
+                <input id="recordPostedByFilter" placeholder="Office user" />
+              </label>
+              <label>
+                Collector
+                <input id="recordCollectorFilter" placeholder="Tablet collector" />
+              </label>
+            </div>
+            <div class="table-scroll">
+              <table id="recordsTable">
+                <thead>
+                  <tr>
+                    <th>Saved on tablet</th>
+                    <th>Supplier</th>
+                    <th>Line</th>
+                    <th>Bags</th>
+                    <th>Original gross</th>
+                    <th>Office gross</th>
+                    <th>Net</th>
+                    <th>Print</th>
+                    <th>Printed on tablet</th>
+                    <th>Collector</th>
+                    <th>Posted by</th>
+                    <th>Posted at</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="pagination-bar">
+              <span id="recordsPageInfo">No records</span>
+              <div class="pagination-actions">
+                <button id="recordsPrevPage" class="ghost-button" type="button">Previous</button>
+                <button id="recordsNextPage" class="ghost-button" type="button">Next</button>
+              </div>
+            </div>
+          </section>
+        </section>
+
         <section id="bookView" class="view">
           <div class="view-heading">
             <h2>Green Leaf Book</h2>
             <p>Load a calendar month to view supplier-wise daily intake and payment totals.</p>
           </div>
-          <section class="panel">
+          <section class="panel book-panel">
             <div class="toolbar">
               <input id="bookMonth" type="month" />
               <button id="loadBook">Load month</button>
@@ -335,6 +415,23 @@
         </div>
 
         <div id="editModalBody"></div>
+      </section>
+    </div>
+
+    <div id="confirmPostAllModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirmPostAllTitle">
+      <section class="modal confirmation-modal">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow">Confirm posting</span>
+            <h2 id="confirmPostAllTitle">Post all staged records?</h2>
+          </div>
+          <button id="cancelPostAllTop" class="ghost-button" type="button">Close</button>
+        </div>
+        <p id="confirmPostAllMessage">This will permanently post all staged tablet records using the net weights currently shown in the table.</p>
+        <div class="modal-actions">
+          <button id="cancelPostAll" class="ghost-button" type="button">Cancel</button>
+          <button id="confirmPostAll" type="button">Post all records</button>
+        </div>
       </section>
     </div>
 

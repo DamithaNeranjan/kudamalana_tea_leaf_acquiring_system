@@ -62,6 +62,8 @@ Payload shape:
       "id": "mobile-record-id",
       "collectionDate": "2026-06-05",
       "collectionTime": "08:30",
+      "tabletSavedAt": "2026-06-05 08:30:00",
+      "printedAt": "2026-06-05 08:31:10",
       "lineId": "line-id",
       "lineName": "Line A",
       "supplierId": "supplier-id",
@@ -76,11 +78,11 @@ Payload shape:
 }
 ```
 
-The desktop app imports these records into staging and skips duplicates by `id`.
+The desktop app imports these records into staging and skips duplicates by `id`. `tabletSavedAt` and `printedAt` are preserved for desktop audit views when supplied.
 
 ### `GET /office/green-leaf-book?month=YYYY-MM`
 
-Returns the calculated monthly green leaf book.
+Returns the calculated monthly green leaf book. Posted collection entries for the month are included even if their current supplier master row is unavailable.
 
 ### `GET /office/pairing-info`
 

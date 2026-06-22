@@ -122,42 +122,42 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             })
           });
         }
-      }
-      if (request.method === "POST" && url.pathname === "/office/line-users") {
-        return send(response, 201, await store.upsert("lineUsers", await body(request), "line_user"));
-      }
-      if (request.method === "POST" && url.pathname === "/office/tea-lines") {
-        return send(response, 201, await store.upsert("teaLines", await body(request), "line"));
-      }
-      if (request.method === "POST" && url.pathname === "/office/suppliers") {
-        return send(response, 201, await store.upsert("suppliers", await body(request), "sup"));
-      }
-      if (request.method === "POST" && url.pathname === "/office/monthly-settings") {
-        return send(response, 201, await store.upsert("monthlySettings", await body(request), "settings"));
-      }
-      if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
-        return send(response, 200, await store.updateStaging(url.pathname.split("/").pop(), await body(request)));
-      }
-      if (request.method === "POST" && url.pathname.endsWith("/post") && url.pathname.startsWith("/office/staging/")) {
-        return send(response, 200, await store.postStaging(url.pathname.split("/").at(-2)));
-      }
-      if (request.method === "GET" && url.pathname === "/office/state") {
-        return send(response, 200, store.data);
-      }
-      if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
-        const month = url.searchParams.get("month");
-        const exported = store.exportForCloud();
-        return send(response, 200, buildGreenLeafBook({ month, ...exported, entries: exported.collectionEntries }));
-      }
-      if (request.method === "GET" && url.pathname === "/office/advance-suggestion") {
-        const month = url.searchParams.get("month");
-        const supplierId = url.searchParams.get("supplierId");
-        const exported = store.exportForCloud();
-        return send(
-          response,
-          200,
-          suggestAdvancePayment({ month, supplierId, ...exported, entries: exported.collectionEntries })
-        );
+        if (request.method === "POST" && url.pathname === "/office/line-users") {
+          return send(response, 201, await store.upsert("lineUsers", await body(request), "line_user"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/tea-lines") {
+          return send(response, 201, await store.upsert("teaLines", await body(request), "line"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/suppliers") {
+          return send(response, 201, await store.upsert("suppliers", await body(request), "sup"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/monthly-settings") {
+          return send(response, 201, await store.upsert("monthlySettings", await body(request), "settings"));
+        }
+        if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
+          return send(response, 200, await store.updateStaging(url.pathname.split("/").pop(), await body(request)));
+        }
+        if (request.method === "POST" && url.pathname.endsWith("/post") && url.pathname.startsWith("/office/staging/")) {
+          return send(response, 200, await store.postStaging(url.pathname.split("/").at(-2), session.user));
+        }
+        if (request.method === "GET" && url.pathname === "/office/state") {
+          return send(response, 200, store.data);
+        }
+        if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
+          const month = url.searchParams.get("month");
+          const exported = store.exportForCloud();
+          return send(response, 200, buildGreenLeafBook({ month, ...exported, entries: exported.collectionEntries }));
+        }
+        if (request.method === "GET" && url.pathname === "/office/advance-suggestion") {
+          const month = url.searchParams.get("month");
+          const supplierId = url.searchParams.get("supplierId");
+          const exported = store.exportForCloud();
+          return send(
+            response,
+            200,
+            suggestAdvancePayment({ month, supplierId, ...exported, entries: exported.collectionEntries })
+          );
+        }
       }
       return send(response, 404, { error: "Not found" });
     } catch (error) {

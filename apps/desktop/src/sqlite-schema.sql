@@ -109,7 +109,8 @@ CREATE TABLE advances (
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
   amount REAL NOT NULL,
-  effective_month TEXT NOT NULL
+  effective_month TEXT NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE fertilizer_issues (
@@ -120,7 +121,8 @@ CREATE TABLE fertilizer_issues (
   total_amount REAL NOT NULL,
   split_months INTEGER NOT NULL,
   effective_month_1 TEXT NOT NULL,
-  effective_month_2 TEXT
+  effective_month_2 TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE fertilizer_installments (

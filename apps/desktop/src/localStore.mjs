@@ -130,6 +130,14 @@ export class LocalStore {
         this.db.prepare(`ALTER TABLE collection_staging ADD COLUMN ${column[0]} ${column[1]}`).run();
       }
     }
+    for (const [table, column] of [
+      ["advances", ["updated_at", "TEXT"]],
+      ["fertilizer_issues", ["updated_at", "TEXT"]]
+    ]) {
+      if (!this.hasColumn(table, column[0])) {
+        this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column[0]} ${column[1]}`).run();
+      }
+    }
   }
 
   hasColumn(table, column) {
@@ -404,15 +412,16 @@ export class LocalStore {
     }
     this.db
       .prepare(
-        `INSERT INTO advances (id, supplier_id, date, amount, effective_month)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO advances (id, supplier_id, date, amount, effective_month, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            supplier_id = excluded.supplier_id,
            date = excluded.date,
            amount = excluded.amount,
-           effective_month = excluded.effective_month`
+           effective_month = excluded.effective_month,
+           updated_at = excluded.updated_at`
       )
-      .run(advance.id, advance.supplierId, advance.date, amount, advance.effectiveMonth);
+      .run(advance.id, advance.supplierId, advance.date, amount, advance.effectiveMonth, advance.updatedAt || now());
   }
 
   upsertFertilizerIssue(issue) {
@@ -452,8 +461,8 @@ export class LocalStore {
       this.db
         .prepare(
           `INSERT INTO fertilizer_issues
-           (id, supplier_id, date, kg_given, total_amount, split_months, effective_month_1, effective_month_2)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           (id, supplier_id, date, kg_given, total_amount, split_months, effective_month_1, effective_month_2, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              supplier_id = excluded.supplier_id,
              date = excluded.date,
@@ -461,7 +470,8 @@ export class LocalStore {
              total_amount = excluded.total_amount,
              split_months = excluded.split_months,
              effective_month_1 = excluded.effective_month_1,
-             effective_month_2 = excluded.effective_month_2`
+             effective_month_2 = excluded.effective_month_2,
+             updated_at = excluded.updated_at`
         )
         .run(
           issue.id,
@@ -471,7 +481,8 @@ export class LocalStore {
           totalAmount,
           splitMonths,
           effectiveMonths[0],
-          effectiveMonths[1] || null
+          effectiveMonths[1] || null,
+          issue.updatedAt || now()
         );
       this.db.prepare("DELETE FROM fertilizer_installments WHERE fertilizer_issue_id = ?").run(issue.id);
       const insertInstallment = this.db.prepare(
@@ -821,7 +832,11 @@ export class LocalStore {
   }
 
   advances() {
-    return this.db.prepare("SELECT id, supplier_id AS supplierId, date, amount, effective_month AS effectiveMonth FROM advances").all();
+    return this.db
+      .prepare(
+        "SELECT id, supplier_id AS supplierId, date, amount, effective_month AS effectiveMonth, updated_at AS updatedAt FROM advances"
+      )
+      .all();
   }
 
   fertilizerInstallments() {
@@ -836,7 +851,8 @@ export class LocalStore {
     return this.db
       .prepare(
         `SELECT id, supplier_id AS supplierId, date, kg_given AS kgGiven, total_amount AS totalAmount,
-         split_months AS splitMonths, effective_month_1 AS effectiveMonth1, effective_month_2 AS effectiveMonth2
+         split_months AS splitMonths, effective_month_1 AS effectiveMonth1, effective_month_2 AS effectiveMonth2,
+         updated_at AS updatedAt
          FROM fertilizer_issues ORDER BY date DESC, id DESC`
       )
       .all();
@@ -1026,7 +1042,8 @@ CREATE TABLE IF NOT EXISTS advances (
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
   amount REAL NOT NULL,
-  effective_month TEXT NOT NULL
+  effective_month TEXT NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS fertilizer_issues (
@@ -1037,7 +1054,8 @@ CREATE TABLE IF NOT EXISTS fertilizer_issues (
   total_amount REAL NOT NULL,
   split_months INTEGER NOT NULL,
   effective_month_1 TEXT NOT NULL,
-  effective_month_2 TEXT
+  effective_month_2 TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS fertilizer_installments (

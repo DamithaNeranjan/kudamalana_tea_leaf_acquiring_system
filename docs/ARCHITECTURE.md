@@ -50,6 +50,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Header: Kudamalana Tea Factory branding, current office session, and logout action.
 - Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Fertilizer, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
+- Saved listing tables show 10 records per page and order records by latest saved first.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
 - Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override.
 - Tea Line editing can apply one month-specific special green leaf price to all active suppliers belonging to that line.

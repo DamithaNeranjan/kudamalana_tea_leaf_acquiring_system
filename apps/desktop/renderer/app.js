@@ -16,6 +16,16 @@ const filters = {
 };
 let recordsPage = 1;
 const recordsPageSize = 10;
+const listPageSize = 10;
+const listPages = {
+  teaLines: 1,
+  lineUsers: 1,
+  suppliers: 1,
+  monthlySettings: 1,
+  advances: 1,
+  fertilizer: 1,
+  staging: 1
+};
 
 async function api(path, options = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -151,17 +161,26 @@ document.addEventListener("click", (event) => {
   }
 });
 
-for (const [selector, key] of [
-  ["#teaLineFilter", "teaLineName"],
-  ["#lineUserFilter", "lineUserName"],
-  ["#supplierNameFilter", "supplierName"],
-  ["#supplierLineFilter", "supplierLine"]
+for (const [selector, key, pageKey] of [
+  ["#teaLineFilter", "teaLineName", "teaLines"],
+  ["#lineUserFilter", "lineUserName", "lineUsers"],
+  ["#supplierNameFilter", "supplierName", "suppliers"],
+  ["#supplierLineFilter", "supplierLine", "suppliers"]
 ]) {
   document.querySelector(selector).addEventListener("input", (event) => {
     filters[key] = event.target.value.trim().toLowerCase();
+    listPages[pageKey] = 1;
     if (latestState) renderRegistrationTables(latestState);
   });
 }
+
+document.addEventListener("click", (event) => {
+  const pageKey = event.target.dataset.pageKey;
+  const pageDir = event.target.dataset.pageDir;
+  if (!pageKey || !pageDir || !latestState) return;
+  listPages[pageKey] = Math.max(1, (listPages[pageKey] || 1) + Number(pageDir));
+  renderStateTables(latestState);
+});
 
 for (const [selector, key] of [
   ["#recordSupplierFilter", "recordSupplier"],
@@ -208,11 +227,24 @@ async function refreshState() {
   if (!officeToken) return;
   const state = await api("/office/state");
   latestState = state;
+  renderStateTables(state);
+}
+
+function renderStateTables(state) {
   renderRegistrationTables(state);
   renderAdvances(state);
   renderFertilizer(state);
+  renderStaging(state);
   renderCollectionRecords(state.collectionEntries);
-  document.querySelector("#stagingTable tbody").innerHTML = state.collectionStaging
+}
+
+function renderStaging(state) {
+  const pageRows = paginateList(
+    "staging",
+    state.collectionStaging.slice().sort((a, b) => compareNewestFirst(a, b, "importedAt")),
+    "stagingTable"
+  );
+  document.querySelector("#stagingTable tbody").innerHTML = pageRows
     .map(
       (row) => `
       <tr>
@@ -228,6 +260,56 @@ async function refreshState() {
     .join("");
 }
 
+function compareNewestFirst(a, b, ...fields) {
+  const aValue = latestComparableValue(a, fields);
+  const bValue = latestComparableValue(b, fields);
+  if (aValue !== bValue) return bValue - aValue;
+  return String(b.id || "").localeCompare(String(a.id || ""));
+}
+
+function latestComparableValue(item, fields) {
+  for (const field of fields) {
+    const value = item?.[field];
+    if (!value) continue;
+    const time = Date.parse(value);
+    if (!Number.isNaN(time)) return time;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+}
+
+function paginateList(pageKey, items, tableId) {
+  const pageCount = Math.max(1, Math.ceil(items.length / listPageSize));
+  listPages[pageKey] = Math.min(Math.max(1, listPages[pageKey] || 1), pageCount);
+  const start = (listPages[pageKey] - 1) * listPageSize;
+  const pageItems = items.slice(start, start + listPageSize);
+  renderListPagination(pageKey, tableId, items.length, start, pageItems.length, pageCount);
+  return pageItems;
+}
+
+function renderListPagination(pageKey, tableId, total, start, shownCount, pageCount) {
+  const table = document.querySelector(`#${tableId}`);
+  let pagination = document.querySelector(`[data-pagination-for="${tableId}"]`);
+  if (!pagination) {
+    pagination = document.createElement("div");
+    pagination.className = "pagination-bar";
+    pagination.dataset.paginationFor = tableId;
+    pagination.innerHTML = `
+      <span></span>
+      <div class="pagination-actions">
+        <button class="ghost-button" type="button" data-page-key="${pageKey}" data-page-dir="-1">Previous</button>
+        <button class="ghost-button" type="button" data-page-key="${pageKey}" data-page-dir="1">Next</button>
+      </div>`;
+    table.insertAdjacentElement("afterend", pagination);
+  }
+  const shownEnd = Math.min(start + shownCount, total);
+  pagination.querySelector("span").textContent = total ? `Showing ${start + 1}-${shownEnd} of ${total}` : "No records";
+  const [previous, next] = pagination.querySelectorAll("button");
+  previous.disabled = listPages[pageKey] <= 1;
+  next.disabled = listPages[pageKey] >= pageCount;
+}
+
 function renderAdvances(state) {
   const supplierOptions = state.suppliers
     .filter((supplier) => supplier.active)
@@ -238,9 +320,13 @@ function renderAdvances(state) {
   supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
   supplierSelect.value = selectedSupplier;
 
-  document.querySelector("#advancesTable tbody").innerHTML = state.advances
+  const pageRows = paginateList(
+    "advances",
+    state.advances.slice().sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date", "effectiveMonth")),
+    "advancesTable"
+  );
+  document.querySelector("#advancesTable tbody").innerHTML = pageRows
     .slice()
-    .sort((a, b) => `${b.effectiveMonth} ${b.date}`.localeCompare(`${a.effectiveMonth} ${a.date}`))
     .map((advance) => {
       const supplier = state.suppliers.find((item) => item.id === advance.supplierId);
       return `
@@ -264,9 +350,12 @@ function renderFertilizer(state) {
   supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
   supplierSelect.value = selectedSupplier;
 
-  document.querySelector("#fertilizerTable tbody").innerHTML = (state.fertilizerIssues || [])
-    .slice()
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+  const pageRows = paginateList(
+    "fertilizer",
+    (state.fertilizerIssues || []).slice().sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date")),
+    "fertilizerTable"
+  );
+  document.querySelector("#fertilizerTable tbody").innerHTML = pageRows
     .map((issue) => {
       const supplier = state.suppliers.find((item) => item.id === issue.supplierId);
       const months = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).join(", ");
@@ -299,7 +388,7 @@ function renderCollectionRecords(records = []) {
         (!filters.recordDateTo || record.collectionDate <= filters.recordDateTo)
       );
     })
-    .sort((a, b) => `${b.collectionDate} ${b.collectionTime || ""}`.localeCompare(`${a.collectionDate} ${a.collectionTime || ""}`));
+    .sort((a, b) => compareNewestFirst(a, b, "postedAt", "tabletSavedAt", "collectionDate"));
   const pageCount = Math.max(1, Math.ceil(filtered.length / recordsPageSize));
   recordsPage = Math.min(recordsPage, pageCount);
   const start = (recordsPage - 1) * recordsPageSize;
@@ -382,8 +471,14 @@ function renderRegistrationTables(state) {
     .map((line) => `<option value="${escapeAttribute(line.name)}"></option>`)
     .join("");
 
-  document.querySelector("#teaLinesTable tbody").innerHTML = state.teaLines
-    .filter((line) => line.name.toLowerCase().includes(filters.teaLineName))
+  const teaLines = paginateList(
+    "teaLines",
+    state.teaLines
+      .filter((line) => line.name.toLowerCase().includes(filters.teaLineName))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt")),
+    "teaLinesTable"
+  );
+  document.querySelector("#teaLinesTable tbody").innerHTML = teaLines
     .map(
       (line) => `
       <tr>
@@ -397,8 +492,14 @@ function renderRegistrationTables(state) {
     )
     .join("");
 
-  document.querySelector("#lineUsersTable tbody").innerHTML = state.lineUsers
-    .filter((user) => user.displayName.toLowerCase().includes(filters.lineUserName))
+  const lineUsers = paginateList(
+    "lineUsers",
+    state.lineUsers
+      .filter((user) => user.displayName.toLowerCase().includes(filters.lineUserName))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt")),
+    "lineUsersTable"
+  );
+  document.querySelector("#lineUsersTable tbody").innerHTML = lineUsers
     .map(
       (user) => `
       <tr>
@@ -413,9 +514,15 @@ function renderRegistrationTables(state) {
     )
     .join("");
 
-  document.querySelector("#suppliersTable tbody").innerHTML = state.suppliers
-    .filter((supplier) => supplier.name.toLowerCase().includes(filters.supplierName))
-    .filter((supplier) => supplier.lineName.toLowerCase().includes(filters.supplierLine))
+  const suppliers = paginateList(
+    "suppliers",
+    state.suppliers
+      .filter((supplier) => supplier.name.toLowerCase().includes(filters.supplierName))
+      .filter((supplier) => supplier.lineName.toLowerCase().includes(filters.supplierLine))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt")),
+    "suppliersTable"
+  );
+  document.querySelector("#suppliersTable tbody").innerHTML = suppliers
     .map((supplier) => {
       const flags = [
         supplier.deductionEnabled ? "2% deduct" : "",
@@ -440,7 +547,12 @@ function renderRegistrationTables(state) {
     })
     .join("");
 
-  document.querySelector("#monthlySettingsTable tbody").innerHTML = state.monthlySettings
+  const monthlySettings = paginateList(
+    "monthlySettings",
+    state.monthlySettings.slice().sort((a, b) => compareNewestFirst(a, b, "updatedAt", "month")),
+    "monthlySettingsTable"
+  );
+  document.querySelector("#monthlySettingsTable tbody").innerHTML = monthlySettings
     .map(
       (setting) => `
       <tr>
@@ -494,6 +606,7 @@ document.addEventListener("click", (event) => {
 async function saveForm(form, path) {
   if (form.id === "supplierForm" && !validateSupplierTeaLine(form)) return;
   await api(path, { method: "POST", body: JSON.stringify(formJson(form)) });
+  resetPageForForm(form.id);
   const button = form.querySelector('button[type="submit"]');
   const originalText = button.textContent;
   button.textContent = "Saved";
@@ -503,6 +616,19 @@ async function saveForm(form, path) {
   form.reset();
   await refreshState();
   showToast("Saved successfully.");
+}
+
+function resetPageForForm(formId) {
+  const pageKeyByForm = {
+    lineForm: "teaLines",
+    lineUserForm: "lineUsers",
+    supplierForm: "suppliers",
+    monthlySettingsForm: "monthlySettings",
+    advanceForm: "advances",
+    fertilizerForm: "fertilizer"
+  };
+  const pageKey = pageKeyByForm[formId];
+  if (pageKey) listPages[pageKey] = 1;
 }
 
 function openEditModal(title, eyebrow, formHtml) {

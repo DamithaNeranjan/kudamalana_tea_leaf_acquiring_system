@@ -83,6 +83,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
 - Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
 - Green Leaf Book uses posted collection entries for the selected month, splits advance date, advance amount, and total advance into separate columns, subtracts advances from balance, and shows only the selected month's fertilizer rupee deduction before made tea packet and transport deductions.
+- Saved listing tables are paginated at 10 records per page and show the latest saved records first.
 - Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
 - Suppliers must be assigned to an already registered active tea line.
 - The desktop window uses `apps/logo/KudamalanaLogo1.png` for visible branding and the Electron window icon.

@@ -51,6 +51,7 @@ Manual desktop UI checks:
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
 - Open Fertilizer, select a supplier, enter date given, kg, total value, split count, and effective month or months. Confirm the Green Leaf Book deducts only the fertilizer rupee amount assigned to the selected month.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
+- Confirm saved listing tables show 10 records per page, the latest saved records appear first, and Previous/Next controls page through older records.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
 - Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.

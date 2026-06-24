@@ -112,6 +112,17 @@ CREATE TABLE advances (
   effective_month TEXT NOT NULL
 );
 
+CREATE TABLE fertilizer_issues (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  kg_given REAL NOT NULL,
+  total_amount REAL NOT NULL,
+  split_months INTEGER NOT NULL,
+  effective_month_1 TEXT NOT NULL,
+  effective_month_2 TEXT
+);
+
 CREATE TABLE fertilizer_installments (
   id TEXT PRIMARY KEY,
   fertilizer_issue_id TEXT NOT NULL,

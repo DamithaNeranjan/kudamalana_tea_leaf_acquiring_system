@@ -231,6 +231,7 @@ export class LocalStore {
     else if (collection === "monthlySettings") this.upsertMonthlySetting(saved);
     else if (collection === "supplierMonthOverrides") this.upsertSupplierMonthOverride(saved);
     else if (collection === "advances") this.upsertAdvance(saved);
+    else if (collection === "fertilizerIssues") this.upsertFertilizerIssue(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
     this.refreshSnapshot();
     return saved;
@@ -414,6 +415,79 @@ export class LocalStore {
       .run(advance.id, advance.supplierId, advance.date, amount, advance.effectiveMonth);
   }
 
+  upsertFertilizerIssue(issue) {
+    if (!issue.supplierId || !issue.date || !issue.effectiveMonth1) {
+      const error = new Error("Supplier, date given, and at least one effective month are required");
+      error.status = 400;
+      throw error;
+    }
+    const kgGiven = Number(issue.kgGiven);
+    const totalAmount = Number(issue.totalAmount);
+    const splitMonths = Number(issue.splitMonths || 1);
+    const effectiveMonths = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).slice(0, splitMonths);
+    if (!Number.isFinite(kgGiven) || kgGiven <= 0) {
+      const error = new Error("Fertilizer kg must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      const error = new Error("Fertilizer rupee value must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    if (![1, 2].includes(splitMonths) || effectiveMonths.length !== splitMonths) {
+      const error = new Error("Fertilizer deduction must be split into one or two effective months");
+      error.status = 400;
+      throw error;
+    }
+
+    const firstAmount = Math.round((totalAmount / splitMonths + Number.EPSILON) * 100) / 100;
+    const installmentAmounts =
+      splitMonths === 1
+        ? [totalAmount]
+        : [firstAmount, Math.round((totalAmount - firstAmount + Number.EPSILON) * 100) / 100];
+
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO fertilizer_issues
+           (id, supplier_id, date, kg_given, total_amount, split_months, effective_month_1, effective_month_2)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             supplier_id = excluded.supplier_id,
+             date = excluded.date,
+             kg_given = excluded.kg_given,
+             total_amount = excluded.total_amount,
+             split_months = excluded.split_months,
+             effective_month_1 = excluded.effective_month_1,
+             effective_month_2 = excluded.effective_month_2`
+        )
+        .run(
+          issue.id,
+          issue.supplierId,
+          issue.date,
+          kgGiven,
+          totalAmount,
+          splitMonths,
+          effectiveMonths[0],
+          effectiveMonths[1] || null
+        );
+      this.db.prepare("DELETE FROM fertilizer_installments WHERE fertilizer_issue_id = ?").run(issue.id);
+      const insertInstallment = this.db.prepare(
+        `INSERT INTO fertilizer_installments (id, fertilizer_issue_id, supplier_id, effective_month, amount)
+         VALUES (?, ?, ?, ?, ?)`
+      );
+      effectiveMonths.forEach((month, index) => {
+        insertInstallment.run(`${issue.id}_${month}`, issue.id, issue.supplierId, month, installmentAmounts[index]);
+      });
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   async upsertLineSupplierPriceOverride(input) {
     const lineId = String(input.lineId || "").trim();
     const lineName = String(input.lineName || "").trim();
@@ -562,6 +636,7 @@ export class LocalStore {
       monthlySettings: this.monthlySettings(),
       supplierMonthOverrides: this.supplierMonthOverrides(),
       advances: this.advances(),
+      fertilizerIssues: this.fertilizerIssues(),
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
       arrears: this.arrears()
@@ -579,6 +654,7 @@ export class LocalStore {
       collectionStaging: this.collectionStaging(),
       collectionEntries: this.collectionEntries(),
       advances: this.advances(),
+      fertilizerIssues: this.fertilizerIssues(),
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
       arrears: this.arrears(),
@@ -752,6 +828,16 @@ export class LocalStore {
     return this.db
       .prepare(
         "SELECT id, fertilizer_issue_id AS fertilizerIssueId, supplier_id AS supplierId, effective_month AS effectiveMonth, amount FROM fertilizer_installments"
+      )
+      .all();
+  }
+
+  fertilizerIssues() {
+    return this.db
+      .prepare(
+        `SELECT id, supplier_id AS supplierId, date, kg_given AS kgGiven, total_amount AS totalAmount,
+         split_months AS splitMonths, effective_month_1 AS effectiveMonth1, effective_month_2 AS effectiveMonth2
+         FROM fertilizer_issues ORDER BY date DESC, id DESC`
       )
       .all();
   }
@@ -941,6 +1027,17 @@ CREATE TABLE IF NOT EXISTS advances (
   date TEXT NOT NULL,
   amount REAL NOT NULL,
   effective_month TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fertilizer_issues (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  kg_given REAL NOT NULL,
+  total_amount REAL NOT NULL,
+  split_months INTEGER NOT NULL,
+  effective_month_1 TEXT NOT NULL,
+  effective_month_2 TEXT
 );
 
 CREATE TABLE IF NOT EXISTS fertilizer_installments (

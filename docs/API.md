@@ -103,6 +103,26 @@ Payload:
 
 Office-session protected endpoint that suggests an advance amount from the supplier's current month kg multiplied by the effective supplier price, minus pending arrears and advances already given for that supplier/month.
 
+### `POST /office/fertilizer-issues`
+
+Office-session protected endpoint that records fertilizer lent to a supplier and creates one or two monthly deduction installments.
+
+Payload:
+
+```json
+{
+  "supplierId": "supplier-id",
+  "date": "2026-06-15",
+  "kgGiven": 20,
+  "totalAmount": 10000,
+  "splitMonths": 2,
+  "effectiveMonth1": "2026-06",
+  "effectiveMonth2": "2026-07"
+}
+```
+
+`splitMonths` must be `1` or `2`. The Green Leaf Book only deducts the generated fertilizer installment amount whose effective month matches the selected book month.
+
 ### `POST /office/supplier-month-overrides`
 
 Office-session protected endpoint that sets a month-specific override for one supplier. When `teaPricePerKg` is supplied, it replaces the selected month's default tea price for that supplier.

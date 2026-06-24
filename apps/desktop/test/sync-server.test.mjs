@@ -121,13 +121,37 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     });
     assert.equal(advance.status, 201);
 
+    const fertilizer = await fetch(`${baseUrl}/office/fertilizer-issues`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        supplierId: "sup_1",
+        date: "2026-05-13",
+        kgGiven: 20,
+        totalAmount: 1000,
+        splitMonths: 2,
+        effectiveMonth1: "2026-05",
+        effectiveMonth2: "2026-06"
+      })
+    });
+    assert.equal(fertilizer.status, 201);
+
     const book = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
     assert.equal(book.rows[0].totalKg, 12);
     assert.equal(book.rows[0].pricePerKg, 250);
     assert.deepEqual(book.rows[0].advancePayments, [{ date: "2026-05-12", amount: 500 }]);
-    assert.equal(book.rows[0].balanceToPay, 2500);
+    assert.equal(book.rows[0].fertilizerDeduction, 500);
+    assert.equal(book.rows[0].balanceToPay, 2000);
     const postedState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
     assert.equal(postedState.collectionEntries[0].postedByOfficeUserName, "Factory Office");
+    assert.equal(postedState.fertilizerIssues[0].kgGiven, 20);
+    assert.deepEqual(
+      postedState.fertilizerInstallments.map((item) => [item.effectiveMonth, item.amount]).sort(),
+      [
+        ["2026-05", 500],
+        ["2026-06", 500]
+      ]
+    );
 
     const logout = await fetch(`${baseUrl}/office/logout`, { method: "POST", headers: auth });
     assert.equal(logout.status, 200);

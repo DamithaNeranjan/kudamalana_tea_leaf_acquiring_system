@@ -507,12 +507,14 @@ main {
   grid-column: 1 / -1;
 }
 
-.advance-form {
+.advance-form,
+.fertilizer-form {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .advance-actions,
-.advance-message {
+.advance-message,
+.fertilizer-actions {
   grid-column: 1 / -1;
 }
 
@@ -826,10 +828,36 @@ th:first-child {
   margin-top: 0;
 }
 
+.book-wrap th,
+.book-wrap td {
+  border-left: 1px solid #dce5d8;
+}
+
+.book-wrap th:last-child,
+.book-wrap td:last-child {
+  border-right: 1px solid #dce5d8;
+}
+
 .book-wrap th {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.advance-breakdown {
+  padding-bottom: 0;
+  padding-top: 0;
+}
+
+.advance-breakdown span {
+  border-bottom: 1px solid #edf2ea;
+  display: block;
+  margin-inline: -8px;
+  padding: 7px 8px;
+}
+
+.advance-breakdown span:last-child {
+  border-bottom: 0;
 }
 
 @media (max-width: 900px) {

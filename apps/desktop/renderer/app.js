@@ -147,6 +147,7 @@ document.addEventListener("click", (event) => {
     if (idInput) idInput.value = "";
     if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
     if (clearFormId === "advanceForm") populateAdvanceForm();
+    if (clearFormId === "fertilizerForm") populateFertilizerForm();
   }
 });
 
@@ -209,6 +210,7 @@ async function refreshState() {
   latestState = state;
   renderRegistrationTables(state);
   renderAdvances(state);
+  renderFertilizer(state);
   renderCollectionRecords(state.collectionEntries);
   document.querySelector("#stagingTable tbody").innerHTML = state.collectionStaging
     .map(
@@ -247,6 +249,35 @@ function renderAdvances(state) {
         <td>${escapeHtml(advance.effectiveMonth)}</td>
         <td>${escapeHtml(advance.date)}</td>
         <td>${advance.amount}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderFertilizer(state) {
+  const supplierOptions = state.suppliers
+    .filter((supplier) => supplier.active)
+    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .join("");
+  const supplierSelect = document.querySelector('#fertilizerForm select[name="supplierId"]');
+  const selectedSupplier = supplierSelect.value;
+  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
+  supplierSelect.value = selectedSupplier;
+
+  document.querySelector("#fertilizerTable tbody").innerHTML = (state.fertilizerIssues || [])
+    .slice()
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .map((issue) => {
+      const supplier = state.suppliers.find((item) => item.id === issue.supplierId);
+      const months = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).join(", ");
+      return `
+      <tr>
+        <td>${escapeHtml(supplier?.name || issue.supplierId)}</td>
+        <td>${escapeHtml(issue.date)}</td>
+        <td>${issue.kgGiven}</td>
+        <td>${issue.totalAmount}</td>
+        <td>${issue.splitMonths} month${Number(issue.splitMonths) === 1 ? "" : "s"}</td>
+        <td>${escapeHtml(months)}</td>
       </tr>`;
     })
     .join("");
@@ -674,6 +705,14 @@ document.querySelector("#advanceForm").addEventListener("submit", async (event) 
   populateAdvanceForm();
 });
 
+document.querySelector("#fertilizerForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/fertilizer-issues");
+  populateFertilizerForm();
+});
+
+document.querySelector('#fertilizerForm select[name="splitMonths"]').addEventListener("change", updateFertilizerMonthRequirement);
+
 document.querySelector("#suggestAdvance").addEventListener("click", async () => {
   const form = document.querySelector("#advanceForm");
   const supplierId = form.elements.supplierId.value;
@@ -790,8 +829,8 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
         <td>${row.deductionKg}</td>
         <td>${row.finalKg}</td>
         <td>${row.ownTransportAddition}</td>
-        <td>${formatAdvanceDates(row)}</td>
-        <td>${formatAdvanceAmounts(row)}</td>
+        <td class="advance-breakdown">${formatAdvanceDates(row)}</td>
+        <td class="advance-breakdown">${formatAdvanceAmounts(row)}</td>
         <td>${row.totalAdvances}</td>
         <td>${row.fertilizerDeduction}</td>
         <td>${row.teaPacketDeduction}</td>
@@ -820,6 +859,7 @@ document.querySelector("#refreshPairingQr").addEventListener("click", refreshPai
 document.querySelector("#bookMonth").value = localMonthValue();
 populateMonthlySettingsForm();
 populateAdvanceForm();
+populateFertilizerForm();
 
 function populateMonthlySettingsForm(setting = null) {
   const form = document.querySelector("#monthlySettingsForm");
@@ -849,14 +889,32 @@ function populateAdvanceForm() {
   document.querySelector("#advanceSuggestionMessage").textContent = "";
 }
 
+function populateFertilizerForm() {
+  const form = document.querySelector("#fertilizerForm");
+  form.elements.id.value = "";
+  form.elements.date.value = localDateValue();
+  form.elements.splitMonths.value = "1";
+  form.elements.effectiveMonth1.value = localMonthValue();
+  form.elements.effectiveMonth2.value = "";
+  updateFertilizerMonthRequirement();
+}
+
+function updateFertilizerMonthRequirement() {
+  const form = document.querySelector("#fertilizerForm");
+  const needsSecondMonth = form.elements.splitMonths.value === "2";
+  form.elements.effectiveMonth2.required = needsSecondMonth;
+  form.elements.effectiveMonth2.disabled = !needsSecondMonth;
+  if (!needsSecondMonth) form.elements.effectiveMonth2.value = "";
+}
+
 function formatAdvanceDates(row) {
   const payments = row.advancePayments || [];
   if (!payments.length) return "";
-  return payments.map((advance) => escapeHtml(advance.date)).join("<br>");
+  return payments.map((advance) => `<span>${escapeHtml(advance.date)}</span>`).join("");
 }
 
 function formatAdvanceAmounts(row) {
   const payments = row.advancePayments || [];
   if (!payments.length) return "";
-  return payments.map((advance) => advance.amount).join("<br>");
+  return payments.map((advance) => `<span>${advance.amount}</span>`).join("");
 }

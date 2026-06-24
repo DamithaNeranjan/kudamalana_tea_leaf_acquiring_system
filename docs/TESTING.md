@@ -15,6 +15,7 @@ The current suite covers:
 - selected-month Green Leaf Book rate settings
 - green leaf book fallback rows for posted entries whose supplier master row is unavailable
 - advance recording and advance payment suggestion
+- fertilizer issue recording and generated monthly fertilizer deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
 - desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by audit tracking, and monthly book impact
 
@@ -48,6 +49,7 @@ Manual desktop UI checks:
 - Open Monthly Settings, save the selected month's tea price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
 - Edit a supplier and set a month-specific special price; edit a registered tea line and apply a line-level special price, then confirm the selected month's Green Leaf Book uses the override.
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
+- Open Fertilizer, select a supplier, enter date given, kg, total value, split count, and effective month or months. Confirm the Green Leaf Book deducts only the fertilizer rupee amount assigned to the selected month.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
@@ -91,5 +93,5 @@ Manual web UI checks:
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.
-- Confirm the Green Leaf Book shows Made Tea Packets between Fertilizer and Transport Deduct.
+- Confirm the Green Leaf Book shows the selected month's Fertilizer deduction before Made Tea Packets and Transport Deduct.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.

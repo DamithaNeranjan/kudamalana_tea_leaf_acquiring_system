@@ -49,9 +49,10 @@ username: office
 password: office123
 ```
 
-The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Fertilizer, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
+Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
 
 The visible logo and Electron window icon use:
 

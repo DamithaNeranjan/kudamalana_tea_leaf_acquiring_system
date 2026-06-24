@@ -70,6 +70,7 @@
           <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
           <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="advancesView">Advances</button>
+          <button class="menu-item" type="button" data-view="fertilizerView">Fertilizer</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
           <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
@@ -107,6 +108,10 @@
             <button class="summary-card" type="button" data-view-shortcut="advancesView">
               <strong>Advances</strong>
               <span>Record supplier advances and check suggested amounts.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="fertilizerView">
+              <strong>Fertilizer</strong>
+              <span>Record fertilizer issues and monthly deduction splits.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="stagingView">
               <strong>Staging Review</strong>
@@ -371,6 +376,78 @@
                 </div>
                 <table id="advancesTable">
                   <thead><tr><th>Supplier</th><th>Effective Month</th><th>Date Given</th><th>Amount</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="fertilizerView" class="view">
+          <div class="view-heading">
+            <h2>Fertilizer</h2>
+            <p>Record fertilizer lent to suppliers and split the rupee deduction across one or two months.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Supplier fertilizer</span>
+                <h3>Give Fertilizer</h3>
+                <p>The Green Leaf Book deducts only the installment amount for the selected month.</p>
+              </div>
+              <form id="fertilizerForm" class="form-card fertilizer-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Supplier
+                  <select name="supplierId" required></select>
+                </label>
+                <label>
+                  Date given
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  Fertilizer kg given
+                  <input name="kgGiven" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Total rupee value
+                  <input name="totalAmount" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Split into months
+                  <select name="splitMonths" required>
+                    <option value="1">1 month</option>
+                    <option value="2">2 months</option>
+                  </select>
+                </label>
+                <label>
+                  Effective month 1
+                  <input name="effectiveMonth1" type="month" required />
+                </label>
+                <label>
+                  Effective month 2
+                  <input name="effectiveMonth2" type="month" />
+                </label>
+                <div class="form-actions fertilizer-actions">
+                  <button type="submit">Save fertilizer</button>
+                  <button class="ghost-button" type="button" data-clear-form="fertilizerForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header">
+                  <h4>Saved Fertilizer Issues</h4>
+                </div>
+                <table id="fertilizerTable">
+                  <thead>
+                    <tr>
+                      <th>Supplier</th>
+                      <th>Date Given</th>
+                      <th>Kg Given</th>
+                      <th>Total Value</th>
+                      <th>Split</th>
+                      <th>Effective Months</th>
+                    </tr>
+                  </thead>
                   <tbody></tbody>
                 </table>
               </div>

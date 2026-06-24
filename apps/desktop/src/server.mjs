@@ -134,6 +134,12 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         if (request.method === "POST" && url.pathname === "/office/monthly-settings") {
           return send(response, 201, await store.upsert("monthlySettings", await body(request), "settings"));
         }
+        if (request.method === "POST" && url.pathname === "/office/supplier-month-overrides") {
+          return send(response, 201, await store.upsert("supplierMonthOverrides", await body(request), "override"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/line-supplier-price-overrides") {
+          return send(response, 201, await store.upsertLineSupplierPriceOverride(await body(request)));
+        }
         if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
           return send(response, 200, await store.updateStaging(url.pathname.split("/").pop(), await body(request)));
         }

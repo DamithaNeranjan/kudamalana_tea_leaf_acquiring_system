@@ -53,6 +53,14 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
       body: JSON.stringify({ id: "sup_1", code: "S001", name: "Nimal", lineId: "line_1", lineName: "Line A", active: true })
     });
 
+    await fetch(`${baseUrl}/office/tea-lines`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ id: "line_1", name: "Line A Updated", active: true })
+    });
+    const renamedLineState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    assert.equal(renamedLineState.suppliers.find((supplier) => supplier.id === "sup_1").lineName, "Line A Updated");
+
     const upload = await fetch(`${baseUrl}/sync/collections`, {
       method: "POST",
       body: JSON.stringify({
@@ -93,9 +101,18 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     });
     await fetch(`${baseUrl}/office/staging/${stageId}/post`, { method: "POST", headers: auth });
 
+    const lineOverride = await fetch(`${baseUrl}/office/line-supplier-price-overrides`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ lineId: "line_1", lineName: "Line A", month: "2026-05", teaPricePerKg: 250 })
+    });
+    assert.equal(lineOverride.status, 201);
+    assert.equal((await lineOverride.json()).updatedCount, 1);
+
     const book = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
     assert.equal(book.rows[0].totalKg, 12);
-    assert.equal(book.rows[0].balanceToPay, 2400);
+    assert.equal(book.rows[0].pricePerKg, 250);
+    assert.equal(book.rows[0].balanceToPay, 3000);
     const postedState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
     assert.equal(postedState.collectionEntries[0].postedByOfficeUserName, "Factory Office");
 

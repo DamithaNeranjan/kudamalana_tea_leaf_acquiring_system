@@ -84,6 +84,47 @@ The desktop app imports these records into staging and skips duplicates by `id`.
 
 Returns the calculated monthly green leaf book. Posted collection entries for the month are included even if their current supplier master row is unavailable.
 
+### `POST /office/supplier-month-overrides`
+
+Office-session protected endpoint that sets a month-specific override for one supplier. When `teaPricePerKg` is supplied, it replaces the selected month's default tea price for that supplier.
+
+Payload:
+
+```json
+{
+  "supplierId": "supplier-id",
+  "month": "2026-06",
+  "teaPricePerKg": 250
+}
+```
+
+### `POST /office/line-supplier-price-overrides`
+
+Office-session protected endpoint that applies the same month-specific green leaf price to every active supplier in a selected tea line. The desktop Tea Line edit dialog sends `lineId`; `lineName` is accepted as a fallback.
+
+Payload:
+
+```json
+{
+  "lineId": "line-id",
+  "lineName": "Line A",
+  "month": "2026-06",
+  "teaPricePerKg": 250
+}
+```
+
+Response:
+
+```json
+{
+  "lineId": "line-id",
+  "lineName": "Line A",
+  "month": "2026-06",
+  "teaPricePerKg": 250,
+  "updatedCount": 10
+}
+```
+
 ### `GET /office/pairing-info`
 
 Office-session protected endpoint used by the desktop Pair Tablet screen. Returns the current desktop sync URL and a QR code data URL.

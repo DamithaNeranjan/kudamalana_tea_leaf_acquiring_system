@@ -229,6 +229,7 @@ export class LocalStore {
     else if (collection === "teaLines") this.upsertTeaLine(saved);
     else if (collection === "suppliers") this.upsertSupplier(saved);
     else if (collection === "monthlySettings") this.upsertMonthlySetting(saved);
+    else if (collection === "supplierMonthOverrides") this.upsertSupplierMonthOverride(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
     this.refreshSnapshot();
     return saved;
@@ -277,6 +278,9 @@ export class LocalStore {
            updated_at = excluded.updated_at`
       )
       .run(line.id, line.name, bool(line.active !== false), line.updatedAt);
+    this.db
+      .prepare("UPDATE suppliers SET line_name = ?, updated_at = ? WHERE line_id = ?")
+      .run(line.name, line.updatedAt || now(), line.id);
   }
 
   upsertSupplier(supplier) {
@@ -352,6 +356,71 @@ export class LocalStore {
         Number(setting.factoryTransportDeductionPerKg ?? 3),
         setting.updatedAt || now()
       );
+  }
+
+  upsertSupplierMonthOverride(override) {
+    if (!override.supplierId || !override.month) {
+      const error = new Error("Supplier and month are required for a supplier price override");
+      error.status = 400;
+      throw error;
+    }
+    const id = override.id || `override_${override.supplierId}_${override.month}`;
+    this.db
+      .prepare(
+        `INSERT INTO supplier_month_overrides
+         (id, supplier_id, month, tea_price_per_kg, disable_deduction,
+          disable_own_transport_addition, disable_factory_transport_deduction)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(supplier_id, month) DO UPDATE SET
+           tea_price_per_kg = excluded.tea_price_per_kg,
+           disable_deduction = excluded.disable_deduction,
+           disable_own_transport_addition = excluded.disable_own_transport_addition,
+           disable_factory_transport_deduction = excluded.disable_factory_transport_deduction`
+      )
+      .run(
+        id,
+        override.supplierId,
+        override.month,
+        override.teaPricePerKg === "" || override.teaPricePerKg === undefined ? null : Number(override.teaPricePerKg),
+        bool(override.disableDeduction),
+        bool(override.disableOwnTransportAddition),
+        bool(override.disableFactoryTransportDeduction)
+      );
+  }
+
+  async upsertLineSupplierPriceOverride(input) {
+    const lineId = String(input.lineId || "").trim();
+    const lineName = String(input.lineName || "").trim();
+    const month = String(input.month || "").trim();
+    const price = Number(input.teaPricePerKg);
+    if ((!lineId && !lineName) || !month || !Number.isFinite(price) || price < 0) {
+      const error = new Error("Line, month, and a valid price are required");
+      error.status = 400;
+      throw error;
+    }
+    const suppliers = this.db
+      .prepare(
+        lineId
+          ? "SELECT id FROM suppliers WHERE line_id = ? AND active = 1"
+          : "SELECT id FROM suppliers WHERE lower(line_name) = lower(?) AND active = 1"
+      )
+      .all(lineId || lineName);
+    this.db.exec("BEGIN");
+    try {
+      for (const supplier of suppliers) {
+        this.upsertSupplierMonthOverride({
+          supplierId: supplier.id,
+          month,
+          teaPricePerKg: price
+        });
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.refreshSnapshot();
+    return { lineId: lineId || null, lineName, month, teaPricePerKg: price, updatedCount: suppliers.length };
   }
 
   getMasterData() {

@@ -143,7 +143,8 @@ document.addEventListener("click", (event) => {
   const clearFormId = event.target.dataset.clearForm;
   if (clearFormId) {
     document.querySelector(`#${clearFormId}`).reset();
-    document.querySelector(`#${clearFormId} input[name="id"]`).value = "";
+    const idInput = document.querySelector(`#${clearFormId} input[name="id"]`);
+    if (idInput) idInput.value = "";
     if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
   }
 });
@@ -353,7 +354,8 @@ function renderRegistrationTables(state) {
       const flags = [
         supplier.deductionEnabled ? "2% deduct" : "",
         supplier.ownTransportAdditionEnabled ? "Own transport" : "",
-        supplier.factoryTransportDeductionEnabled ? "Factory transport" : ""
+        supplier.factoryTransportDeductionEnabled ? "Factory transport" : "",
+        currentSupplierPriceOverride(supplier.id) ? `Special ${currentSupplierPriceOverride(supplier.id).teaPricePerKg}` : ""
       ]
         .filter(Boolean)
         .join(", ");
@@ -451,10 +453,42 @@ function closeEditModal() {
 
 async function updateFromModal(form, path, label) {
   if (form.dataset.kind === "supplier" && !validateSupplierTeaLine(form)) return;
-  await api(path, { method: "POST", body: JSON.stringify(formJson(form)) });
+  const payload = formJson(form);
+  const overridePayload = supplierOverrideFromForm(payload);
+  const lineOverridePayload = lineOverrideFromForm(payload);
+  await api(path, { method: "POST", body: JSON.stringify(payload) });
+  if (form.dataset.kind === "supplier" && overridePayload) {
+    await api("/office/supplier-month-overrides", { method: "POST", body: JSON.stringify(overridePayload) });
+  }
+  if (form.dataset.kind === "tea-line" && lineOverridePayload) {
+    const result = await api("/office/line-supplier-price-overrides", { method: "POST", body: JSON.stringify(lineOverridePayload) });
+    showToast(`Applied special price to ${result.updatedCount} active suppliers.`);
+  }
   closeEditModal();
   await refreshState();
   showToast(`${label} updated successfully.`);
+}
+
+function supplierOverrideFromForm(payload) {
+  if (!payload.overrideTeaPricePerKg && !payload.overrideId) return null;
+  if (!payload.overrideMonth || !payload.overrideSupplierId) return null;
+  return {
+    id: payload.overrideId || undefined,
+    supplierId: payload.overrideSupplierId,
+    month: payload.overrideMonth,
+    teaPricePerKg: payload.overrideTeaPricePerKg
+  };
+}
+
+function lineOverrideFromForm(payload) {
+  if (!payload.overrideTeaPricePerKg) return null;
+  if (!payload.overrideMonth || (!payload.overrideLineId && !payload.overrideLineName)) return null;
+  return {
+    lineId: payload.overrideLineId,
+    lineName: payload.overrideLineName || payload.name,
+    month: payload.overrideMonth,
+    teaPricePerKg: payload.overrideTeaPricePerKg
+  };
 }
 
 function escapeAttribute(value) {
@@ -482,6 +516,19 @@ function renderTeaLineEditForm(line) {
         Line name
         <input name="name" value="${escapeAttribute(line.name)}" required />
       </label>
+      <div class="check-list">
+        <strong>Special price for suppliers in this tea line</strong>
+        <input name="overrideLineId" type="hidden" value="${escapeAttribute(line.id)}" />
+        <input name="overrideLineName" type="hidden" value="${escapeAttribute(line.name)}" />
+        <label>
+          Override month
+          <input name="overrideMonth" type="month" value="${escapeAttribute(localMonthValue())}" />
+        </label>
+        <label>
+          Special green leaf price per kg
+          <input name="overrideTeaPricePerKg" type="number" step="0.01" min="0" placeholder="Leave blank to keep existing line prices" />
+        </label>
+      </div>
       <label class="switch-row"><input name="active" type="checkbox" ${checked(line.active)} /> Active</label>
       <button type="submit">Update tea line</button>
     </form>`;
@@ -512,6 +559,7 @@ function renderLineUserEditForm(user) {
 }
 
 function renderSupplierEditForm(supplier) {
+  const override = currentSupplierPriceOverride(supplier.id);
   return `
     <form id="editModalForm" class="modal-form" data-kind="supplier">
       <input name="id" type="hidden" value="${escapeAttribute(supplier.id)}" />
@@ -532,9 +580,28 @@ function renderSupplierEditForm(supplier) {
         <label><input type="checkbox" name="ownTransportAdditionEnabled" ${checked(supplier.ownTransportAdditionEnabled)} /> Own transport addition</label>
         <label><input type="checkbox" name="factoryTransportDeductionEnabled" ${checked(supplier.factoryTransportDeductionEnabled)} /> Factory transport deduction</label>
       </div>
+      <div class="check-list">
+        <strong>Special supplier price for a month</strong>
+        <input name="overrideId" type="hidden" value="${escapeAttribute(override?.id || "")}" />
+        <input name="overrideSupplierId" type="hidden" value="${escapeAttribute(supplier.id)}" />
+        <label>
+          Override month
+          <input name="overrideMonth" type="month" value="${escapeAttribute(override?.month || localMonthValue())}" />
+        </label>
+        <label>
+          Special green leaf price per kg
+          <input name="overrideTeaPricePerKg" type="number" step="0.01" min="0" value="${escapeAttribute(override?.teaPricePerKg ?? "")}" placeholder="Leave blank to use monthly setting" />
+        </label>
+      </div>
       <label class="switch-row"><input name="active" type="checkbox" ${checked(supplier.active)} /> Active</label>
       <button type="submit">Update supplier</button>
     </form>`;
+}
+
+function currentSupplierPriceOverride(supplierId) {
+  return latestState?.supplierMonthOverrides.find(
+    (override) => override.supplierId === supplierId && override.month === localMonthValue() && override.teaPricePerKg !== null
+  );
 }
 
 async function toggleActive(collection, id, path, label) {
@@ -666,6 +733,7 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
         <td>${row.ownTransportAddition}</td>
         <td>${row.totalAdvances}</td>
         <td>${row.fertilizerDeduction}</td>
+        <td>${row.teaPacketDeduction}</td>
         <td>${row.factoryTransportDeduction}</td>
         <td>${row.arrearsCarriedForward}</td>
         <td>${row.pricePerKg}</td>
@@ -678,8 +746,8 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
     <thead>
       <tr>
         <th>No</th><th>Supplier</th><th>Line</th>${dayHeaders}
-        <th>Total</th><th>Deduct Kg</th><th>Final Kg</th><th>Transport Add</th>
-        <th>Advances</th><th>Fertilizer</th><th>Transport Deduct</th><th>Arrears</th>
+        <th>Total</th><th>2% Deduction</th><th>Final Kg</th><th>Transport Add</th>
+        <th>Advances</th><th>Fertilizer</th><th>Made Tea Packets</th><th>Transport Deduct</th><th>Arrears</th>
         <th>Price</th><th>Total Deductions</th><th>Balance</th>
       </tr>
     </thead>

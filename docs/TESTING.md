@@ -46,6 +46,7 @@ Manual desktop UI checks:
 - Create a tea line, then create a supplier using that registered tea line.
 - Confirm supplier save rejects unregistered tea-line names.
 - Open Monthly Settings, save the selected month's tea price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
+- Edit a supplier and set a month-specific special price; edit a registered tea line and apply a line-level special price, then confirm the selected month's Green Leaf Book uses the override.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
@@ -88,4 +89,5 @@ Manual web UI checks:
 - As a director, confirm Directors and Office Users are visible as read-only listing pages.
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
+- Confirm the Green Leaf Book shows Made Tea Packets between Fertilizer and Transport Deduct.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.

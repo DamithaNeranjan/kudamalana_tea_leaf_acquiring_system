@@ -37,7 +37,8 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Posted collection entries preserve tablet saved time, tablet print time, print status, and the office user who posted the record.
 - Monthly calculations are calendar-month based.
 - Monthly Settings supplies the selected month's tea price, deduction percentage, transport add per kg, and transport deduction per kg.
-- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting.
+- Supplier-month overrides can replace the selected month's default tea price for one supplier or all active suppliers in a selected line.
+- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book shows made tea packet deductions between fertilizer and transport deductions.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
 - Tablet collection starts from tea line selection; supplier choices are filtered to active suppliers belonging to the selected active line.
@@ -48,7 +49,8 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
-- Supplier screens use registered tea lines as the allowed tea-line source.
+- Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override.
+- Tea Line editing can apply one month-specific special green leaf price to all active suppliers belonging to that line.
 - Staging Review supports manual import refresh, per-record posting, and confirmed Post all.
 - Collection Records is a read-only, paginated audit view with filters for supplier, tea line, date range, posted-by office user, and collector.
 

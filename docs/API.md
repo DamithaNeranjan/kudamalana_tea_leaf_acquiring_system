@@ -82,7 +82,26 @@ The desktop app imports these records into staging and skips duplicates by `id`.
 
 ### `GET /office/green-leaf-book?month=YYYY-MM`
 
-Returns the calculated monthly green leaf book. Posted collection entries for the month are included even if their current supplier master row is unavailable.
+Returns the calculated monthly green leaf book. Posted collection entries for the month are included even if their current supplier master row is unavailable. Advance payments are returned per row as `advancePayments` date/amount entries, with `totalAdvances` included in deductions and balance calculations.
+
+### `POST /office/advances`
+
+Office-session protected endpoint that records an advance given to a supplier for an effective month.
+
+Payload:
+
+```json
+{
+  "supplierId": "supplier-id",
+  "effectiveMonth": "2026-06",
+  "date": "2026-06-15",
+  "amount": 5000
+}
+```
+
+### `GET /office/advance-suggestion?month=YYYY-MM&supplierId=supplier-id`
+
+Office-session protected endpoint that suggests an advance amount from the supplier's current month kg multiplied by the effective supplier price, minus pending arrears and advances already given for that supplier/month.
 
 ### `POST /office/supplier-month-overrides`
 

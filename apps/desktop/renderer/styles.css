@@ -507,6 +507,15 @@ main {
   grid-column: 1 / -1;
 }
 
+.advance-form {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.advance-actions,
+.advance-message {
+  grid-column: 1 / -1;
+}
+
 .supplier-form .check-list,
 .supplier-form .supplier-actions {
   grid-column: 1 / -1;
@@ -539,6 +548,7 @@ form {
 }
 
 input,
+select,
 button {
   border: 1px solid #b8c4b4;
   border-radius: 6px;
@@ -551,11 +561,13 @@ button:disabled {
   opacity: 0.55;
 }
 
-input {
+input,
+select {
   background: #ffffff;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(31, 95, 54, 0.12);
   outline: none;

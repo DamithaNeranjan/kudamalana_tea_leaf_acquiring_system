@@ -75,12 +75,13 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 ## Desktop UI Notes
 
 - The app opens to an office login screen.
-- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Monthly Settings controls tea price per kg, month deduction percentage, transport add per kg, and transport deduction per kg for the selected Green Leaf Book month.
 - Supplier editing can set a supplier-specific green leaf price for a month, and Tea Line editing can apply one special price to all active suppliers in that line for a month.
+- Advances records supplier, effective month, given date, and amount; it also suggests an advance amount from month kg and effective supplier price minus pending arrears and advances already given for that month.
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
 - Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
-- Green Leaf Book uses posted collection entries for the selected month, including entries whose supplier master row is no longer available, and shows made tea packet deductions between fertilizer and transport deductions.
+- Green Leaf Book uses posted collection entries for the selected month, splits advance date, advance amount, and total advance into separate columns, subtracts advances from balance, and shows made tea packet deductions between fertilizer and transport deductions.
 - Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
 - Suppliers must be assigned to an already registered active tea line.
 - The desktop window uses `apps/logo/KudamalanaLogo1.png` for visible branding and the Electron window icon.

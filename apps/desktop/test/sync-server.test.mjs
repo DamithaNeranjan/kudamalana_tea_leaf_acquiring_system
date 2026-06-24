@@ -109,10 +109,23 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.equal(lineOverride.status, 201);
     assert.equal((await lineOverride.json()).updatedCount, 1);
 
+    const suggestion = await (
+      await fetch(`${baseUrl}/office/advance-suggestion?month=2026-05&supplierId=sup_1`, { headers: auth })
+    ).json();
+    assert.equal(suggestion.suggestedAmount, 3000);
+
+    const advance = await fetch(`${baseUrl}/office/advances`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ supplierId: "sup_1", effectiveMonth: "2026-05", date: "2026-05-12", amount: 500 })
+    });
+    assert.equal(advance.status, 201);
+
     const book = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
     assert.equal(book.rows[0].totalKg, 12);
     assert.equal(book.rows[0].pricePerKg, 250);
-    assert.equal(book.rows[0].balanceToPay, 3000);
+    assert.deepEqual(book.rows[0].advancePayments, [{ date: "2026-05-12", amount: 500 }]);
+    assert.equal(book.rows[0].balanceToPay, 2500);
     const postedState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
     assert.equal(postedState.collectionEntries[0].postedByOfficeUserName, "Factory Office");
 

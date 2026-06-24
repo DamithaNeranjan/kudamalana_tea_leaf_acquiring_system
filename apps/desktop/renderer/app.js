@@ -146,6 +146,7 @@ document.addEventListener("click", (event) => {
     const idInput = document.querySelector(`#${clearFormId} input[name="id"]`);
     if (idInput) idInput.value = "";
     if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
+    if (clearFormId === "advanceForm") populateAdvanceForm();
   }
 });
 
@@ -207,6 +208,7 @@ async function refreshState() {
   const state = await api("/office/state");
   latestState = state;
   renderRegistrationTables(state);
+  renderAdvances(state);
   renderCollectionRecords(state.collectionEntries);
   document.querySelector("#stagingTable tbody").innerHTML = state.collectionStaging
     .map(
@@ -221,6 +223,32 @@ async function refreshState() {
         <td><button data-post="${row.id}">Post</button></td>
       </tr>`
     )
+    .join("");
+}
+
+function renderAdvances(state) {
+  const supplierOptions = state.suppliers
+    .filter((supplier) => supplier.active)
+    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .join("");
+  const supplierSelect = document.querySelector('#advanceForm select[name="supplierId"]');
+  const selectedSupplier = supplierSelect.value;
+  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
+  supplierSelect.value = selectedSupplier;
+
+  document.querySelector("#advancesTable tbody").innerHTML = state.advances
+    .slice()
+    .sort((a, b) => `${b.effectiveMonth} ${b.date}`.localeCompare(`${a.effectiveMonth} ${a.date}`))
+    .map((advance) => {
+      const supplier = state.suppliers.find((item) => item.id === advance.supplierId);
+      return `
+      <tr>
+        <td>${escapeHtml(supplier?.name || advance.supplierId)}</td>
+        <td>${escapeHtml(advance.effectiveMonth)}</td>
+        <td>${escapeHtml(advance.date)}</td>
+        <td>${advance.amount}</td>
+      </tr>`;
+    })
     .join("");
 }
 
@@ -290,6 +318,13 @@ function localMonthValue(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
+}
+
+function localDateValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function refreshPairingQr() {
@@ -633,6 +668,30 @@ document.querySelector("#monthlySettingsForm").addEventListener("submit", async 
   populateMonthlySettingsForm();
 });
 
+document.querySelector("#advanceForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/advances");
+  populateAdvanceForm();
+});
+
+document.querySelector("#suggestAdvance").addEventListener("click", async () => {
+  const form = document.querySelector("#advanceForm");
+  const supplierId = form.elements.supplierId.value;
+  const month = form.elements.effectiveMonth.value;
+  const message = document.querySelector("#advanceSuggestionMessage");
+  if (!supplierId || !month) {
+    message.textContent = "Select a supplier and effective month first.";
+    return;
+  }
+  try {
+    const suggestion = await api(`/office/advance-suggestion?month=${month}&supplierId=${supplierId}`);
+    form.elements.amount.value = suggestion.suggestedAmount;
+    message.textContent = `Suggested advance: ${suggestion.suggestedAmount} (leaf value ${suggestion.leafValue} - arrears ${suggestion.arrearsCarriedForward} - advances already given ${suggestion.totalAdvances}).`;
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
+
 document.querySelector("#closeEditModal").addEventListener("click", closeEditModal);
 document.querySelector("#editModal").addEventListener("click", (event) => {
   if (event.target.id === "editModal") closeEditModal();
@@ -731,6 +790,8 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
         <td>${row.deductionKg}</td>
         <td>${row.finalKg}</td>
         <td>${row.ownTransportAddition}</td>
+        <td>${formatAdvanceDates(row)}</td>
+        <td>${formatAdvanceAmounts(row)}</td>
         <td>${row.totalAdvances}</td>
         <td>${row.fertilizerDeduction}</td>
         <td>${row.teaPacketDeduction}</td>
@@ -747,7 +808,7 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
       <tr>
         <th>No</th><th>Supplier</th><th>Line</th>${dayHeaders}
         <th>Total</th><th>2% Deduction</th><th>Final Kg</th><th>Transport Add</th>
-        <th>Advances</th><th>Fertilizer</th><th>Made Tea Packets</th><th>Transport Deduct</th><th>Arrears</th>
+        <th>Advance Date</th><th>Advance Amount</th><th>Total Advance</th><th>Fertilizer</th><th>Made Tea Packets</th><th>Transport Deduct</th><th>Arrears</th>
         <th>Price</th><th>Total Deductions</th><th>Balance</th>
       </tr>
     </thead>
@@ -758,6 +819,7 @@ document.querySelector("#refreshPairingQr").addEventListener("click", refreshPai
 
 document.querySelector("#bookMonth").value = localMonthValue();
 populateMonthlySettingsForm();
+populateAdvanceForm();
 
 function populateMonthlySettingsForm(setting = null) {
   const form = document.querySelector("#monthlySettingsForm");
@@ -777,4 +839,24 @@ function populateMonthlySettingsForm(setting = null) {
   form.elements.deductionPercent.value = current.deductionPercent ?? 2;
   form.elements.ownTransportAdditionPerKg.value = current.ownTransportAdditionPerKg ?? 5;
   form.elements.factoryTransportDeductionPerKg.value = current.factoryTransportDeductionPerKg ?? 3;
+}
+
+function populateAdvanceForm() {
+  const form = document.querySelector("#advanceForm");
+  form.elements.id.value = "";
+  form.elements.effectiveMonth.value = localMonthValue();
+  form.elements.date.value = localDateValue();
+  document.querySelector("#advanceSuggestionMessage").textContent = "";
+}
+
+function formatAdvanceDates(row) {
+  const payments = row.advancePayments || [];
+  if (!payments.length) return "";
+  return payments.map((advance) => escapeHtml(advance.date)).join("<br>");
+}
+
+function formatAdvanceAmounts(row) {
+  const payments = row.advancePayments || [];
+  if (!payments.length) return "";
+  return payments.map((advance) => advance.amount).join("<br>");
 }

@@ -131,8 +131,12 @@ test("suggests advance payment from unpaid effective month balance", () => {
     supplierId: "sup_1",
     suppliers,
     entries: [{ supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 25 }],
+    advances: [{ supplierId: "sup_1", date: "2026-05-05", effectiveMonth: "2026-05", amount: 1000 }],
     arrears: [{ supplierId: "sup_1", effectiveMonth: "2026-05", amount: 500 }]
   });
 
-  assert.equal(suggestion.suggestedAmount, 4420);
+  assert.equal(suggestion.suggestedAmount, 3500);
+  assert.equal(suggestion.leafValue, 5000);
+  assert.equal(suggestion.arrearsCarriedForward, 500);
+  assert.equal(suggestion.totalAdvances, 1000);
 });

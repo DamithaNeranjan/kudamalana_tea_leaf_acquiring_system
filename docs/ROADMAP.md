@@ -14,7 +14,7 @@
 - Replace scaffold forms with full office workflows.
 - Add remaining desktop-only office user registration workflows.
 - Add complete monthly override screens.
-- Add financial entry screens for advances, fertilizer, tea packets, and arrears.
+- Add financial entry screens for advances, fertilizer, tea packets, and arrears. (Advances implemented.)
 - Add richer staging review filters and bulk posting. (Bulk Post all implemented; filters remain future work.)
 - Expand Collection Records audit filters/export options.
 - Add export/print options for green leaf books.

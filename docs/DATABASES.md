@@ -58,5 +58,6 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Suppliers are validated against active registered tea lines before saving.
 - Monthly settings are stored by calendar month and drive tea price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
 - Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default tea price.
+- Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Made tea packet deductions are stored separately and included in Green Leaf Book totals and the desktop book table.
 - Local runtime data, WAL files, and logs are excluded from Git.

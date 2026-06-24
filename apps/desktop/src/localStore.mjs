@@ -230,6 +230,7 @@ export class LocalStore {
     else if (collection === "suppliers") this.upsertSupplier(saved);
     else if (collection === "monthlySettings") this.upsertMonthlySetting(saved);
     else if (collection === "supplierMonthOverrides") this.upsertSupplierMonthOverride(saved);
+    else if (collection === "advances") this.upsertAdvance(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
     this.refreshSnapshot();
     return saved;
@@ -386,6 +387,31 @@ export class LocalStore {
         bool(override.disableOwnTransportAddition),
         bool(override.disableFactoryTransportDeduction)
       );
+  }
+
+  upsertAdvance(advance) {
+    if (!advance.supplierId || !advance.effectiveMonth || !advance.date) {
+      const error = new Error("Supplier, effective month, and advance date are required");
+      error.status = 400;
+      throw error;
+    }
+    const amount = Number(advance.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const error = new Error("Advance amount must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO advances (id, supplier_id, date, amount, effective_month)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           supplier_id = excluded.supplier_id,
+           date = excluded.date,
+           amount = excluded.amount,
+           effective_month = excluded.effective_month`
+      )
+      .run(advance.id, advance.supplierId, advance.date, amount, advance.effectiveMonth);
   }
 
   async upsertLineSupplierPriceOverride(input) {

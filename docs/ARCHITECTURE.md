@@ -35,10 +35,11 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Tablet uploads must be idempotent by mobile record ID.
 - Desktop staging preserves original synced gross weight separately from edited values.
 - Posted collection entries preserve tablet saved time, tablet print time, print status, and the office user who posted the record.
+- Supplier advances preserve supplier, effective month, given date, and amount. Advance suggestions use month kg times the effective supplier price minus pending arrears and advances already given for that effective month.
 - Monthly calculations are calendar-month based.
 - Monthly Settings supplies the selected month's tea price, deduction percentage, transport add per kg, and transport deduction per kg.
 - Supplier-month overrides can replace the selected month's default tea price for one supplier or all active suppliers in a selected line.
-- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book shows made tea packet deductions between fertilizer and transport deductions.
+- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book shows advance date, advance amount, and total advance as separate columns, shows made tea packet deductions between fertilizer and transport deductions, and subtracts advances from balance.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
 - Tablet collection starts from tea line selection; supplier choices are filtered to active suppliers belonging to the selected active line.
@@ -46,7 +47,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Desktop UI Structure
 
 - Header: Kudamalana Tea Factory branding, current office session, and logout action.
-- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
 - Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override.

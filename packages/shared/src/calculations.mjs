@@ -180,15 +180,16 @@ export function suggestAdvancePayment(input) {
       supplierId: input.supplierId,
       suggestedAmount: 0,
       leafValue: 0,
-      ownTransportAddition: 0,
-      deductions: 0
+      arrearsCarriedForward: 0,
+      totalAdvances: 0
     };
   }
+  const leafValue = money(row.totalKg * row.pricePerKg);
   return {
     supplierId: input.supplierId,
-    suggestedAmount: Math.max(0, row.balanceToPay),
-    leafValue: row.leafValue,
-    ownTransportAddition: row.ownTransportAddition,
-    deductions: row.totalDeductions
+    suggestedAmount: Math.max(0, money(leafValue - row.arrearsCarriedForward - row.totalAdvances)),
+    leafValue,
+    arrearsCarriedForward: row.arrearsCarriedForward,
+    totalAdvances: row.totalAdvances
   };
 }

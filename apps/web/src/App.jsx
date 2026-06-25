@@ -10,7 +10,8 @@ import { OfficeUsersView } from "./views/OfficeUsersView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 
 function AppShell({ activeView, currentUser, onNavigate, showToast }) {
-  const canViewManagedUsers = ["super_admin", "director"].includes(currentUser.role);
+  const canViewDirectors = ["super_admin", "director"].includes(currentUser.role);
+  const canViewOfficeUsers = ["super_admin", "director", "office_user"].includes(currentUser.role);
   const canManageUsers = currentUser.role === "super_admin";
 
   return (
@@ -18,10 +19,10 @@ function AppShell({ activeView, currentUser, onNavigate, showToast }) {
       <Sidebar activeView={activeView} currentUser={currentUser} onNavigate={onNavigate} />
       <section className="content">
         {activeView === "book" && <BookView />}
-        {activeView === "directors" && canViewManagedUsers && (
+        {activeView === "directors" && canViewDirectors && (
           <DirectorsView canManage={canManageUsers} showToast={showToast} />
         )}
-        {activeView === "officeUsers" && canViewManagedUsers && (
+        {activeView === "officeUsers" && canViewOfficeUsers && (
           <OfficeUsersView canManage={canManageUsers} showToast={showToast} />
         )}
         {activeView === "profile" && <ProfileView currentUser={currentUser} />}

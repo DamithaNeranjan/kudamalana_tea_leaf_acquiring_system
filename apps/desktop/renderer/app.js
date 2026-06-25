@@ -4,6 +4,7 @@ let officeUser = null;
 let latestState = null;
 let latestBook = null;
 const filters = {
+  officeUserName: "",
   teaLineName: "",
   lineUserName: "",
   supplierName: "",
@@ -19,6 +20,7 @@ let recordsPage = 1;
 const recordsPageSize = 10;
 const listPageSize = 10;
 const listPages = {
+  officeUsers: 1,
   teaLines: 1,
   lineUsers: 1,
   suppliers: 1,
@@ -46,7 +48,10 @@ function setLoggedInSession(login) {
   officeToken = login.token;
   officeUser = login.user;
   document.querySelector("#sessionStatus").textContent = `Logged in: ${officeUser.displayName}`;
+  document.querySelector("#profileInitial").textContent = userInitial(officeUser.displayName || officeUser.username);
+  document.querySelector("#profileButton").classList.remove("hidden");
   document.querySelector("#logoutButton").classList.remove("hidden");
+  document.querySelector('#profileForm input[name="username"]').value = officeUser.username;
   document.querySelector('#profileForm input[name="displayName"]').value = officeUser.displayName;
   document.querySelector("#loginView").classList.add("hidden");
   document.querySelector("#appView").classList.remove("hidden");
@@ -57,6 +62,7 @@ function clearSession() {
   officeToken = "";
   officeUser = null;
   document.querySelector("#sessionStatus").textContent = "Not logged in";
+  document.querySelector("#profileButton").classList.add("hidden");
   document.querySelector("#logoutButton").classList.add("hidden");
   document.querySelector("#appView").classList.add("hidden");
   document.querySelector("#loginView").classList.remove("hidden");
@@ -67,6 +73,7 @@ function clearSession() {
   document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#profileForm").reset();
   showView("dashboardView");
+  window.scrollTo({ top: 0, left: 0 });
 }
 
 function showToast(message, type = "success") {
@@ -75,6 +82,14 @@ function showToast(message, type = "success") {
   toast.textContent = message;
   document.querySelector("#toastHost").appendChild(toast);
   setTimeout(() => toast.remove(), 2800);
+}
+
+function userInitial(name) {
+  return String(name || "U").trim().charAt(0).toUpperCase() || "U";
+}
+
+function isDesktopAdmin() {
+  return officeUser?.role === "admin";
 }
 
 function showView(viewId) {
@@ -167,6 +182,7 @@ document.addEventListener("click", (event) => {
 });
 
 for (const [selector, key, pageKey] of [
+  ["#officeUserFilter", "officeUserName", "officeUsers"],
   ["#teaLineFilter", "teaLineName", "teaLines"],
   ["#lineUserFilter", "lineUserName", "lineUsers"],
   ["#supplierNameFilter", "supplierName", "suppliers"],
@@ -210,6 +226,10 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   }
 });
 
+document.querySelector("#profileButton").addEventListener("click", () => {
+  showView("profileView");
+});
+
 document.querySelector("#profileForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -221,6 +241,8 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
     const updatedUser = await api("/office/profile", { method: "PUT", body: JSON.stringify(payload) });
     officeUser = updatedUser;
     document.querySelector("#sessionStatus").textContent = `Logged in: ${officeUser.displayName}`;
+    document.querySelector("#profileInitial").textContent = userInitial(officeUser.displayName || officeUser.username);
+    form.elements.username.value = officeUser.username;
     form.elements.password.value = "";
     message.textContent = "Profile saved.";
   } catch (error) {
@@ -236,12 +258,43 @@ async function refreshState() {
 }
 
 function renderStateTables(state) {
+  renderOfficeUsers(state);
   renderRegistrationTables(state);
   renderAdvances(state);
   renderFertilizer(state);
   renderTeaPackets(state);
   renderStaging(state);
   renderCollectionRecords(state.collectionEntries);
+}
+
+function renderOfficeUsers(state) {
+  const canManage = isDesktopAdmin();
+  document.querySelector("#officeUserFormIntro").classList.toggle("hidden", !canManage);
+  document.querySelector("#officeUserForm").classList.toggle("hidden", !canManage);
+  const officeUsers = paginateList(
+    "officeUsers",
+    state.officeUsers
+      .filter((user) => user.displayName.toLowerCase().includes(filters.officeUserName))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "createdAt")),
+    "officeUsersTable"
+  );
+  document.querySelector("#officeUsersTable tbody").innerHTML = officeUsers
+    .map((user) => {
+      const actions =
+        canManage && user.role !== "admin"
+          ? `<button class="table-action" type="button" data-edit-office-user="${user.id}">Edit</button>
+             <button class="table-action" type="button" data-toggle-office-user="${user.id}">${user.active ? "Deactivate" : "Activate"}</button>`
+          : "-";
+      return `
+      <tr>
+        <td>${escapeHtml(user.displayName)}</td>
+        <td>${escapeHtml(user.username)}</td>
+        <td>${escapeHtml(user.role === "admin" ? "Admin" : "Office user")}</td>
+        <td>${user.active ? "Active" : "Inactive"}</td>
+        <td>${actions}</td>
+      </tr>`;
+    })
+    .join("");
 }
 
 function renderStaging(state) {
@@ -616,16 +669,27 @@ function renderRegistrationTables(state) {
 document.addEventListener("click", (event) => {
   if (!latestState) return;
   const lineId = event.target.dataset.editLine;
+  const officeUserId = event.target.dataset.editOfficeUser;
   const lineUserId = event.target.dataset.editLineUser;
   const supplierId = event.target.dataset.editSupplier;
   const monthlySettingId = event.target.dataset.editMonthlySetting;
   const toggleLineId = event.target.dataset.toggleLine;
+  const toggleOfficeUserId = event.target.dataset.toggleOfficeUser;
   const toggleLineUserId = event.target.dataset.toggleLineUser;
   const toggleSupplierId = event.target.dataset.toggleSupplier;
 
   if (lineId) {
     const line = latestState.teaLines.find((item) => item.id === lineId);
     openEditModal("Edit Tea Line", "Field route", renderTeaLineEditForm(line));
+  }
+
+  if (officeUserId) {
+    if (!isDesktopAdmin()) {
+      showToast("Only admin users can edit office users.", "error");
+      return;
+    }
+    const user = latestState.officeUsers.find((item) => item.id === officeUserId);
+    openEditModal("Edit Office User", "Office access", renderOfficeUserEditForm(user));
   }
 
   if (lineUserId) {
@@ -645,6 +709,13 @@ document.addEventListener("click", (event) => {
   }
 
   if (toggleLineId) toggleActive("teaLines", toggleLineId, "/office/tea-lines", "Tea line");
+  if (toggleOfficeUserId) {
+    if (!isDesktopAdmin()) {
+      showToast("Only admin users can change office user status.", "error");
+      return;
+    }
+    toggleActive("officeUsers", toggleOfficeUserId, "/office/office-users", "Office user");
+  }
   if (toggleLineUserId) toggleActive("lineUsers", toggleLineUserId, "/office/line-users", "Line user");
   if (toggleSupplierId) toggleActive("suppliers", toggleSupplierId, "/office/suppliers", "Supplier");
 });
@@ -667,6 +738,7 @@ async function saveForm(form, path) {
 function resetPageForForm(formId) {
   const pageKeyByForm = {
     lineForm: "teaLines",
+    officeUserForm: "officeUsers",
     lineUserForm: "lineUsers",
     supplierForm: "suppliers",
     monthlySettingsForm: "monthlySettings",
@@ -706,6 +778,31 @@ async function updateFromModal(form, path, label) {
   closeEditModal();
   await refreshState();
   showToast(`${label} updated successfully.`);
+}
+
+function renderOfficeUserEditForm(user) {
+  return `
+    <form id="editModalForm" class="modal-form" data-kind="office-user">
+      <input name="id" type="hidden" value="${escapeAttribute(user.id)}" />
+      <input name="role" type="hidden" value="${escapeAttribute(user.role)}" />
+      <label>
+        Username
+        <input name="username" value="${escapeAttribute(user.username)}" required />
+      </label>
+      <label>
+        Display name
+        <input name="displayName" value="${escapeAttribute(user.displayName)}" required />
+      </label>
+      <label>
+        New password
+        <div class="password-field">
+          <input id="editOfficeUserPassword" name="password" placeholder="Leave blank to keep current password" type="password" />
+          <button class="password-toggle" type="button" data-toggle-password="editOfficeUserPassword" aria-controls="editOfficeUserPassword" aria-pressed="false">Show</button>
+        </div>
+      </label>
+      <label class="switch-row"><input name="active" type="checkbox" ${checked(user.active)} /> Active</label>
+      <button type="submit">Update office user</button>
+    </form>`;
 }
 
 function supplierOverrideFromForm(payload) {
@@ -856,6 +953,15 @@ document.querySelector("#lineForm").addEventListener("submit", async (event) => 
   await saveForm(event.currentTarget, "/office/tea-lines");
 });
 
+document.querySelector("#officeUserForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!isDesktopAdmin()) {
+    showToast("Only admin users can create office users.", "error");
+    return;
+  }
+  await saveForm(event.currentTarget, "/office/office-users");
+});
+
 document.querySelector("#lineUserForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   await saveForm(event.currentTarget, "/office/line-users");
@@ -923,6 +1029,7 @@ document.querySelector("#editModalBody").addEventListener("submit", async (event
   event.preventDefault();
   const kind = event.target.dataset.kind;
   if (kind === "tea-line") await updateFromModal(event.target, "/office/tea-lines", "Tea line");
+  if (kind === "office-user") await updateFromModal(event.target, "/office/office-users", "Office user");
   if (kind === "line-user") await updateFromModal(event.target, "/office/line-users", "Line user");
   if (kind === "supplier") await updateFromModal(event.target, "/office/suppliers", "Supplier");
 });

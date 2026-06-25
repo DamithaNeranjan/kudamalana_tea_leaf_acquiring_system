@@ -1,14 +1,11 @@
 export function Sidebar({ activeView, currentUser, onNavigate }) {
-  const canViewManagedUsers = ["super_admin", "director"].includes(currentUser?.role);
+  const canViewDirectors = ["super_admin", "director"].includes(currentUser?.role);
+  const canViewOfficeUsers = ["super_admin", "director", "office_user"].includes(currentUser?.role);
   const items = [
-    { id: "book", label: "Green Leaf Book" },
-    ...(canViewManagedUsers
-      ? [
-          { id: "directors", label: "Directors" },
-          { id: "officeUsers", label: "Office Users" }
-        ]
-      : [])
+    { id: "book", label: "Green Leaf Book" }
   ];
+  if (canViewDirectors) items.push({ id: "directors", label: "Directors" });
+  if (canViewOfficeUsers) items.push({ id: "officeUsers", label: "Office Users" });
 
   return (
     <aside className="sidebar">

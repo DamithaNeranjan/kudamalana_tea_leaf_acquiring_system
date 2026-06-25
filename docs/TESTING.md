@@ -45,6 +45,10 @@ npm.cmd start
 Manual desktop UI checks:
 
 - Login with `office` / `office123`.
+- Login with `admin` / `admin123` and confirm the Office Users menu allows creating, editing, activating, and deactivating regular office users.
+- Login with a regular office user and confirm Office Users is visible as a read-only listing, with the Register Office User form and row actions hidden.
+- Confirm the desktop sidebar order matches the operations flow and the header user button opens Profile Management.
+- In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout stays inside the panel in compact windows.
 - Create a tea line, then create a supplier using that registered tea line.
 - Confirm supplier save rejects unregistered tea-line names.
 - Open Monthly Settings, save the selected month's tea price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
@@ -88,11 +92,13 @@ http://127.0.0.1:5173/
 Manual web UI checks:
 
 - Login with `superadmin` / `admin123`.
+- Login with `admin` / `admin123` and confirm it has the same super-admin access.
 - Confirm the session name and role appear in the top-right header beside Logout.
 - Refresh the page and confirm the web session is restored from the HttpOnly cookie.
 - Confirm Logout returns to the login screen and hides protected panels.
 - As super admin, confirm Directors and Office Users allow create, edit, activate, and deactivate actions.
 - As a director, confirm Directors and Office Users are visible as read-only listing pages.
+- As an office user, confirm Office Users is visible as a read-only listing page and Directors is not visible.
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.

@@ -41,6 +41,14 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
     return sessions.get(token);
   }
 
+  function requireDesktopAdmin(session) {
+    if (session.user.role !== "admin") {
+      const error = new Error("Admin access is required");
+      error.status = 403;
+      throw error;
+    }
+  }
+
   function localSyncUrls(request) {
     const port = Number(process.env.DESKTOP_SYNC_PORT || 7070);
     const candidates = [];
@@ -124,6 +132,10 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "POST" && url.pathname === "/office/line-users") {
           return send(response, 201, await store.upsert("lineUsers", await body(request), "line_user"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/office-users") {
+          requireDesktopAdmin(session);
+          return send(response, 201, await store.upsert("officeUsers", await body(request), "office_user"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-lines") {
           return send(response, 201, await store.upsert("teaLines", await body(request), "line"));

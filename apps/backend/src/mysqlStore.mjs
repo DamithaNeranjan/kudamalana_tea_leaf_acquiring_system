@@ -108,20 +108,17 @@ async function executeSchema(pool) {
 }
 
 async function seedSuperAdmin(pool) {
-  await pool.execute(
-    `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE username = username`,
-    [
-      "user_superadmin",
-      "superadmin",
-      "Super Admin",
-      "super_admin",
-      hashPassword("admin123"),
-      1,
-      toMysqlDateTime()
-    ]
-  );
+  for (const user of [
+    { id: "user_superadmin", username: "superadmin", displayName: "Super Admin" },
+    { id: "user_admin", username: "admin", displayName: "Admin" }
+  ]) {
+    await pool.execute(
+      `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE username = username`,
+      [user.id, user.username, user.displayName, "super_admin", hashPassword("admin123"), 1, toMysqlDateTime()]
+    );
+  }
 }
 
 function assertManagedRole(role) {
@@ -399,7 +396,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       assertManagedRole(role);
       const conn = await pool.getConnection();
       try {
-        await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        await requireRole(conn, sessionToken, role === "office_user" ? ["super_admin", "director", "office_user"] : ["super_admin", "director"]);
         const [rows] = await conn.execute(
           "SELECT * FROM users WHERE role = ? ORDER BY display_name ASC",
           [role]

@@ -26,14 +26,19 @@ The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, 
 
 ## Default Accounts
 
-The backend seeds a default super admin for development:
+All apps seed a default admin account that remains available after deployment setup:
 
-- Username: `superadmin`
+- Username: `admin`
 - Password: `admin123`
 
 Change this before production deployment.
 
-The desktop app seeds a default office user for local development:
+The backend also keeps the older development super admin login:
+
+- Username: `superadmin`
+- Password: `admin123`
+
+The desktop app also seeds a default office user for local development:
 
 - Username: `office`
 - Password: `office123`
@@ -59,6 +64,7 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 - Logout revokes the current backend session, clears the session cookie, and returns the browser to the login screen.
 - Super admins can create, edit, activate, and deactivate director and office-user accounts.
 - Directors can view director and office-user lists without making changes.
+- Office users can view the office-user list without making changes.
 - Inactive web users are blocked from login.
 - The web app uses the shared Kudamalana logo as its favicon and app branding.
 
@@ -75,7 +81,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 ## Desktop UI Notes
 
 - The app opens to an office login screen.
-- The sidebar has separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Fertilizer, Made Tea Packets, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- The sidebar is ordered as Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the user button in the header.
 - Monthly Settings controls tea price per kg, month deduction percentage, transport add per kg, and transport deduction per kg for the selected Green Leaf Book month.
 - Supplier editing can set a supplier-specific green leaf price for a month, and Tea Line editing can apply one special price to all active suppliers in that line for a month.
 - Advances records supplier, effective month, given date, and amount; it also suggests an advance amount from month kg and effective supplier price minus pending arrears and advances already given for that month.
@@ -85,7 +91,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 - Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
 - Green Leaf Book uses posted collection entries for the selected month, supports supplier-name filtering, highlights calculated Poya day columns, splits advance date, advance amount, and total advance into separate columns, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, subtracts advances from balance, and shows only the selected month's fertilizer and made tea packet rupee deductions before transport deductions.
 - Saved listing tables are paginated at 10 records per page and show the latest saved records first.
-- Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
+- Tea Lines, Line Users, Office Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive. Only desktop admin users can create or manage office users; office users visiting that menu get a read-only listing.
 - Suppliers must be assigned to an already registered active tea line.
 - The desktop window uses `apps/logo/KudamalanaLogo1.png` for visible branding and the Electron window icon.
 

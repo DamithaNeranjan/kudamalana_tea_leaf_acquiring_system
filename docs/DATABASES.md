@@ -43,7 +43,7 @@ MYSQL_USER=root
 MYSQL_PASSWORD=damitha1234
 ```
 
-The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds the development super admin at startup when the MySQL user has permission.
+The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds the default `admin` super admin plus the older development `superadmin` account at startup when the MySQL user has permission.
 
 ## Current Persistence Notes
 
@@ -51,6 +51,7 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Electron does not load SQLite directly; it starts the sync server as a normal Node process.
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
+- Desktop seeds `admin` / `admin123` for both office admin login and tablet line-user login, plus `office` / `office123` for local office-user development.
 - Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
 - Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record.
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.

@@ -25,6 +25,29 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     const blocked = await fetch(`${baseUrl}/office/state`);
     assert.equal(blocked.status, 401);
 
+    const adminLogin = await fetch(`${baseUrl}/office/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "admin", password: "admin123" })
+    });
+    assert.equal(adminLogin.status, 200);
+    const { token: adminToken, user: adminUser } = await adminLogin.json();
+    assert.equal(adminUser.role, "admin");
+    const adminAuth = { authorization: `Bearer ${adminToken}` };
+
+    const createdOfficeUser = await fetch(`${baseUrl}/office/office-users`, {
+      method: "POST",
+      headers: adminAuth,
+      body: JSON.stringify({ username: "counter", password: "counter123", displayName: "Counter User" })
+    });
+    assert.equal(createdOfficeUser.status, 201);
+    const counterUser = await createdOfficeUser.json();
+
+    const tabletAdminLogin = await fetch(`${baseUrl}/sync/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "admin", password: "admin123" })
+    });
+    assert.equal(tabletAdminLogin.status, 200);
+
     const login = await fetch(`${baseUrl}/office/login`, {
       method: "POST",
       body: JSON.stringify({ username: "office", password: "office123" })
@@ -33,13 +56,30 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     const { token } = await login.json();
     const auth = { authorization: `Bearer ${token}` };
 
+    const officeState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    assert.ok(officeState.officeUsers.some((user) => user.username === "counter"));
+    const deniedOfficeUserCreate = await fetch(`${baseUrl}/office/office-users`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ username: "blocked", password: "blocked123", displayName: "Blocked User" })
+    });
+    assert.equal(deniedOfficeUserCreate.status, 403);
+    const deniedOfficeUserUpdate = await fetch(`${baseUrl}/office/office-users`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ ...counterUser, active: false })
+    });
+    assert.equal(deniedOfficeUserUpdate.status, 403);
+
     const profileUpdate = await fetch(`${baseUrl}/office/profile`, {
       method: "PUT",
       headers: auth,
-      body: JSON.stringify({ displayName: "Factory Office", password: "office456" })
+      body: JSON.stringify({ username: "office-updated", displayName: "Factory Office", password: "office456" })
     });
     assert.equal(profileUpdate.status, 200);
-    assert.equal((await profileUpdate.json()).displayName, "Factory Office");
+    const updatedProfile = await profileUpdate.json();
+    assert.equal(updatedProfile.username, "office-updated");
+    assert.equal(updatedProfile.displayName, "Factory Office");
 
     await fetch(`${baseUrl}/office/tea-lines`, {
       method: "POST",
@@ -176,7 +216,7 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
 
     const relogin = await fetch(`${baseUrl}/office/login`, {
       method: "POST",
-      body: JSON.stringify({ username: "office", password: "office456" })
+      body: JSON.stringify({ username: "office-updated", password: "office456" })
     });
     assert.equal(relogin.status, 200);
   });

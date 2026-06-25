@@ -23,6 +23,13 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(loginResponse.status, 200);
     const login = await loginResponse.json();
 
+    const defaultAdminLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "admin", password: "admin123" })
+    });
+    assert.equal(defaultAdminLoginResponse.status, 200);
+    assert.equal((await defaultAdminLoginResponse.json()).user.role, "super_admin");
+
     const directorResponse = await fetch(`${baseUrl}/admin/directors`, {
       method: "POST",
       headers: { authorization: `Bearer ${login.token}` },
@@ -73,8 +80,20 @@ test("super admin can create directors and director can view green leaf book", a
     });
     assert.equal(officeUsersResponse.status, 200);
     const officeUsers = await officeUsersResponse.json();
-    assert.equal(officeUsers.users.length, 1);
-    assert.equal(officeUsers.users[0].role, "office_user");
+    assert.ok(officeUsers.users.some((user) => user.username === "office-web"));
+    assert.ok(officeUsers.users.every((user) => user.role === "office_user"));
+
+    const activeOfficeUserResponse = await fetch(`${baseUrl}/admin/users`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${login.token}` },
+      body: JSON.stringify({
+        role: "office_user",
+        username: "office-viewer",
+        password: "office-viewer-secret",
+        displayName: "Office Viewer"
+      })
+    });
+    assert.equal(activeOfficeUserResponse.status, 201);
 
     const syncResponse = await fetch(`${baseUrl}/sync/desktop`, {
       method: "POST",
@@ -106,7 +125,39 @@ test("super admin can create directors and director can view green leaf book", a
     });
     assert.equal(directorOfficeUsersResponse.status, 200);
     const directorOfficeUsers = await directorOfficeUsersResponse.json();
-    assert.equal(directorOfficeUsers.users[0].username, "office-web");
+    assert.ok(directorOfficeUsers.users.some((user) => user.username === "office-web"));
+    assert.ok(directorOfficeUsers.users.some((user) => user.username === "office-viewer"));
+
+    const officeViewerLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "office-viewer", password: "office-viewer-secret" })
+    });
+    assert.equal(officeViewerLoginResponse.status, 200);
+    const officeViewerLogin = await officeViewerLoginResponse.json();
+
+    const officeViewerUsersResponse = await fetch(`${baseUrl}/admin/users?role=office_user`, {
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+    });
+    assert.equal(officeViewerUsersResponse.status, 200);
+    const officeViewerUsers = await officeViewerUsersResponse.json();
+    assert.ok(officeViewerUsers.users.some((user) => user.username === "office-viewer"));
+
+    const officeViewerDirectorsResponse = await fetch(`${baseUrl}/admin/users?role=director`, {
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+    });
+    assert.equal(officeViewerDirectorsResponse.status, 403);
+
+    const officeViewerCreateUserResponse = await fetch(`${baseUrl}/admin/users`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` },
+      body: JSON.stringify({
+        role: "office_user",
+        username: "office-from-office",
+        password: "secret",
+        displayName: "Office From Office"
+      })
+    });
+    assert.equal(officeViewerCreateUserResponse.status, 403);
 
     const directorCreateUserResponse = await fetch(`${baseUrl}/admin/users`, {
       method: "POST",

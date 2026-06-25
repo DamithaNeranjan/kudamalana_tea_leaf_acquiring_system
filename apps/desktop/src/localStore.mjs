@@ -101,6 +101,20 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run("office_admin", "office", "Office Admin", hashPassword("office123"), "office_user", 1);
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO office_users
+         (id, username, display_name, password_hash, role, active)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run("office_root_admin", "admin", "Admin", hashPassword("admin123"), "admin", 1);
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO line_users
+         (id, username, display_name, password_hash, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run("line_admin", "admin", "Admin", hashPassword("admin123"), 1, now());
 
     this.db
       .prepare(
@@ -209,8 +223,14 @@ export class LocalStore {
 
   async updateOfficeProfile(userId, input) {
     const current = this.officeUserById(userId);
+    const username = String(input.username || "").trim();
     const displayName = String(input.displayName || "").trim();
     const password = String(input.password || "");
+    if (!username) {
+      const error = new Error("Username is required");
+      error.status = 400;
+      throw error;
+    }
     if (!displayName) {
       const error = new Error("Display name is required");
       error.status = 400;
@@ -221,20 +241,29 @@ export class LocalStore {
       error.status = 400;
       throw error;
     }
+    const duplicate = this.db
+      .prepare("SELECT id FROM office_users WHERE username = ? AND id != ? LIMIT 1")
+      .get(username, userId);
+    if (duplicate) {
+      const error = new Error("Username already exists");
+      error.status = 409;
+      throw error;
+    }
     if (password) {
       this.db
-        .prepare("UPDATE office_users SET display_name = ?, password_hash = ? WHERE id = ?")
-        .run(displayName, hashPassword(password), userId);
+        .prepare("UPDATE office_users SET username = ?, display_name = ?, password_hash = ? WHERE id = ?")
+        .run(username, displayName, hashPassword(password), userId);
     } else {
-      this.db.prepare("UPDATE office_users SET display_name = ? WHERE id = ?").run(displayName, userId);
+      this.db.prepare("UPDATE office_users SET username = ?, display_name = ? WHERE id = ?").run(username, displayName, userId);
     }
     this.refreshSnapshot();
-    return { ...current, displayName };
+    return { ...current, username, displayName };
   }
 
   async upsert(collection, record, prefix) {
     const saved = { id: record.id || makeId(prefix), ...record, updatedAt: now() };
-    if (collection === "lineUsers") this.upsertLineUser(saved);
+    if (collection === "officeUsers") this.upsertOfficeUser(saved);
+    else if (collection === "lineUsers") this.upsertLineUser(saved);
     else if (collection === "teaLines") this.upsertTeaLine(saved);
     else if (collection === "suppliers") this.upsertSupplier(saved);
     else if (collection === "monthlySettings") this.upsertMonthlySetting(saved);
@@ -274,6 +303,37 @@ export class LocalStore {
            updated_at = excluded.updated_at`
       )
       .run(user.id, user.username, user.displayName, passwordHash, bool(user.active !== false), user.updatedAt);
+  }
+
+  upsertOfficeUser(user) {
+    const existing = user.id
+      ? this.db.prepare("SELECT password_hash AS passwordHash, role FROM office_users WHERE id = ?").get(user.id)
+      : this.db.prepare("SELECT password_hash AS passwordHash, role FROM office_users WHERE username = ?").get(user.username);
+    const passwordHash = passwordValue(user.password, user.passwordHash, existing?.passwordHash || "");
+    if (!passwordHash) {
+      const error = new Error("Office user password is required");
+      error.status = 400;
+      throw error;
+    }
+    const role = existing?.role === "admin" ? "admin" : "office_user";
+    const active = role === "admin" ? true : user.active !== false;
+    this.db
+      .prepare(
+        `INSERT INTO office_users (id, username, display_name, password_hash, role, active)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           username = excluded.username,
+           display_name = excluded.display_name,
+           password_hash = excluded.password_hash,
+           role = excluded.role,
+           active = excluded.active
+         ON CONFLICT(username) DO UPDATE SET
+           display_name = excluded.display_name,
+           password_hash = excluded.password_hash,
+           role = excluded.role,
+           active = excluded.active`
+      )
+      .run(user.id, user.username, user.displayName, passwordHash, role, bool(active));
   }
 
   upsertTeaLine(line) {

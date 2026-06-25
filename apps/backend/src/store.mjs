@@ -35,6 +35,16 @@ export function createMemoryStore() {
     createdAt: new Date().toISOString()
   };
   users.set(superAdmin.id, superAdmin);
+  const admin = {
+    id: "user_admin",
+    username: "admin",
+    displayName: "Admin",
+    role: "super_admin",
+    passwordHash: hashPassword("admin123"),
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+  users.set(admin.id, admin);
 
   function publicUser(user) {
     const { passwordHash, ...safeUser } = user;
@@ -125,8 +135,8 @@ export function createMemoryStore() {
     },
 
     listUsers(sessionToken, role) {
-      requireRole(sessionToken, ["super_admin", "director"]);
       assertManagedRole(role);
+      requireRole(sessionToken, role === "office_user" ? ["super_admin", "director", "office_user"] : ["super_admin", "director"]);
       return [...users.values()]
         .filter((user) => user.role === role)
         .map(publicUser)

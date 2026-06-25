@@ -12,7 +12,7 @@
 ## Phase 2: Desktop Office Operations
 
 - Replace scaffold forms with full office workflows.
-- Add remaining desktop-only office user registration workflows.
+- Add desktop-only office user registration workflows. (Implemented for admin-managed office users with read-only access for regular office users.)
 - Add complete monthly override screens.
 - Add financial entry screens for advances, fertilizer, tea packets, and arrears. (Advances, fertilizer, and made tea packets implemented.)
 - Add richer staging review filters and bulk posting. (Bulk Post all implemented; filters remain future work.)

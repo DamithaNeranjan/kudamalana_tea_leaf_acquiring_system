@@ -49,7 +49,15 @@ username: office
 password: office123
 ```
 
-The desktop app starts at the login screen. After login, the sidebar opens separate sections for Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Fertilizer, Made Tea Packets, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+Default admin login for the desktop app, tablet app, and web/backend:
+
+```text
+username: admin
+password: admin123
+```
+
+The desktop app starts at the login screen. After login, the sidebar opens Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the user button in the header.
+Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
 Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
@@ -91,7 +99,7 @@ For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checkin
 
 ## Run Backend API
 
-Configure MySQL values in `.env` first. The backend reads `.env`, creates the configured database and missing tables when the MySQL user has permission, seeds the development super admin, and stores web/director data in MySQL.
+Configure MySQL values in `.env` first. The backend reads `.env`, creates the configured database and missing tables when the MySQL user has permission, seeds the default `admin` super admin plus the older development `superadmin` account, and stores web/director data in MySQL.
 
 ```powershell
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System"
@@ -110,5 +118,7 @@ Development super admin:
 username: superadmin
 password: admin123
 ```
+
+The backend also seeds `admin` / `admin123` as a super admin so the same default admin login works in the web app.
 
 Change this before production use.

@@ -215,7 +215,7 @@ Payload:
 
 ```json
 {
-  "username": "superadmin",
+  "username": "admin",
   "password": "admin123"
 }
 ```
@@ -227,8 +227,8 @@ Response:
   "token": "session-token",
   "user": {
     "id": "user-id",
-    "username": "superadmin",
-    "displayName": "Super Admin",
+    "username": "admin",
+    "displayName": "Admin",
     "role": "super_admin",
     "active": true,
     "createdAt": "2026-06-16 10:30:00"
@@ -281,8 +281,11 @@ Payload:
 
 ### `GET /admin/users?role=director`
 
-Super admin and director endpoint that lists users for a managed role. Use `role=director` or `role=office_user`.
-Directors receive view-only access.
+Super admin and director endpoint that lists director accounts.
+
+### `GET /admin/users?role=office_user`
+
+Super admin, director, and office-user endpoint that lists office-user accounts. Directors and office users receive view-only access.
 
 ### `PATCH /admin/users/:id`
 
@@ -314,4 +317,4 @@ Returns a role-protected monthly green leaf book from synced backend data.
 - The cookie is marked `Secure` when `COOKIE_SECURE=true` or `NODE_ENV=production`.
 - Backend sessions are stored in MySQL and checked on protected endpoints.
 - Inactive users cannot log in and inactive existing sessions are rejected on protected endpoints.
-- Role checks restrict user management and desktop sync endpoints. Super admins can manage directors and office users; directors can view those lists; office users cannot access user management.
+- Role checks restrict user management and desktop sync endpoints. Super admins can manage directors and office users; directors can view director and office-user lists; office users can view only the office-user list.

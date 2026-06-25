@@ -17,6 +17,9 @@
       </div>
       <div class="header-status">
         <span id="sessionStatus">Not logged in</span>
+        <button id="profileButton" class="profile-button hidden" type="button" aria-label="Open profile">
+          <span id="profileInitial">U</span>
+        </button>
         <button id="logoutButton" class="logout-button hidden" type="button">Logout</button>
       </div>
     </header>
@@ -66,17 +69,17 @@
         <nav class="menu" aria-label="Office sections">
           <button class="menu-item active" type="button" data-view="dashboardView">Dashboard</button>
           <button class="menu-item" type="button" data-view="teaLinesView">Tea Lines</button>
-          <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
           <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
-          <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="advancesView">Advances</button>
           <button class="menu-item" type="button" data-view="fertilizerView">Fertilizer</button>
           <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
-          <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
-          <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
+          <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
           <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
-          <button class="menu-item" type="button" data-view="profileView">Profile</button>
+          <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
+          <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
+          <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
+          <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
         </nav>
       </aside>
 
@@ -94,17 +97,9 @@
               <strong>Tea Lines</strong>
               <span>Manage collection routes used by field tablets.</span>
             </button>
-            <button class="summary-card" type="button" data-view-shortcut="lineUsersView">
-              <strong>Line Users</strong>
-              <span>Manage tablet users who collect tea leaves.</span>
-            </button>
             <button class="summary-card" type="button" data-view-shortcut="suppliersView">
               <strong>Suppliers</strong>
               <span>Manage supplier master data and payment flags.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
-              <strong>Monthly Settings</strong>
-              <span>Set tea price, deduction, and transport rates for each month.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="advancesView">
               <strong>Advances</strong>
@@ -118,13 +113,9 @@
               <strong>Made Tea Packets</strong>
               <span>Record borrowed tea packets and monthly deductions.</span>
             </button>
-            <button class="summary-card" type="button" data-view-shortcut="stagingView">
-              <strong>Staging Review</strong>
-              <span>Review tablet imports and post final net weights.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="recordsView">
-              <strong>Collection Records</strong>
-              <span>View posted mobile records and office adjustments.</span>
+            <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
+              <strong>Monthly Settings</strong>
+              <span>Set tea price, deduction, and transport rates for each month.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="bookView">
               <strong>Green Leaf Book</strong>
@@ -134,9 +125,21 @@
               <strong>Pair Tablet</strong>
               <span>Show the QR code tablets scan before syncing daily work.</span>
             </button>
-            <button class="summary-card" type="button" data-view-shortcut="profileView">
-              <strong>Profile</strong>
-              <span>Update your office account details.</span>
+            <button class="summary-card" type="button" data-view-shortcut="lineUsersView">
+              <strong>Line Users</strong>
+              <span>Manage tablet users who collect tea leaves.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="officeUsersView">
+              <strong>Office Users</strong>
+              <span>Review office access and manage users as admin.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="stagingView">
+              <strong>Staging Review</strong>
+              <span>Review tablet imports and post final net weights.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="recordsView">
+              <strong>Collection Records</strong>
+              <span>View posted mobile records and office adjustments.</span>
             </button>
           </div>
         </section>
@@ -219,6 +222,55 @@
                 </div>
                 <table id="lineUsersTable">
                   <thead><tr><th>Name</th><th>Username</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="officeUsersView" class="view">
+          <div class="view-heading">
+            <h2>Office Users</h2>
+            <p>Review desktop office access. Admin users can create and manage office users.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div id="officeUserFormIntro" class="form-intro">
+                <span class="eyebrow">Office access</span>
+                <h3>Register Office User</h3>
+                <p>Create desktop login details for daily office users.</p>
+              </div>
+              <form id="officeUserForm" class="form-card">
+                <input name="id" type="hidden" />
+                <input name="role" type="hidden" value="office_user" />
+                <label>
+                  Username
+                  <input name="username" placeholder="office-user-name" required />
+                </label>
+                <label>
+                  Display name
+                  <input name="displayName" placeholder="Office user name" required />
+                </label>
+                <label>
+                  Local password
+                  <div class="password-field">
+                    <input id="officeUserPassword" name="password" placeholder="Set password" type="password" required />
+                    <button class="password-toggle" type="button" data-toggle-password="officeUserPassword" aria-controls="officeUserPassword" aria-pressed="false">Show</button>
+                  </div>
+                </label>
+                <div class="form-actions">
+                  <button type="submit">Save office user</button>
+                  <button class="ghost-button" type="button" data-clear-form="officeUserForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card">
+                <div class="list-header">
+                  <h4>Registered Office Users</h4>
+                  <input id="officeUserFilter" class="table-filter" placeholder="Filter by name" />
+                </div>
+                <table id="officeUsersTable">
+                  <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody></tbody>
                 </table>
               </div>
@@ -663,8 +715,12 @@
               <p>Update the currently logged-in office user's display name or password.</p>
             </div>
             <form id="profileForm" class="profile-form">
+              <input name="username" placeholder="Username" required />
               <input name="displayName" placeholder="Display name" required />
-              <input name="password" placeholder="New password (optional)" type="password" autocomplete="new-password" />
+              <div class="password-field profile-password-field">
+                <input id="profilePassword" name="password" placeholder="New password (optional)" type="password" autocomplete="new-password" />
+                <button class="password-toggle" type="button" data-toggle-password="profilePassword" aria-controls="profilePassword" aria-pressed="false">Show</button>
+              </div>
               <button type="submit">Save profile</button>
               <span id="profileMessage" class="message"></span>
             </form>

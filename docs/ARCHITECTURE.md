@@ -48,8 +48,8 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 
 ## Desktop UI Structure
 
-- Header: Kudamalana Tea Factory branding, current office session, and logout action.
-- Sidebar: Dashboard, Tea Lines, Line Users, Suppliers, Monthly Settings, Advances, Fertilizer, Made Tea Packets, Staging Review, Collection Records, Green Leaf Book, Pair Tablet, and Profile.
+- Header: Kudamalana Tea Factory branding, current office session, profile user button, and logout action.
+- Sidebar: Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the header user button.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Saved listing tables show 10 records per page and order records by latest saved first.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
@@ -57,6 +57,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Tea Line editing can apply one month-specific special green leaf price to all active suppliers belonging to that line.
 - Staging Review supports manual import refresh, per-record posting, and confirmed Post all.
 - Collection Records is a read-only, paginated audit view with filters for supplier, tea line, date range, posted-by office user, and collector.
+- Office Users is managed by desktop admin users; regular office users can view the listing but cannot create, edit, activate, or deactivate office-user accounts.
 
 ## Mobile UI Structure
 
@@ -70,6 +71,6 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Web UI Structure
 
 - Header: Kudamalana Tea Factory branding, current web session, and logout action.
-- Sidebar: Green Leaf Book, plus Directors and Office Users for super admins and directors. Profile is opened from the header user icon.
+- Sidebar: Green Leaf Book, plus Directors for super admins and directors, and Office Users for super admins, directors, and office users.
 - Login: desktop-aligned two-column portal login with branded copy and credential form.
-- Content: monthly green leaf book viewing, managed web-user administration, and profile details. Managed user create/edit/activate/deactivate actions are limited to super admins; directors have view-only access.
+- Content: monthly green leaf book viewing, managed web-user administration, and profile details. Managed user create/edit/activate/deactivate actions are limited to super admins; directors have view-only access to directors and office users, and office users have view-only access to office users.

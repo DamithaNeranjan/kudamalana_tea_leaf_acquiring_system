@@ -71,6 +71,7 @@
           <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="advancesView">Advances</button>
           <button class="menu-item" type="button" data-view="fertilizerView">Fertilizer</button>
+          <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
           <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
@@ -112,6 +113,10 @@
             <button class="summary-card" type="button" data-view-shortcut="fertilizerView">
               <strong>Fertilizer</strong>
               <span>Record fertilizer issues and monthly deduction splits.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="teaPacketsView">
+              <strong>Made Tea Packets</strong>
+              <span>Record borrowed tea packets and monthly deductions.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="stagingView">
               <strong>Staging Review</strong>
@@ -446,6 +451,71 @@
                       <th>Total Value</th>
                       <th>Split</th>
                       <th>Effective Months</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="teaPacketsView" class="view">
+          <div class="view-heading">
+            <h2>Made Tea Packets</h2>
+            <p>Record made tea packets borrowed by suppliers for deduction in an effective month.</p>
+          </div>
+          <section class="panel registration-panel">
+            <div class="registration-section active-registration">
+              <div class="form-intro">
+                <span class="eyebrow">Supplier packets</span>
+                <h3>Give Made Tea Packets</h3>
+                <p>The Green Leaf Book deducts only the total packet value for the selected effective month.</p>
+              </div>
+              <form id="teaPacketForm" class="form-card tea-packet-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Supplier
+                  <select name="supplierId" required></select>
+                </label>
+                <label>
+                  Date given
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  Number of packets
+                  <input name="packetCount" type="number" step="1" min="1" required />
+                </label>
+                <label>
+                  Per packet price
+                  <input name="perPacketPrice" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Total amount
+                  <input name="totalAmount" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Effective month
+                  <input name="effectiveMonth" type="month" required />
+                </label>
+                <div class="form-actions tea-packet-actions">
+                  <button type="submit">Save tea packets</button>
+                  <button class="ghost-button" type="button" data-clear-form="teaPacketForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header">
+                  <h4>Saved Made Tea Packets</h4>
+                </div>
+                <table id="teaPacketsTable">
+                  <thead>
+                    <tr>
+                      <th>Supplier</th>
+                      <th>Date Given</th>
+                      <th>Packets</th>
+                      <th>Per Packet</th>
+                      <th>Total Amount</th>
+                      <th>Effective Month</th>
                     </tr>
                   </thead>
                   <tbody></tbody>

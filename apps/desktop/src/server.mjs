@@ -146,6 +146,9 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         if (request.method === "POST" && url.pathname === "/office/fertilizer-issues") {
           return send(response, 201, await store.upsert("fertilizerIssues", await body(request), "fert"));
         }
+        if (request.method === "POST" && url.pathname === "/office/tea-packets") {
+          return send(response, 201, await store.upsert("teaPackets", await body(request), "tea_packet"));
+        }
         if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
           return send(response, 200, await store.updateStaging(url.pathname.split("/").pop(), await body(request)));
         }

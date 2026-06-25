@@ -132,7 +132,8 @@ export class LocalStore {
     }
     for (const [table, column] of [
       ["advances", ["updated_at", "TEXT"]],
-      ["fertilizer_issues", ["updated_at", "TEXT"]]
+      ["fertilizer_issues", ["updated_at", "TEXT"]],
+      ["tea_packets", ["updated_at", "TEXT"]]
     ]) {
       if (!this.hasColumn(table, column[0])) {
         this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column[0]} ${column[1]}`).run();
@@ -240,6 +241,7 @@ export class LocalStore {
     else if (collection === "supplierMonthOverrides") this.upsertSupplierMonthOverride(saved);
     else if (collection === "advances") this.upsertAdvance(saved);
     else if (collection === "fertilizerIssues") this.upsertFertilizerIssue(saved);
+    else if (collection === "teaPackets") this.upsertTeaPacket(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
     this.refreshSnapshot();
     return saved;
@@ -497,6 +499,56 @@ export class LocalStore {
       this.db.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  upsertTeaPacket(packet) {
+    if (!packet.supplierId || !packet.date || !packet.effectiveMonth) {
+      const error = new Error("Supplier, date, and effective month are required");
+      error.status = 400;
+      throw error;
+    }
+    const packetCount = Number(packet.packetCount);
+    const perPacketPrice = Number(packet.perPacketPrice);
+    const totalAmount = Number(packet.totalAmount ?? packetCount * perPacketPrice);
+    if (!Number.isFinite(packetCount) || packetCount <= 0) {
+      const error = new Error("Packet count must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isFinite(perPacketPrice) || perPacketPrice <= 0) {
+      const error = new Error("Per packet price must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      const error = new Error("Total packet amount must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO tea_packets
+         (id, supplier_id, date, packet_count, per_packet_price, total_amount, effective_month, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           supplier_id = excluded.supplier_id,
+           date = excluded.date,
+           packet_count = excluded.packet_count,
+           per_packet_price = excluded.per_packet_price,
+           total_amount = excluded.total_amount,
+           effective_month = excluded.effective_month,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        packet.id,
+        packet.supplierId,
+        packet.date,
+        packetCount,
+        perPacketPrice,
+        totalAmount,
+        packet.effectiveMonth,
+        packet.updatedAt || now()
+      );
   }
 
   async upsertLineSupplierPriceOverride(input) {
@@ -861,7 +913,10 @@ export class LocalStore {
   teaPackets() {
     return this.db
       .prepare(
-        "SELECT id, supplier_id AS supplierId, date, packet_count AS packetCount, per_packet_price AS perPacketPrice, total_amount AS totalAmount, effective_month AS effectiveMonth FROM tea_packets"
+        `SELECT id, supplier_id AS supplierId, date, packet_count AS packetCount,
+         per_packet_price AS perPacketPrice, total_amount AS totalAmount,
+         effective_month AS effectiveMonth, updated_at AS updatedAt
+         FROM tea_packets`
       )
       .all();
   }
@@ -1073,7 +1128,8 @@ CREATE TABLE IF NOT EXISTS tea_packets (
   packet_count INTEGER NOT NULL,
   per_packet_price REAL NOT NULL,
   total_amount REAL NOT NULL,
-  effective_month TEXT NOT NULL
+  effective_month TEXT NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS arrears_ledger (

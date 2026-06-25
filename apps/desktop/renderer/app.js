@@ -24,6 +24,7 @@ const listPages = {
   monthlySettings: 1,
   advances: 1,
   fertilizer: 1,
+  teaPackets: 1,
   staging: 1
 };
 
@@ -158,6 +159,7 @@ document.addEventListener("click", (event) => {
     if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
     if (clearFormId === "advanceForm") populateAdvanceForm();
     if (clearFormId === "fertilizerForm") populateFertilizerForm();
+    if (clearFormId === "teaPacketForm") populateTeaPacketForm();
   }
 });
 
@@ -234,6 +236,7 @@ function renderStateTables(state) {
   renderRegistrationTables(state);
   renderAdvances(state);
   renderFertilizer(state);
+  renderTeaPackets(state);
   renderStaging(state);
   renderCollectionRecords(state.collectionEntries);
 }
@@ -370,6 +373,46 @@ function renderFertilizer(state) {
       </tr>`;
     })
     .join("");
+}
+
+function renderTeaPackets(state) {
+  const supplierOptions = state.suppliers
+    .filter((supplier) => supplier.active)
+    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .join("");
+  const supplierSelect = document.querySelector('#teaPacketForm select[name="supplierId"]');
+  const selectedSupplier = supplierSelect.value;
+  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
+  supplierSelect.value = selectedSupplier;
+
+  const pageRows = paginateList(
+    "teaPackets",
+    (state.teaPackets || []).slice().sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date", "effectiveMonth")),
+    "teaPacketsTable"
+  );
+  document.querySelector("#teaPacketsTable tbody").innerHTML = pageRows
+    .map((packet) => {
+      const supplier = state.suppliers.find((item) => item.id === packet.supplierId);
+      return `
+      <tr>
+        <td>${escapeHtml(supplier?.name || packet.supplierId)}</td>
+        <td>${escapeHtml(packet.date)}</td>
+        <td>${packet.packetCount}</td>
+        <td>${packet.perPacketPrice}</td>
+        <td>${packet.totalAmount}</td>
+        <td>${escapeHtml(packet.effectiveMonth)}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function updateTeaPacketTotal() {
+  const form = document.querySelector("#teaPacketForm");
+  const packetCount = Number(form.elements.packetCount.value);
+  const perPacketPrice = Number(form.elements.perPacketPrice.value);
+  if (Number.isFinite(packetCount) && Number.isFinite(perPacketPrice)) {
+    form.elements.totalAmount.value = Math.round((packetCount * perPacketPrice + Number.EPSILON) * 100) / 100;
+  }
 }
 
 function renderCollectionRecords(records = []) {
@@ -625,7 +668,8 @@ function resetPageForForm(formId) {
     supplierForm: "suppliers",
     monthlySettingsForm: "monthlySettings",
     advanceForm: "advances",
-    fertilizerForm: "fertilizer"
+    fertilizerForm: "fertilizer",
+    teaPacketForm: "teaPackets"
   };
   const pageKey = pageKeyByForm[formId];
   if (pageKey) listPages[pageKey] = 1;
@@ -837,7 +881,17 @@ document.querySelector("#fertilizerForm").addEventListener("submit", async (even
   populateFertilizerForm();
 });
 
+document.querySelector("#teaPacketForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  updateTeaPacketTotal();
+  await saveForm(event.currentTarget, "/office/tea-packets");
+  populateTeaPacketForm();
+});
+
 document.querySelector('#fertilizerForm select[name="splitMonths"]').addEventListener("change", updateFertilizerMonthRequirement);
+for (const selector of ['#teaPacketForm input[name="packetCount"]', '#teaPacketForm input[name="perPacketPrice"]']) {
+  document.querySelector(selector).addEventListener("input", updateTeaPacketTotal);
+}
 
 document.querySelector("#suggestAdvance").addEventListener("click", async () => {
   const form = document.querySelector("#advanceForm");
@@ -986,6 +1040,7 @@ document.querySelector("#bookMonth").value = localMonthValue();
 populateMonthlySettingsForm();
 populateAdvanceForm();
 populateFertilizerForm();
+populateTeaPacketForm();
 
 function populateMonthlySettingsForm(setting = null) {
   const form = document.querySelector("#monthlySettingsForm");
@@ -1031,6 +1086,14 @@ function updateFertilizerMonthRequirement() {
   form.elements.effectiveMonth2.required = needsSecondMonth;
   form.elements.effectiveMonth2.disabled = !needsSecondMonth;
   if (!needsSecondMonth) form.elements.effectiveMonth2.value = "";
+}
+
+function populateTeaPacketForm() {
+  const form = document.querySelector("#teaPacketForm");
+  form.elements.id.value = "";
+  form.elements.date.value = localDateValue();
+  form.elements.effectiveMonth.value = localMonthValue();
+  form.elements.totalAmount.value = "";
 }
 
 function formatAdvanceDates(row) {

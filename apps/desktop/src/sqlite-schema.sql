@@ -140,7 +140,8 @@ CREATE TABLE tea_packets (
   packet_count INTEGER NOT NULL,
   per_packet_price REAL NOT NULL,
   total_amount REAL NOT NULL,
-  effective_month TEXT NOT NULL
+  effective_month TEXT NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE arrears_ledger (

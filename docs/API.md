@@ -123,6 +123,25 @@ Payload:
 
 `splitMonths` must be `1` or `2`. The Green Leaf Book only deducts the generated fertilizer installment amount whose effective month matches the selected book month.
 
+### `POST /office/tea-packets`
+
+Office-session protected endpoint that records made tea packets borrowed by a supplier for deduction in an effective month.
+
+Payload:
+
+```json
+{
+  "supplierId": "supplier-id",
+  "date": "2026-06-15",
+  "packetCount": 2,
+  "perPacketPrice": 100,
+  "totalAmount": 200,
+  "effectiveMonth": "2026-06"
+}
+```
+
+The Green Leaf Book only deducts made tea packet totals whose effective month matches the selected book month.
+
 ### `POST /office/supplier-month-overrides`
 
 Office-session protected endpoint that sets a month-specific override for one supplier. When `teaPricePerKg` is supplied, it replaces the selected month's default tea price for that supplier.

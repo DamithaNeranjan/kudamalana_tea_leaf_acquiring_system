@@ -508,13 +508,15 @@ main {
 }
 
 .advance-form,
-.fertilizer-form {
+.fertilizer-form,
+.tea-packet-form {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .advance-actions,
 .advance-message,
-.fertilizer-actions {
+.fertilizer-actions,
+.tea-packet-actions {
   grid-column: 1 / -1;
 }
 

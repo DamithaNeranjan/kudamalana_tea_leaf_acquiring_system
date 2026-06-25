@@ -60,5 +60,5 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default tea price.
 - Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Fertilizer issues are stored by supplier, given date, kg given, total rupee value, split count, and effective month or months. Monthly fertilizer installments are generated from those issues and drive the Green Leaf Book fertilizer deduction for each selected month.
-- Made tea packet deductions are stored separately and included in Green Leaf Book totals and the desktop book table.
+- Made tea packet deductions are stored by supplier, given date, packet count, per-packet price, total amount, and effective month. They are included in Green Leaf Book totals and the desktop book table for the selected month only.
 - Local runtime data, WAL files, and logs are excluded from Git.

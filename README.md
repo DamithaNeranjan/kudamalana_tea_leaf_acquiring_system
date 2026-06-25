@@ -83,7 +83,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 - Made Tea Packets records supplier, date given, number of packets, per-packet price, total amount, and the effective month for Green Leaf Book deductions.
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
 - Collection Records is a read-only audit table for posted mobile records, office gross/net changes, print status, tablet saved/printed times, and the office user who posted each record.
-- Green Leaf Book uses posted collection entries for the selected month, splits advance date, advance amount, and total advance into separate columns, subtracts advances from balance, and shows only the selected month's fertilizer and made tea packet rupee deductions before transport deductions.
+- Green Leaf Book uses posted collection entries for the selected month, supports supplier-name filtering, highlights calculated Poya day columns, splits advance date, advance amount, and total advance into separate columns, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, subtracts advances from balance, and shows only the selected month's fertilizer and made tea packet rupee deductions before transport deductions.
 - Saved listing tables are paginated at 10 records per page and show the latest saved records first.
 - Tea Lines, Line Users, and Suppliers can be created, filtered, edited in a modal, and marked active/inactive.
 - Suppliers must be assigned to an already registered active tea line.

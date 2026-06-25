@@ -96,5 +96,6 @@ Manual web UI checks:
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.
+- Confirm the Green Leaf Book supplier filter narrows rows by supplier name, headers are centered, Poya day columns are lightly highlighted, Total Additions appears before Total Deductions, additions are green, deductions are red, and balance values are bold.
 - Confirm the Green Leaf Book shows the selected month's Fertilizer and Made Tea Packets deductions before Transport Deduct.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.

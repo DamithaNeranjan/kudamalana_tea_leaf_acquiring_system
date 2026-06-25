@@ -49,6 +49,7 @@ test("builds monthly green leaf rows with deductions, additions, and balance", (
   assert.equal(book.rows[0].deductionKg, 3);
   assert.equal(book.rows[0].finalKg, 147);
   assert.equal(book.rows[0].ownTransportAddition, 735);
+  assert.equal(book.rows[0].totalAdditions, 30135);
   assert.equal(book.rows[0].totalDeductions, 2000);
   assert.equal(book.rows[0].balanceToPay, 28135);
   assert.equal(book.rows[1].factoryTransportDeduction, 120);

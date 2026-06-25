@@ -2,6 +2,7 @@ const apiBaseUrl = window.teaDesktop?.apiBaseUrl || "http://127.0.0.1:7070";
 let officeToken = "";
 let officeUser = null;
 let latestState = null;
+let latestBook = null;
 const filters = {
   teaLineName: "",
   lineUserName: "",
@@ -60,6 +61,8 @@ function clearSession() {
   document.querySelector("#appView").classList.add("hidden");
   document.querySelector("#loginView").classList.remove("hidden");
   document.querySelector("#bookTable").innerHTML = "";
+  document.querySelector("#bookSupplierFilter").value = "";
+  latestBook = null;
   document.querySelector("#stagingTable tbody").innerHTML = "";
   document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#profileForm").reset();
@@ -995,30 +998,45 @@ document.querySelector("#recordsNextPage").addEventListener("click", () => {
 
 document.querySelector("#loadBook").addEventListener("click", async () => {
   const month = document.querySelector("#bookMonth").value;
-  const book = await api(`/office/green-leaf-book?month=${month}`);
-  const dayHeaders = Array.from({ length: book.dayCount }, (_, index) => `<th>${index + 1}</th>`).join("");
+  latestBook = await api(`/office/green-leaf-book?month=${month}`);
+  renderGreenLeafBook();
+});
+
+document.querySelector("#bookSupplierFilter").addEventListener("input", renderGreenLeafBook);
+
+function renderGreenLeafBook() {
+  const book = latestBook;
+  if (!book) return;
+  const supplierFilter = document.querySelector("#bookSupplierFilter").value.trim().toLowerCase();
+  const poyaDays = poyaDaysForMonth(book.month);
+  const dayHeaders = Array.from({ length: book.dayCount }, (_, index) => {
+    const day = index + 1;
+    return `<th class="${poyaDays.has(day) ? "poya-day" : ""}">${day}</th>`;
+  }).join("");
   const rows = book.rows
+    .filter((row) => String(row.supplierName || "").toLowerCase().includes(supplierFilter))
     .map(
       (row) => `
       <tr>
         <td>${row.rowNumber}</td>
-        <td>${row.supplierName}</td>
-        <td>${row.lineName || ""}</td>
-        ${row.dailyKg.map((value) => `<td>${value || ""}</td>`).join("")}
+        <td>${escapeHtml(row.supplierName)}</td>
+        <td>${escapeHtml(row.lineName || "")}</td>
+        ${row.dailyKg.map((value, index) => `<td class="${poyaDays.has(index + 1) ? "poya-day" : ""}">${value || ""}</td>`).join("")}
         <td>${row.totalKg}</td>
-        <td>${row.deductionKg}</td>
-        <td>${row.finalKg}</td>
-        <td>${row.ownTransportAddition}</td>
+        <td class="deduction-value">${row.deductionKg}</td>
+        <td class="addition-value">${row.finalKg}</td>
+        <td class="addition-value">${row.ownTransportAddition}</td>
         <td class="advance-breakdown">${formatAdvanceDates(row)}</td>
-        <td class="advance-breakdown">${formatAdvanceAmounts(row)}</td>
-        <td>${row.totalAdvances}</td>
-        <td>${row.fertilizerDeduction}</td>
-        <td>${row.teaPacketDeduction}</td>
-        <td>${row.factoryTransportDeduction}</td>
-        <td>${row.arrearsCarriedForward}</td>
-        <td>${row.pricePerKg}</td>
-        <td>${row.totalDeductions}</td>
-        <td>${row.balanceToPay}</td>
+        <td class="advance-breakdown deduction-value">${formatAdvanceAmounts(row)}</td>
+        <td class="deduction-value">${row.totalAdvances}</td>
+        <td class="deduction-value">${row.fertilizerDeduction}</td>
+        <td class="deduction-value">${row.teaPacketDeduction}</td>
+        <td class="deduction-value">${row.factoryTransportDeduction}</td>
+        <td class="deduction-value">${row.arrearsCarriedForward}</td>
+        <td class="addition-value">${row.pricePerKg}</td>
+        <td class="addition-value">${row.totalAdditions ?? row.ownTransportAddition}</td>
+        <td class="deduction-value">${row.totalDeductions}</td>
+        <td class="balance-value">${row.balanceToPay}</td>
       </tr>`
     )
     .join("");
@@ -1028,11 +1046,33 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
         <th>No</th><th>Supplier</th><th>Line</th>${dayHeaders}
         <th>Total</th><th>2% Deduction</th><th>Final Kg</th><th>Transport Add</th>
         <th>Advance Date</th><th>Advance Amount</th><th>Total Advance</th><th>Fertilizer</th><th>Made Tea Packets</th><th>Transport Deduct</th><th>Arrears</th>
-        <th>Price</th><th>Total Deductions</th><th>Balance</th>
+        <th>Price</th><th>Total Additions</th><th>Total Deductions</th><th>Balance</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>`;
-});
+}
+
+function poyaDaysForMonth(month) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const monthStart = Date.UTC(year, monthNumber - 1, 1);
+  const monthEnd = Date.UTC(year, monthNumber, 0, 23, 59, 59);
+  const synodicMonthMs = 29.530588853 * 24 * 60 * 60 * 1000;
+  const referenceFullMoonUtc = Date.UTC(2000, 0, 21, 4, 40);
+  const firstCycle = Math.floor((monthStart - referenceFullMoonUtc) / synodicMonthMs) - 1;
+  const days = new Set();
+
+  for (let offset = 0; offset < 5; offset += 1) {
+    const fullMoonUtc = referenceFullMoonUtc + (firstCycle + offset) * synodicMonthMs;
+    if (fullMoonUtc < monthStart - synodicMonthMs || fullMoonUtc > monthEnd + synodicMonthMs) continue;
+    const sriLankaDate = new Date(fullMoonUtc + 5.5 * 60 * 60 * 1000);
+    const fullMoonYear = sriLankaDate.getUTCFullYear();
+    const fullMoonMonth = sriLankaDate.getUTCMonth() + 1;
+    if (fullMoonYear === year && fullMoonMonth === monthNumber) {
+      days.add(sriLankaDate.getUTCDate());
+    }
+  }
+  return days;
+}
 
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 

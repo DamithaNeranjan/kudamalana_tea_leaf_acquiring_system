@@ -132,6 +132,7 @@ export function buildGreenLeafBook(input) {
 
       const pricePerKg = effectiveTeaPrice(settings, override);
       const leafValue = money(finalKg * pricePerKg);
+      const totalAdditions = money(leafValue + ownTransportAddition);
       const totalDeductions = money(
         teaPacketDeduction +
           factoryTransportDeduction +
@@ -162,6 +163,7 @@ export function buildGreenLeafBook(input) {
         arrearsCarriedForward,
         pricePerKg,
         leafValue,
+        totalAdditions,
         totalDeductions,
         balanceToPay
       };

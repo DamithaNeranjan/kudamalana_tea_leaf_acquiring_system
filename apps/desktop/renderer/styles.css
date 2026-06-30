@@ -302,10 +302,12 @@ main {
 .sidebar {
   background: #fbfcfa;
   border-right: 1px solid var(--line);
+  max-height: calc(100vh - 81px);
   min-height: calc(100vh - 84px);
+  overflow-y: auto;
   padding: 20px 16px;
   position: sticky;
-  top: 0;
+  top: 81px;
 }
 
 .sidebar-title {
@@ -1002,7 +1004,9 @@ th:first-child {
   }
 
   .sidebar {
+    max-height: none;
     min-height: auto;
+    overflow-y: visible;
     position: static;
   }
 

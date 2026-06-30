@@ -41,7 +41,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Monthly calculations are calendar-month based.
 - Monthly Settings supplies the selected month's tea price, deduction percentage, transport add per kg, and transport deduction per kg.
 - Supplier-month overrides can replace the selected month's default tea price for one supplier or all active suppliers in a selected line.
-- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book supports supplier-name filtering, highlights calculated Poya day columns, centers column headers, shows advance date, advance amount, and total advance as separate columns, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, shows the selected month's fertilizer and made tea packet deductions before transport deductions, and subtracts advances from balance.
+- Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book supports supplier-name filtering, highlights calculated Poya day columns, centers column headers, shows advance date, advance amount, and total advance as separate columns, labels kg and rupee columns with units, formats table values with thousand separators and two decimal places when decimals are present, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, shows the selected month's fertilizer and made tea packet deductions before transport deductions, and subtracts advances from balance.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
 - Tablet collection starts from tea line selection; supplier choices are filtered to active suppliers belonging to the selected active line.
@@ -49,8 +49,9 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Desktop UI Structure
 
 - Header: Kudamalana Tea Factory branding, current office session, profile user button, and logout action.
-- Sidebar: Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the header user button.
+- Sidebar: Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the header user button. On desktop-sized windows, the sidebar scrolls independently while section content keeps the standard page flow.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
+- Form inputs trim leading and trailing spaces before validation and API submission, including login, profile, regular create forms, and edit modal forms.
 - Saved listing tables show 10 records per page and order records by latest saved first.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
 - Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override.

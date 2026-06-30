@@ -57,11 +57,14 @@ password: admin123
 ```
 
 The desktop app starts at the login screen. After login, the sidebar opens Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the user button in the header.
+On desktop-sized windows, the sidebar has its own scroll area and the opened menu section keeps the normal content layout.
+Desktop form inputs, including login and edit-modal fields, trim leading and trailing spaces before validation and API submission.
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
 Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
 Use Made Tea Packets to record packets borrowed by suppliers for deduction in a selected effective Green Leaf Book month.
+The desktop Green Leaf Book table labels kg and rupee columns with units and formats numeric values with thousand separators, using two decimal places only when decimal values are present.
 
 The visible logo and Electron window icon use:
 

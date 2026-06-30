@@ -105,8 +105,7 @@ function showView(viewId) {
 }
 
 function formJson(form) {
-  const data = new FormData(form);
-  const result = Object.fromEntries(data.entries());
+  const result = formPayload(form);
   if (!result.id) delete result.id;
   if (!result.password) delete result.password;
   for (const checkbox of form.querySelectorAll('input[type="checkbox"]')) {
@@ -116,12 +115,30 @@ function formJson(form) {
   return result;
 }
 
+function formPayload(form) {
+  trimFormInputs(form);
+  return Object.fromEntries(new FormData(form).entries());
+}
+
+function trimFormInputs(form) {
+  for (const field of form.querySelectorAll("input, textarea")) {
+    trimInputValue(field);
+  }
+}
+
+function trimInputValue(field) {
+  if (!field || typeof field.value !== "string") return;
+  if (["checkbox", "radio", "file"].includes(field.type)) return;
+  field.value = field.value.trim();
+}
+
 function isRegisteredTeaLine(lineName) {
   const normalized = String(lineName || "").trim().toLowerCase();
   return latestState?.teaLines.some((line) => line.active && line.name.toLowerCase() === normalized);
 }
 
 function validateSupplierTeaLine(form) {
+  trimFormInputs(form);
   const lineName = form.elements.lineName?.value;
   if (!lineName || !isRegisteredTeaLine(lineName)) {
     showToast("Please select a registered active tea line.", "error");
@@ -134,7 +151,7 @@ function validateSupplierTeaLine(form) {
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const payload = Object.fromEntries(new FormData(form).entries());
+  const payload = formPayload(form);
   const message = document.querySelector("#loginMessage");
   message.textContent = "Checking login...";
   try {
@@ -147,6 +164,14 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     message.textContent = error.message;
   }
 });
+
+document.addEventListener(
+  "blur",
+  (event) => {
+    if (event.target.matches?.("input, textarea")) trimInputValue(event.target);
+  },
+  true
+);
 
 document.addEventListener("click", (event) => {
   const passwordInputId = event.target.dataset.togglePassword;
@@ -233,7 +258,7 @@ document.querySelector("#profileButton").addEventListener("click", () => {
 document.querySelector("#profileForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const payload = Object.fromEntries(new FormData(form).entries());
+  const payload = formPayload(form);
   const message = document.querySelector("#profileMessage");
   if (!payload.password) delete payload.password;
   message.textContent = "Saving profile...";
@@ -1128,22 +1153,24 @@ function renderGreenLeafBook() {
         <td>${row.rowNumber}</td>
         <td>${escapeHtml(row.supplierName)}</td>
         <td>${escapeHtml(row.lineName || "")}</td>
-        ${row.dailyKg.map((value, index) => `<td class="${poyaDays.has(index + 1) ? "poya-day" : ""}">${value || ""}</td>`).join("")}
-        <td>${row.totalKg}</td>
-        <td class="deduction-value">${row.deductionKg}</td>
-        <td class="addition-value">${row.finalKg}</td>
-        <td class="addition-value">${row.ownTransportAddition}</td>
+        ${row.dailyKg
+          .map((value, index) => `<td class="${poyaDays.has(index + 1) ? "poya-day" : ""}">${formatBookNumber(value, { blankZero: true })}</td>`)
+          .join("")}
+        <td>${formatBookNumber(row.totalKg)}</td>
+        <td class="deduction-value">${formatBookNumber(row.deductionKg)}</td>
+        <td class="addition-value">${formatBookNumber(row.finalKg)}</td>
+        <td class="addition-value">${formatBookNumber(row.ownTransportAddition)}</td>
         <td class="advance-breakdown">${formatAdvanceDates(row)}</td>
         <td class="advance-breakdown deduction-value">${formatAdvanceAmounts(row)}</td>
-        <td class="deduction-value">${row.totalAdvances}</td>
-        <td class="deduction-value">${row.fertilizerDeduction}</td>
-        <td class="deduction-value">${row.teaPacketDeduction}</td>
-        <td class="deduction-value">${row.factoryTransportDeduction}</td>
-        <td class="deduction-value">${row.arrearsCarriedForward}</td>
-        <td class="addition-value">${row.pricePerKg}</td>
-        <td class="addition-value">${row.totalAdditions ?? row.ownTransportAddition}</td>
-        <td class="deduction-value">${row.totalDeductions}</td>
-        <td class="balance-value">${row.balanceToPay}</td>
+        <td class="deduction-value">${formatBookNumber(row.totalAdvances)}</td>
+        <td class="deduction-value">${formatBookNumber(row.fertilizerDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(row.teaPacketDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(row.factoryTransportDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(row.arrearsCarriedForward)}</td>
+        <td class="addition-value">${formatBookNumber(row.pricePerKg)}</td>
+        <td class="addition-value">${formatBookNumber(row.totalAdditions ?? row.ownTransportAddition)}</td>
+        <td class="deduction-value">${formatBookNumber(row.totalDeductions)}</td>
+        <td class="balance-value">${formatBookNumber(row.balanceToPay)}</td>
       </tr>`
     )
     .join("");
@@ -1151,12 +1178,22 @@ function renderGreenLeafBook() {
     <thead>
       <tr>
         <th>No</th><th>Supplier</th><th>Line</th>${dayHeaders}
-        <th>Total</th><th>2% Deduction</th><th>Final Kg</th><th>Transport Add</th>
-        <th>Advance Date</th><th>Advance Amount</th><th>Total Advance</th><th>Fertilizer</th><th>Made Tea Packets</th><th>Transport Deduct</th><th>Arrears</th>
-        <th>Price</th><th>Total Additions</th><th>Total Deductions</th><th>Balance</th>
+        <th>Total (Kg)</th><th>2% Deduction (Kg)</th><th>Final Kg (Kg)</th><th>Transport Add (Rs.)</th>
+        <th>Advance Date</th><th>Advance Amount (Rs.)</th><th>Total Advance (Rs.)</th><th>Fertilizer (Rs.)</th><th>Made Tea Packets (Rs.)</th><th>Transport Deduct (Rs.)</th><th>Arrears (Rs.)</th>
+        <th>Price (Rs.)</th><th>Total Additions (Rs.)</th><th>Total Deductions (Rs.)</th><th>Balance (Rs.)</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>`;
+}
+
+function formatBookNumber(value, { blankZero = false } = {}) {
+  const number = Number(value || 0);
+  if (blankZero && number === 0) return "";
+  const hasDecimals = !Number.isInteger(number);
+  return number.toLocaleString("en-US", {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0
+  });
 }
 
 function poyaDaysForMonth(month) {
@@ -1252,5 +1289,5 @@ function formatAdvanceDates(row) {
 function formatAdvanceAmounts(row) {
   const payments = row.advancePayments || [];
   if (!payments.length) return "";
-  return payments.map((advance) => `<span>${advance.amount}</span>`).join("");
+  return payments.map((advance) => `<span>${formatBookNumber(advance.amount)}</span>`).join("");
 }

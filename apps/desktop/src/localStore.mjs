@@ -3,7 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
 
 const DEFAULT_DB_PATH = join(process.cwd(), "desktop-data", "tea-local-db.sqlite");
 
@@ -25,6 +25,22 @@ function now() {
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
+}
+
+function nextMonthValue(month) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  const next = new Date(Date.UTC(year, monthNumber, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function previousMonthValue(month) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function money(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
 function mapRows(rows, mapper = (row) => row) {
@@ -153,6 +169,30 @@ export class LocalStore {
         this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column[0]} ${column[1]}`).run();
       }
     }
+    if (!this.hasColumn("suppliers", "exclude_from_balance")) {
+      this.db.prepare("ALTER TABLE suppliers ADD COLUMN exclude_from_balance INTEGER NOT NULL DEFAULT 0").run();
+    }
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS supplier_payments (
+          id TEXT PRIMARY KEY,
+          supplier_id TEXT NOT NULL,
+          month TEXT NOT NULL,
+          line_name TEXT,
+          scope TEXT NOT NULL,
+          amount REAL NOT NULL,
+          balance_amount REAL NOT NULL,
+          paid_at TEXT NOT NULL,
+          paid_by_office_user_id TEXT,
+          paid_by_office_user_name TEXT,
+          note TEXT,
+          UNIQUE (supplier_id, month)
+        )`
+      )
+      .run();
+    this.db
+      .prepare("CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id)")
+      .run();
   }
 
   hasColumn(table, column) {
@@ -368,8 +408,8 @@ export class LocalStore {
       .prepare(
         `INSERT INTO suppliers
          (id, code, name, line_id, line_name, deduction_enabled, own_transport_addition_enabled,
-          factory_transport_deduction_enabled, active, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          factory_transport_deduction_enabled, exclude_from_balance, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            code = excluded.code,
            name = excluded.name,
@@ -378,6 +418,7 @@ export class LocalStore {
            deduction_enabled = excluded.deduction_enabled,
            own_transport_addition_enabled = excluded.own_transport_addition_enabled,
            factory_transport_deduction_enabled = excluded.factory_transport_deduction_enabled,
+           exclude_from_balance = excluded.exclude_from_balance,
            active = excluded.active,
            updated_at = excluded.updated_at
          ON CONFLICT(code) DO UPDATE SET
@@ -387,6 +428,7 @@ export class LocalStore {
            deduction_enabled = excluded.deduction_enabled,
            own_transport_addition_enabled = excluded.own_transport_addition_enabled,
            factory_transport_deduction_enabled = excluded.factory_transport_deduction_enabled,
+           exclude_from_balance = excluded.exclude_from_balance,
            active = excluded.active,
            updated_at = excluded.updated_at`
       )
@@ -399,6 +441,7 @@ export class LocalStore {
         bool(supplier.deductionEnabled),
         bool(supplier.ownTransportAdditionEnabled),
         bool(supplier.factoryTransportDeductionEnabled),
+        bool(supplier.excludeFromBalance),
         bool(supplier.active !== false),
         supplier.updatedAt
       );
@@ -646,6 +689,229 @@ export class LocalStore {
     return { lineId: lineId || null, lineName, month, teaPricePerKg: price, updatedCount: suppliers.length };
   }
 
+  greenLeafBook(month) {
+    const exported = this.exportForCloud();
+    const book = this.buildGreenLeafBookWithAutoArrears(month, exported);
+    const payments = new Map(this.supplierPayments().filter((payment) => payment.month === book.month).map((payment) => [payment.supplierId, payment]));
+    return {
+      ...book,
+      rows: book.rows.map((row) => ({
+        ...row,
+        payment: payments.get(row.supplierId) || null
+      }))
+    };
+  }
+
+  buildGreenLeafBookWithAutoArrears(month, exported) {
+    const previousMonth = previousMonthValue(month);
+    const payments = this.supplierPayments();
+    const previousPayments = new Set(payments.filter((payment) => payment.month === previousMonth).map((payment) => payment.supplierId));
+    const previousBook = buildGreenLeafBook({ month: previousMonth, ...exported, entries: exported.collectionEntries });
+    const existingCarryForward = new Set(
+      (exported.arrears || [])
+        .filter((item) => item.effectiveMonth === month && String(item.note || "").includes(`from ${previousMonth}`))
+        .map((item) => item.supplierId)
+    );
+    const automaticArrears = previousBook.rows
+      .filter((row) => !row.balanceExcluded && row.balanceToPay < 0 && !previousPayments.has(row.supplierId) && !existingCarryForward.has(row.supplierId))
+      .map((row) => ({
+        id: `auto_arrears_${row.supplierId}_${month}_from_${previousMonth}`,
+        supplierId: row.supplierId,
+        effectiveMonth: month,
+        amount: Math.abs(row.balanceToPay),
+        note: `Automatic carry forward from ${previousMonth}`
+      }));
+    return buildGreenLeafBook({
+      month,
+      ...exported,
+      arrears: [...(exported.arrears || []), ...automaticArrears],
+      entries: exported.collectionEntries
+    });
+  }
+
+  async recordSupplierPayments(input, officeUser = null) {
+    const month = String(input.month || "").trim();
+    const scope = String(input.scope || "supplier").trim();
+    if (!month || !["supplier", "line"].includes(scope)) {
+      const error = new Error("Payment month and scope are required");
+      error.status = 400;
+      throw error;
+    }
+    const book = this.greenLeafBook(month);
+    const rows =
+      scope === "line"
+        ? book.rows.filter((row) => row.lineName === input.lineName)
+        : book.rows.filter((row) => row.supplierId === input.supplierId);
+    const payableRows = rows.filter((row) => !row.balanceExcluded);
+    if (!payableRows.length) {
+      const error = new Error("No payable suppliers found for this payment");
+      error.status = 400;
+      throw error;
+    }
+    const paidAt = input.paidAt || now();
+    const note = String(input.note || "").trim();
+    const explicitAmount = input.amount === "" || input.amount === undefined ? null : Number(input.amount);
+    if (explicitAmount !== null && (!Number.isFinite(explicitAmount) || explicitAmount < 0)) {
+      const error = new Error("Payment amount must be zero or greater");
+      error.status = 400;
+      throw error;
+    }
+    const saved = [];
+    const positiveBalanceTotal = money(payableRows.reduce((total, row) => total + Math.max(0, Number(row.balanceToPay || 0)), 0));
+    let remainingLineAmount = explicitAmount === null || scope !== "line" ? null : money(explicitAmount);
+    this.db.exec("BEGIN");
+    try {
+      for (const [index, row] of payableRows.entries()) {
+        const balanceAmount = money(row.balanceToPay);
+        let amount = money(scope === "supplier" && explicitAmount !== null ? explicitAmount : Math.max(0, balanceAmount));
+        if (scope === "line" && remainingLineAmount !== null) {
+          if (positiveBalanceTotal <= 0) {
+            amount = 0;
+          } else if (index === payableRows.length - 1) {
+            amount = money(remainingLineAmount);
+          } else {
+            amount = money((Math.max(0, balanceAmount) / positiveBalanceTotal) * explicitAmount);
+            remainingLineAmount = money(remainingLineAmount - amount);
+          }
+        }
+        const id = `payment_${row.supplierId}_${month}`;
+        this.db
+          .prepare(
+            `INSERT INTO supplier_payments
+             (id, supplier_id, month, line_name, scope, amount, balance_amount, paid_at,
+              paid_by_office_user_id, paid_by_office_user_name, note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(supplier_id, month) DO UPDATE SET
+               line_name = excluded.line_name,
+               scope = excluded.scope,
+               amount = excluded.amount,
+               balance_amount = excluded.balance_amount,
+               paid_at = excluded.paid_at,
+               paid_by_office_user_id = excluded.paid_by_office_user_id,
+               paid_by_office_user_name = excluded.paid_by_office_user_name,
+               note = excluded.note`
+          )
+          .run(
+            id,
+            row.supplierId,
+            month,
+            row.lineName,
+            scope,
+            amount,
+            balanceAmount,
+            paidAt,
+            optional(officeUser?.id),
+            optional(officeUser?.displayName || officeUser?.username),
+            optional(note)
+          );
+        if (balanceAmount < 0) {
+          const arrearId = `arrears_${row.supplierId}_${nextMonthValue(month)}_from_${month}`;
+          this.db
+            .prepare(
+              `INSERT INTO arrears_ledger (id, supplier_id, effective_month, amount, note)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 amount = excluded.amount,
+                 note = excluded.note`
+            )
+            .run(
+              arrearId,
+              row.supplierId,
+              nextMonthValue(month),
+              Math.abs(balanceAmount),
+              `Carried forward from ${month}`
+            );
+        }
+        saved.push({ supplierId: row.supplierId, month, amount, balanceAmount });
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.refreshSnapshot();
+    return { month, scope, recordedCount: saved.length, payments: saved };
+  }
+
+  monthEndSummary(month) {
+    const book = this.greenLeafBook(month);
+    const entries = this.collectionEntries();
+    const advances = this.advances();
+    const fertilizerIssues = this.fertilizerIssues();
+    const fertilizerInstallments = this.fertilizerInstallments();
+    const teaPackets = this.teaPackets();
+    const arrears = this.arrears();
+    const payments = this.supplierPayments();
+    const supplierBills = book.rows.map((row) => {
+      const supplierEntries = entries.filter((entry) => entry.supplierId === row.supplierId && entry.collectionDate.startsWith(book.month));
+      const supplierFertilizer = fertilizerIssues
+        .filter((issue) => issue.supplierId === row.supplierId && [issue.effectiveMonth1, issue.effectiveMonth2].includes(book.month))
+        .map((issue) => {
+          const effectiveAmount = money(
+            fertilizerInstallments
+              .filter((installment) => installment.fertilizerIssueId === issue.id && installment.effectiveMonth === book.month)
+              .reduce((total, installment) => total + Number(installment.amount || 0), 0)
+          );
+          const carriedForwardAmount = money(
+            fertilizerInstallments
+              .filter((installment) => installment.fertilizerIssueId === issue.id && installment.effectiveMonth > book.month)
+              .reduce((total, installment) => total + Number(installment.amount || 0), 0)
+          );
+          return { ...issue, effectiveAmount, carriedForwardAmount };
+        });
+      return {
+        supplierId: row.supplierId,
+        supplierCode: row.supplierCode,
+        supplierName: row.supplierName,
+        lineName: row.lineName,
+        month: book.month,
+        dailyKg: row.dailyKg,
+        collectionEntries: supplierEntries,
+        pricePerKg: row.pricePerKg,
+        totalKg: row.totalKg,
+        deductionKg: row.deductionKg,
+        finalKg: row.finalKg,
+        leafValue: row.leafValue,
+        ownTransportAddition: row.ownTransportAddition,
+        factoryTransportDeduction: row.factoryTransportDeduction,
+        advances: advances.filter((advance) => advance.supplierId === row.supplierId && advance.effectiveMonth === book.month),
+        fertilizer: supplierFertilizer,
+        teaPackets: teaPackets.filter((packet) => packet.supplierId === row.supplierId && packet.effectiveMonth === book.month),
+        arrears: arrears.filter((item) => item.supplierId === row.supplierId && item.effectiveMonth === book.month),
+        arrearsCarriedForward: row.arrearsCarriedForward,
+        totalAdditions: row.totalAdditions,
+        totalDeductions: row.totalDeductions,
+        balanceToPay: row.balanceToPay,
+        balanceExcluded: row.balanceExcluded,
+        payment: payments.find((payment) => payment.supplierId === row.supplierId && payment.month === book.month) || null
+      };
+    });
+    const lineMap = new Map();
+    for (const bill of supplierBills) {
+      const current = lineMap.get(bill.lineName) || {
+        lineName: bill.lineName,
+        supplierCount: 0,
+        totalKg: 0,
+        finalKg: 0,
+        leafValue: 0,
+        totalAdditions: 0,
+        totalDeductions: 0,
+        balanceToPay: 0,
+        paidCount: 0
+      };
+      current.supplierCount += 1;
+      current.totalKg = money(current.totalKg + bill.totalKg);
+      current.finalKg = money(current.finalKg + bill.finalKg);
+      current.leafValue = money(current.leafValue + bill.leafValue);
+      current.totalAdditions = money(current.totalAdditions + bill.totalAdditions);
+      current.totalDeductions = money(current.totalDeductions + bill.totalDeductions);
+      if (!bill.balanceExcluded) current.balanceToPay = money(current.balanceToPay + bill.balanceToPay);
+      if (bill.payment) current.paidCount += 1;
+      lineMap.set(bill.lineName, current);
+    }
+    return { month: book.month, supplierBills, lineSummaries: [...lineMap.values()] };
+  }
+
   getMasterData() {
     return {
       generatedAt: now(),
@@ -762,7 +1028,8 @@ export class LocalStore {
       fertilizerIssues: this.fertilizerIssues(),
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
-      arrears: this.arrears()
+      arrears: this.arrears(),
+      supplierPayments: this.supplierPayments()
     };
   }
 
@@ -781,6 +1048,7 @@ export class LocalStore {
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
       arrears: this.arrears(),
+      supplierPayments: this.supplierPayments(),
       syncLog: this.syncLog()
     };
   }
@@ -889,6 +1157,7 @@ export class LocalStore {
            deduction_enabled AS deductionEnabled,
            own_transport_addition_enabled AS ownTransportAdditionEnabled,
            factory_transport_deduction_enabled AS factoryTransportDeductionEnabled,
+           exclude_from_balance AS excludeFromBalance,
            active, updated_at AS updatedAt
            FROM suppliers ORDER BY code`
         )
@@ -898,6 +1167,7 @@ export class LocalStore {
         deductionEnabled: fromBool(row.deductionEnabled),
         ownTransportAdditionEnabled: fromBool(row.ownTransportAdditionEnabled),
         factoryTransportDeductionEnabled: fromBool(row.factoryTransportDeductionEnabled),
+        excludeFromBalance: fromBool(row.excludeFromBalance),
         active: fromBool(row.active)
       })
     );
@@ -983,6 +1253,17 @@ export class LocalStore {
 
   arrears() {
     return this.db.prepare("SELECT id, supplier_id AS supplierId, effective_month AS effectiveMonth, amount, note FROM arrears_ledger").all();
+  }
+
+  supplierPayments() {
+    return this.db
+      .prepare(
+        `SELECT id, supplier_id AS supplierId, month, line_name AS lineName, scope, amount,
+         balance_amount AS balanceAmount, paid_at AS paidAt, paid_by_office_user_id AS paidByOfficeUserId,
+         paid_by_office_user_name AS paidByOfficeUserName, note
+         FROM supplier_payments ORDER BY paid_at DESC`
+      )
+      .all();
   }
 
   syncLog() {
@@ -1080,6 +1361,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   deduction_enabled INTEGER NOT NULL DEFAULT 0,
   own_transport_addition_enabled INTEGER NOT NULL DEFAULT 0,
   factory_transport_deduction_enabled INTEGER NOT NULL DEFAULT 0,
+  exclude_from_balance INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL
 );
@@ -1200,6 +1482,21 @@ CREATE TABLE IF NOT EXISTS arrears_ledger (
   note TEXT
 );
 
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL,
+  month TEXT NOT NULL,
+  line_name TEXT,
+  scope TEXT NOT NULL,
+  amount REAL NOT NULL,
+  balance_amount REAL NOT NULL,
+  paid_at TEXT NOT NULL,
+  paid_by_office_user_id TEXT,
+  paid_by_office_user_name TEXT,
+  note TEXT,
+  UNIQUE (supplier_id, month)
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -1215,4 +1512,5 @@ CREATE INDEX IF NOT EXISTS idx_advances_effective_month ON advances(effective_mo
 CREATE INDEX IF NOT EXISTS idx_fertilizer_effective_month ON fertilizer_installments(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_tea_packets_effective_month ON tea_packets(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_arrears_effective_month ON arrears_ledger(effective_month, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
 `;

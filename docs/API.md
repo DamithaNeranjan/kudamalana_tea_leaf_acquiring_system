@@ -84,6 +84,46 @@ The desktop app imports these records into staging and skips duplicates by `id`.
 
 Returns the calculated monthly green leaf book. Posted collection entries for the month are included even if their current supplier master row is unavailable. Advance payments are returned per row as `advancePayments` date/amount entries, with `totalAdvances` included in deductions and balance calculations.
 
+Rows include payment state when a month-end payment has been recorded. Factory-owned suppliers return `balanceExcluded: true`; their monthly details remain present but payable balance is not calculated.
+
+### `GET /office/month-end-summary?month=YYYY-MM`
+
+Office-session protected endpoint that generates month-end supplier bills and line-wise totals from posted Green Leaf Book data.
+
+Returns:
+
+- supplier bill details with daily kg, collection entries, price, leaf value, transport additions/deductions, advances, fertilizer installments and carry-forward amounts, made tea packets, arrears, totals, balance, and payment state
+- line summaries with supplier count, kg totals, additions, deductions, balance, and paid count
+
+### `POST /office/supplier-payments`
+
+Office-session protected endpoint that records month-end payments made outside the system. This marks the selected supplier or all payable suppliers in a line as paid for the month without changing the calculated Green Leaf Book balance. Negative Green Leaf Book balances continue into the next month as arrears, including suppliers without a recorded payment.
+
+Supplier-wise payload:
+
+```json
+{
+  "month": "2026-06",
+  "scope": "supplier",
+  "supplierId": "supplier-id",
+  "paidAt": "2026-06-30",
+  "amount": 12500,
+  "note": "Cash paid"
+}
+```
+
+Line-wise payload:
+
+```json
+{
+  "month": "2026-06",
+  "scope": "line",
+  "lineName": "Line A",
+  "paidAt": "2026-06-30",
+  "note": "Line payment batch"
+}
+```
+
 ### `POST /office/advances`
 
 Office-session protected endpoint that records an advance given to a supplier for an effective month.
@@ -144,7 +184,7 @@ The Green Leaf Book only deducts made tea packet totals whose effective month ma
 
 ### `POST /office/supplier-month-overrides`
 
-Office-session protected endpoint that sets a month-specific override for one supplier. When `teaPricePerKg` is supplied, it replaces the selected month's default tea price for that supplier.
+Office-session protected endpoint that sets a month-specific override for one supplier. When `teaPricePerKg` is supplied, it replaces the selected month's default green leaf price for that supplier.
 
 Payload:
 

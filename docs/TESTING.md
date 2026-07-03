@@ -51,7 +51,7 @@ Manual desktop UI checks:
 - In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout stays inside the panel in compact windows.
 - Create a tea line, then create a supplier using that registered tea line.
 - Confirm supplier save rejects unregistered tea-line names.
-- Open Monthly Settings, save the selected month's tea price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
+- Open Monthly Settings, save the selected month's green leaf price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
 - Edit a supplier and set a month-specific special price; edit a registered tea line and apply a line-level special price, then confirm the selected month's Green Leaf Book uses the override.
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
 - Open Fertilizer, select a supplier, enter date given, kg, total value, split count, and effective month or months. Confirm the Green Leaf Book deducts only the fertilizer rupee amount assigned to the selected month.
@@ -102,6 +102,6 @@ Manual web UI checks:
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.
-- Confirm the Green Leaf Book supplier filter narrows rows by supplier name, headers are centered, Poya day columns are lightly highlighted, Total Additions appears before Total Deductions, additions are green, deductions are red, and balance values are bold.
+- Confirm the Green Leaf Book supplier filter narrows rows by supplier name, headers are centered, the color legend is visible, Poya day columns are lightly highlighted and override other row background colors, Total Additions appears before Total Deductions, additions are green, deductions are red, balance values are bold, paid rows are light blue, factory-owned rows are light grey, and the balance footer shows separate positive and negative totals.
 - Confirm the Green Leaf Book shows the selected month's Fertilizer and Made Tea Packets deductions before Transport Deduct.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.

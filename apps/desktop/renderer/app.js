@@ -3,6 +3,11 @@ let officeToken = "";
 let officeUser = null;
 let latestState = null;
 let latestBook = null;
+let latestMonthEndSummary = null;
+let activeBillSummaryScope = "all";
+let activeBillSummarySupplier = "";
+let activeBillSummaryLine = "";
+let paymentSupplierChoices = [];
 const filters = {
   officeUserName: "",
   teaLineName: "",
@@ -14,7 +19,11 @@ const filters = {
   recordDateFrom: "",
   recordDateTo: "",
   recordPostedBy: "",
-  recordCollector: ""
+  recordCollector: "",
+  paymentSupplier: "",
+  paymentLine: "",
+  paymentMonth: "",
+  paymentScope: ""
 };
 let recordsPage = 1;
 const recordsPageSize = 10;
@@ -28,7 +37,8 @@ const listPages = {
   advances: 1,
   fertilizer: 1,
   teaPackets: 1,
-  staging: 1
+  staging: 1,
+  payments: 1
 };
 
 async function api(path, options = {}) {
@@ -68,7 +78,15 @@ function clearSession() {
   document.querySelector("#loginView").classList.remove("hidden");
   document.querySelector("#bookTable").innerHTML = "";
   document.querySelector("#bookSupplierFilter").value = "";
+  document.querySelector("#bookLineFilter").value = "";
+  document.querySelector("#paymentSupplierFilter").value = "";
+  document.querySelector("#paymentLineFilter").value = "";
+  document.querySelector("#paymentMonthFilter").value = "";
+  document.querySelector("#paymentScopeFilter").value = "";
+  document.querySelector("#monthEndSummary").classList.add("hidden");
+  document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
+  latestMonthEndSummary = null;
   document.querySelector("#stagingTable tbody").innerHTML = "";
   document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#profileForm").reset();
@@ -102,6 +120,13 @@ function showView(viewId) {
   if (viewId === "pairingView" && officeToken) refreshPairingQr();
   if (viewId === "stagingView" && officeToken) refreshState();
   if (viewId === "recordsView" && officeToken) refreshState();
+  if (viewId === "supplierBillsView" && officeToken) {
+    loadBillSelectorOptions().catch((error) => showToast(error.message, "error"));
+  }
+  if (viewId === "paymentRecordsView" && officeToken) {
+    refreshState();
+    loadPaymentBalances().catch((error) => showToast(error.message, "error"));
+  }
 }
 
 function formJson(form) {
@@ -243,6 +268,19 @@ for (const [selector, key] of [
   });
 }
 
+for (const [selector, key] of [
+  ["#paymentSupplierFilter", "paymentSupplier"],
+  ["#paymentLineFilter", "paymentLine"],
+  ["#paymentMonthFilter", "paymentMonth"],
+  ["#paymentScopeFilter", "paymentScope"]
+]) {
+  document.querySelector(selector).addEventListener("input", (event) => {
+    filters[key] = event.target.value.trim().toLowerCase();
+    listPages.payments = 1;
+    if (latestState) renderPayments(latestState);
+  });
+}
+
 document.querySelector("#logoutButton").addEventListener("click", async () => {
   try {
     if (officeToken) await api("/office/logout", { method: "POST" });
@@ -290,6 +328,7 @@ function renderStateTables(state) {
   renderTeaPackets(state);
   renderStaging(state);
   renderCollectionRecords(state.collectionEntries);
+  renderPayments(state);
 }
 
 function renderOfficeUsers(state) {
@@ -332,7 +371,7 @@ function renderStaging(state) {
     .map(
       (row) => `
       <tr>
-        <td>${row.supplierCode} ${row.supplierName}</td>
+        <td>${row.supplierName}</td>
         <td>${row.collectionDate}</td>
         <td>${row.bagCount}</td>
         <td>${row.grossWeightKg}</td>
@@ -526,7 +565,6 @@ function renderCollectionRecords(records = []) {
         <td>${escapeHtml(record.lineName || "")}</td>
         <td>${record.bagCount}</td>
         <td>${record.originalGrossWeightKg}</td>
-        <td>${record.grossWeightKg}</td>
         <td>${record.netWeightKg}</td>
         <td>${escapeHtml(record.printStatus || "-")}</td>
         <td>${escapeHtml(record.tabletPrintedAt || "-")}</td>
@@ -542,6 +580,44 @@ function renderCollectionRecords(records = []) {
     : "No records";
   document.querySelector("#recordsPrevPage").disabled = recordsPage <= 1;
   document.querySelector("#recordsNextPage").disabled = recordsPage >= pageCount;
+}
+
+function renderPayments(state) {
+  const supplierById = new Map(state.suppliers.map((supplier) => [supplier.id, supplier]));
+  const payments = paginateList(
+    "payments",
+    (state.supplierPayments || [])
+      .filter((payment) => {
+        const supplier = supplierById.get(payment.supplierId);
+        const supplierName = String(supplier?.name || payment.supplierId || "").toLowerCase();
+        const lineName = String(payment.lineName || supplier?.lineName || "").toLowerCase();
+        return (
+          supplierName.includes(filters.paymentSupplier) &&
+          lineName.includes(filters.paymentLine) &&
+          (!filters.paymentMonth || payment.month === filters.paymentMonth) &&
+          (!filters.paymentScope || payment.scope === filters.paymentScope)
+        );
+      })
+      .sort((a, b) => compareNewestFirst(a, b, "paidAt")),
+    "paymentsTable"
+  );
+  document.querySelector("#paymentsTable tbody").innerHTML = payments
+    .map((payment) => {
+      const supplier = supplierById.get(payment.supplierId);
+      return `
+      <tr>
+        <td>${escapeHtml(formatDateTime(payment.paidAt))}</td>
+        <td>${escapeHtml(supplier?.name || payment.supplierId)}</td>
+        <td>${escapeHtml(payment.lineName || supplier?.lineName || "")}</td>
+        <td>${escapeHtml(payment.month)}</td>
+        <td>${escapeHtml(payment.scope === "line" ? "Line" : "Supplier")}</td>
+        <td>${formatBookNumber(payment.amount)}</td>
+        <td>${formatBookNumber(payment.balanceAmount)}</td>
+        <td>${escapeHtml(payment.paidByOfficeUserName || "-")}</td>
+        <td>${escapeHtml(payment.note || "-")}</td>
+      </tr>`;
+    })
+    .join("");
 }
 
 function formatDateTime(value) {
@@ -652,6 +728,7 @@ function renderRegistrationTables(state) {
         supplier.deductionEnabled ? "2% deduct" : "",
         supplier.ownTransportAdditionEnabled ? "Own transport" : "",
         supplier.factoryTransportDeductionEnabled ? "Factory transport" : "",
+        supplier.excludeFromBalance ? "Factory-owned" : "",
         currentSupplierPriceOverride(supplier.id) ? `Special ${currentSupplierPriceOverride(supplier.id).teaPricePerKg}` : ""
       ]
         .filter(Boolean)
@@ -940,6 +1017,7 @@ function renderSupplierEditForm(supplier) {
         <label><input type="checkbox" name="deductionEnabled" ${checked(supplier.deductionEnabled)} /> 2% end-month deduction</label>
         <label><input type="checkbox" name="ownTransportAdditionEnabled" ${checked(supplier.ownTransportAdditionEnabled)} /> Own transport addition</label>
         <label><input type="checkbox" name="factoryTransportDeductionEnabled" ${checked(supplier.factoryTransportDeductionEnabled)} /> Factory transport deduction</label>
+        <label><input type="checkbox" name="excludeFromBalance" ${checked(supplier.excludeFromBalance)} /> Factory-owned supplier: do not calculate payable balance</label>
       </div>
       <div class="check-list">
         <strong>Special supplier price for a month</strong>
@@ -1131,25 +1209,41 @@ document.querySelector("#recordsNextPage").addEventListener("click", () => {
 document.querySelector("#loadBook").addEventListener("click", async () => {
   const month = document.querySelector("#bookMonth").value;
   latestBook = await api(`/office/green-leaf-book?month=${month}`);
+  populateBookPaymentForm();
   renderGreenLeafBook();
 });
 
 document.querySelector("#bookSupplierFilter").addEventListener("input", renderGreenLeafBook);
+document.querySelector("#bookLineFilter").addEventListener("input", renderGreenLeafBook);
+document.querySelector("#excludeFactorySuppliersFromTotals").addEventListener("change", renderGreenLeafBook);
+document.querySelector('#bookPaymentForm select[name="scope"]').addEventListener("change", updateBookPaymentScope);
+document.querySelector("#paymentSupplierSearch").addEventListener("input", updatePaymentSupplierSelection);
+document.querySelector("#paymentSupplierSearch").addEventListener("change", updatePaymentSupplierSelection);
+document.querySelector('#bookPaymentForm select[name="lineName"]').addEventListener("change", updatePaymentAmountSuggestion);
+document.querySelector("#bookPaymentForm").addEventListener("submit", recordBookPayment);
+document.querySelector("#billSummaryScope").addEventListener("change", updateBillSummaryScope);
+document.querySelector("#loadMonthEndSummary").addEventListener("click", loadMonthEndSummary);
+document.querySelector("#billMonth").addEventListener("change", loadBillSelectorOptions);
+document.querySelector("#paymentRecordMonth").addEventListener("change", loadPaymentBalances);
 
 function renderGreenLeafBook() {
   const book = latestBook;
   if (!book) return;
   const supplierFilter = document.querySelector("#bookSupplierFilter").value.trim().toLowerCase();
+  const lineFilter = document.querySelector("#bookLineFilter").value.trim().toLowerCase();
+  const excludeFactoryFromTotals = document.querySelector("#excludeFactorySuppliersFromTotals").checked;
   const poyaDays = poyaDaysForMonth(book.month);
   const dayHeaders = Array.from({ length: book.dayCount }, (_, index) => {
     const day = index + 1;
     return `<th class="${poyaDays.has(day) ? "poya-day" : ""}">${day}</th>`;
   }).join("");
-  const rows = book.rows
+  const visibleRows = book.rows
     .filter((row) => String(row.supplierName || "").toLowerCase().includes(supplierFilter))
+    .filter((row) => String(row.lineName || "").toLowerCase().includes(lineFilter));
+  const rows = visibleRows
     .map(
       (row) => `
-      <tr>
+      <tr class="${row.payment ? "paid-book-row" : ""} ${row.balanceExcluded ? "factory-owned-row" : ""}">
         <td>${row.rowNumber}</td>
         <td>${escapeHtml(row.supplierName)}</td>
         <td>${escapeHtml(row.lineName || "")}</td>
@@ -1170,9 +1264,14 @@ function renderGreenLeafBook() {
         <td class="addition-value">${formatBookNumber(row.pricePerKg)}</td>
         <td class="addition-value">${formatBookNumber(row.totalAdditions ?? row.ownTransportAddition)}</td>
         <td class="deduction-value">${formatBookNumber(row.totalDeductions)}</td>
-        <td class="balance-value">${formatBookNumber(row.balanceToPay)}</td>
+        <td class="balance-value">${row.balanceExcluded ? "" : formatBookNumber(row.balanceToPay)}</td>
       </tr>`
     )
+    .join("");
+  const totalRows = excludeFactoryFromTotals ? visibleRows.filter((row) => !row.balanceExcluded) : visibleRows;
+  const totals = greenLeafBookTotals(totalRows, book.dayCount);
+  const footerDailyTotals = totals.dailyKg
+    .map((value, index) => `<td class="${poyaDays.has(index + 1) ? "poya-day" : ""}">${formatBookNumber(value)}</td>`)
     .join("");
   document.querySelector("#bookTable").innerHTML = `
     <thead>
@@ -1183,7 +1282,275 @@ function renderGreenLeafBook() {
         <th>Price (Rs.)</th><th>Total Additions (Rs.)</th><th>Total Deductions (Rs.)</th><th>Balance (Rs.)</th>
       </tr>
     </thead>
-    <tbody>${rows}</tbody>`;
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td></td><td class="book-total-label">Total</td><td></td>${footerDailyTotals}
+        <td>${formatBookNumber(totals.totalKg)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.deductionKg)}</td>
+        <td class="addition-value">${formatBookNumber(totals.finalKg)}</td>
+        <td class="addition-value">${formatBookNumber(totals.ownTransportAddition)}</td>
+        <td></td>
+        <td></td>
+        <td class="deduction-value">${formatBookNumber(totals.totalAdvances)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.fertilizerDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.teaPacketDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.factoryTransportDeduction)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.arrearsCarriedForward)}</td>
+        <td></td>
+        <td class="addition-value">${formatBookNumber(totals.totalAdditions)}</td>
+        <td class="deduction-value">${formatBookNumber(totals.totalDeductions)}</td>
+        <td class="balance-value balance-total-cell">
+          <span class="positive-balance-total">${formatBookNumber(totals.positiveBalanceToPay)}</span>
+          <span class="negative-balance-total">${formatBookNumber(totals.negativeBalanceToPay)}</span>
+        </td>
+      </tr>
+    </tfoot>`;
+}
+
+function greenLeafBookTotals(rows, dayCount) {
+  const total = (field) => sumNumbers(rows.map((row) => row[field]));
+  return {
+    dailyKg: Array.from({ length: dayCount }, (_, index) => sumNumbers(rows.map((row) => row.dailyKg[index]))),
+    totalKg: total("totalKg"),
+    deductionKg: total("deductionKg"),
+    finalKg: total("finalKg"),
+    ownTransportAddition: total("ownTransportAddition"),
+    totalAdvances: total("totalAdvances"),
+    fertilizerDeduction: total("fertilizerDeduction"),
+    teaPacketDeduction: total("teaPacketDeduction"),
+    factoryTransportDeduction: total("factoryTransportDeduction"),
+    arrearsCarriedForward: total("arrearsCarriedForward"),
+    totalAdditions: sumNumbers(rows.map((row) => row.totalAdditions ?? row.ownTransportAddition)),
+    totalDeductions: total("totalDeductions"),
+    balanceToPay: total("balanceToPay"),
+    positiveBalanceToPay: sumNumbers(rows.map((row) => Math.max(0, Number(row.balanceToPay || 0)))),
+    negativeBalanceToPay: sumNumbers(rows.map((row) => Math.min(0, Number(row.balanceToPay || 0))))
+  };
+}
+
+function sumNumbers(values) {
+  return values.reduce((total, value) => total + Number(value || 0), 0);
+}
+
+function populateBookPaymentForm() {
+  const form = document.querySelector("#bookPaymentForm");
+  const rows = latestBook?.rows || [];
+  const paymentRows = rows.filter((row) => !row.balanceExcluded);
+  const payableRows = paymentRows.filter((row) => Number(row.balanceToPay || 0) > 0);
+  const selectedPaymentSupplier = form.elements.supplierId.value;
+  const selectedPaymentSupplierLabel = document.querySelector("#paymentSupplierSearch").value;
+  const selectedPaymentLine = form.elements.lineName.value;
+  const selectedSummarySupplier = document.querySelector("#billSummarySupplier").value;
+  const selectedSummaryLine = document.querySelector("#billSummaryLine").value;
+  form.elements.paidAt.value = localDateValue();
+  paymentSupplierChoices = paymentRows.map((row) => {
+    const balance = Number(row.balanceToPay || 0);
+    const inactiveLabel = balance <= 0 ? ` - inactive${balance < 0 ? ` debt ${formatBookNumber(balance)}` : ""}` : "";
+    return {
+      id: row.supplierId,
+      label: `${row.supplierName} (${row.lineName || ""})${inactiveLabel}`,
+      active: balance > 0,
+      balance
+    };
+  });
+  document.querySelector("#paymentSupplierOptions").innerHTML = paymentSupplierChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
+    .join("");
+  const lineNames = [...new Set(payableRows.map((row) => row.lineName).filter(Boolean))];
+  form.elements.lineName.innerHTML = lineNames
+    .map((lineName) => `<option value="${escapeAttribute(lineName)}">${escapeHtml(lineName)}</option>`)
+    .join("");
+  document.querySelector("#billSummarySupplier").innerHTML = rows
+    .map((row) => `<option value="${escapeAttribute(row.supplierId)}">${escapeHtml(row.supplierName)} (${escapeHtml(row.lineName || "")})</option>`)
+    .join("");
+  document.querySelector("#billSummaryLine").innerHTML = lineNames
+    .map((lineName) => `<option value="${escapeAttribute(lineName)}">${escapeHtml(lineName)}</option>`)
+    .join("");
+  if (payableRows.some((row) => row.supplierId === selectedPaymentSupplier)) {
+    form.elements.supplierId.value = selectedPaymentSupplier;
+    document.querySelector("#paymentSupplierSearch").value = selectedPaymentSupplierLabel || paymentSupplierChoices.find((choice) => choice.id === selectedPaymentSupplier)?.label || "";
+  } else {
+    form.elements.supplierId.value = "";
+    document.querySelector("#paymentSupplierSearch").value = "";
+  }
+  if (lineNames.includes(selectedPaymentLine)) form.elements.lineName.value = selectedPaymentLine;
+  if (rows.some((row) => row.supplierId === selectedSummarySupplier)) document.querySelector("#billSummarySupplier").value = selectedSummarySupplier;
+  if (lineNames.includes(selectedSummaryLine)) document.querySelector("#billSummaryLine").value = selectedSummaryLine;
+  updateBookPaymentScope();
+  updateBillSummaryScope();
+}
+
+function updateBookPaymentScope() {
+  const form = document.querySelector("#bookPaymentForm");
+  const isLinePayment = form.elements.scope.value === "line";
+  document.querySelector("#paymentSupplierSearch").classList.toggle("hidden", isLinePayment);
+  form.elements.lineName.classList.toggle("hidden", !isLinePayment);
+  updatePaymentAmountSuggestion();
+}
+
+function updatePaymentSupplierSelection() {
+  const form = document.querySelector("#bookPaymentForm");
+  const searchValue = document.querySelector("#paymentSupplierSearch").value;
+  const choice = paymentSupplierChoices.find((item) => item.label === searchValue);
+  form.elements.supplierId.value = choice?.active ? choice.id : "";
+  updatePaymentAmountSuggestion();
+}
+
+function updatePaymentAmountSuggestion() {
+  const form = document.querySelector("#bookPaymentForm");
+  const isLinePayment = form.elements.scope.value === "line";
+  const rows = (latestBook?.rows || []).filter((row) => !row.balanceExcluded);
+  const amount = isLinePayment
+    ? rows
+        .filter((row) => row.lineName === form.elements.lineName.value)
+        .reduce((total, row) => total + Math.max(0, Number(row.balanceToPay || 0)), 0)
+    : Math.max(0, Number(rows.find((row) => row.supplierId === form.elements.supplierId.value)?.balanceToPay || 0));
+  form.elements.amount.value = amount ? String(Math.round((amount + Number.EPSILON) * 100) / 100) : "";
+}
+
+function updateBillSummaryScope() {
+  const scope = document.querySelector("#billSummaryScope").value;
+  document.querySelector("#billSummarySupplier").classList.toggle("hidden", scope !== "supplier");
+  document.querySelector("#billSummaryLine").classList.toggle("hidden", scope !== "line");
+}
+
+async function loadPaymentBalances() {
+  const month = document.querySelector("#paymentRecordMonth").value;
+  latestBook = await api(`/office/green-leaf-book?month=${month}`);
+  populateBookPaymentForm();
+}
+
+async function loadBillSelectorOptions() {
+  const month = document.querySelector("#billMonth").value;
+  latestBook = await api(`/office/green-leaf-book?month=${month}`);
+  populateBookPaymentForm();
+}
+
+async function recordBookPayment(event) {
+  event.preventDefault();
+  if (!latestBook) {
+    showToast("Generate summaries first.", "error");
+    return;
+  }
+  const form = event.currentTarget;
+  const payload = formPayload(form);
+  payload.month = latestBook.month;
+  if (payload.scope === "supplier" && !payload.supplierId) {
+    showToast("Select a supplier to record payment.", "error");
+    return;
+  }
+  if (payload.scope === "line" && !payload.lineName) {
+    showToast("Select a line to record payment.", "error");
+    return;
+  }
+  await api("/office/supplier-payments", { method: "POST", body: JSON.stringify(payload) });
+  latestBook = await api(`/office/green-leaf-book?month=${latestBook.month}`);
+  latestMonthEndSummary = await api(`/office/month-end-summary?month=${latestBook.month}`);
+  await refreshState();
+  populateBookPaymentForm();
+  renderGreenLeafBook();
+  renderMonthEndSummary();
+  showToast("Payment recorded.");
+}
+
+async function loadMonthEndSummary() {
+  const month = document.querySelector("#billMonth").value;
+  latestBook = await api(`/office/green-leaf-book?month=${month}`);
+  latestMonthEndSummary = await api(`/office/month-end-summary?month=${month}`);
+  populateBookPaymentForm();
+  activeBillSummaryScope = document.querySelector("#billSummaryScope").value;
+  activeBillSummarySupplier = document.querySelector("#billSummarySupplier").value;
+  activeBillSummaryLine = document.querySelector("#billSummaryLine").value;
+  renderMonthEndSummary();
+}
+
+function renderMonthEndSummary() {
+  const summary = latestMonthEndSummary;
+  const host = document.querySelector("#monthEndSummary");
+  if (!summary) {
+    host.classList.add("hidden");
+    host.innerHTML = "";
+    return;
+  }
+  const scope = activeBillSummaryScope;
+  const selectedSupplierId = activeBillSummarySupplier;
+  const selectedLineName = activeBillSummaryLine;
+  const supplierBills = summary.supplierBills.filter((bill) => {
+    if (scope === "supplier") return bill.supplierId === selectedSupplierId;
+    if (scope === "line") return bill.lineName === selectedLineName;
+    return true;
+  });
+  const lineSummaries = summary.lineSummaries.filter((line) => {
+    if (scope === "line") return line.lineName === selectedLineName;
+    if (scope === "supplier") return supplierBills.some((bill) => bill.lineName === line.lineName);
+    return true;
+  });
+  const lineRows = lineSummaries
+    .map(
+      (line) => `
+      <tr>
+        <td>${escapeHtml(line.lineName || "")}</td>
+        <td>${line.supplierCount}</td>
+        <td>${formatBookNumber(line.totalKg)}</td>
+        <td>${formatBookNumber(line.finalKg)}</td>
+        <td>${formatBookNumber(line.leafValue)}</td>
+        <td>${formatBookNumber(line.totalAdditions)}</td>
+        <td>${formatBookNumber(line.totalDeductions)}</td>
+        <td>${formatBookNumber(line.balanceToPay)}</td>
+        <td>${line.paidCount}</td>
+      </tr>`
+    )
+    .join("");
+  const supplierCards = supplierBills
+    .map((bill) => {
+      const fertilizer = bill.fertilizer
+        .map((item) => `${escapeHtml(item.date)}: ${formatBookNumber(item.effectiveAmount)} effective, ${formatBookNumber(item.carriedForwardAmount)} forward`)
+        .join("<br>") || "-";
+      const packets = bill.teaPackets
+        .map((item) => `${escapeHtml(item.date)}: ${item.packetCount} x ${formatBookNumber(item.perPacketPrice)} = ${formatBookNumber(item.totalAmount)}`)
+        .join("<br>") || "-";
+      return `
+        <article class="supplier-bill-card">
+          <h4>${escapeHtml(bill.supplierName)} <span>${escapeHtml(bill.lineName || "")}</span></h4>
+          <div class="bill-grid">
+            <span>Total kg</span><strong>${formatBookNumber(bill.totalKg)}</strong>
+            <span>Price per kg</span><strong>${formatBookNumber(bill.pricePerKg)}</strong>
+            <span>Leaf value</span><strong>${formatBookNumber(bill.leafValue)}</strong>
+            <span>Transport add</span><strong>${formatBookNumber(bill.ownTransportAddition)}</strong>
+            <span>Transport deduct</span><strong>${formatBookNumber(bill.factoryTransportDeduction)}</strong>
+            <span>Arrears</span><strong>${formatBookNumber(bill.arrearsCarriedForward)}</strong>
+            <span>Total additions</span><strong>${formatBookNumber(bill.totalAdditions)}</strong>
+            <span>Total deductions</span><strong>${formatBookNumber(bill.totalDeductions)}</strong>
+            <span>Balance</span><strong>${bill.balanceExcluded ? "Factory-owned" : formatBookNumber(bill.balanceToPay)}</strong>
+            <span>Payment</span><strong>${bill.payment ? `Recorded ${escapeHtml(bill.payment.paidAt.slice(0, 10))}` : "Pending"}</strong>
+          </div>
+          <p><strong>Fertilizer:</strong><br>${fertilizer}</p>
+          <p><strong>Made tea packets:</strong><br>${packets}</p>
+        </article>`;
+    })
+    .join("");
+  const lineSection =
+    scope === "supplier"
+      ? ""
+      : `<div class="summary-section">
+      <h3>Line-wise Summary</h3>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Line</th><th>Suppliers</th><th>Total Kg</th><th>Final Kg</th><th>Leaf Value</th><th>Additions</th><th>Deductions</th><th>Balance</th><th>Paid</th></tr></thead>
+          <tbody>${lineRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  const supplierSection =
+    scope === "line"
+      ? ""
+      : `<div class="summary-section">
+      <h3>Supplier Bills</h3>
+      <div class="supplier-bill-grid">${supplierCards}</div>
+    </div>`;
+  host.innerHTML = `${lineSection}${supplierSection}`;
+  host.classList.remove("hidden");
 }
 
 function formatBookNumber(value, { blankZero = false } = {}) {
@@ -1221,6 +1588,8 @@ function poyaDaysForMonth(month) {
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 
 document.querySelector("#bookMonth").value = localMonthValue();
+document.querySelector("#billMonth").value = localMonthValue();
+document.querySelector("#paymentRecordMonth").value = localMonthValue();
 populateMonthlySettingsForm();
 populateAdvanceForm();
 populateFertilizerForm();

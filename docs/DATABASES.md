@@ -53,12 +53,12 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
 - Desktop seeds `admin` / `admin123` for both office admin login and tablet line-user login, plus `office` / `office123` for local office-user development.
 - Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
-- Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record.
+- Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record. The Collection Records desktop table shows original gross and net weights, while reviewed gross remains stored for audit/sync data.
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
 - Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
 - Suppliers are validated against active registered tea lines before saving.
-- Monthly settings are stored by calendar month and drive tea price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
-- Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default tea price.
+- Monthly settings are stored by calendar month and drive green leaf price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
+- Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default green leaf price.
 - Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Fertilizer issues are stored by supplier, given date, kg given, total rupee value, split count, and effective month or months. Monthly fertilizer installments are generated from those issues and drive the Green Leaf Book fertilizer deduction for each selected month.
 - Made tea packet deductions are stored by supplier, given date, packet count, per-packet price, total amount, and effective month. They are included in Green Leaf Book totals and the desktop book table for the selected month only.

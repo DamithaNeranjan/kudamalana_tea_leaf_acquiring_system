@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { pathToFileURL } from "node:url";
 import QRCode from "qrcode";
-import { buildGreenLeafBook, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
+import { suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 import { LocalStore } from "./localStore.mjs";
 
 export async function createDesktopSyncServer({ store = new LocalStore() } = {}) {
@@ -172,8 +172,14 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
           const month = url.searchParams.get("month");
-          const exported = store.exportForCloud();
-          return send(response, 200, buildGreenLeafBook({ month, ...exported, entries: exported.collectionEntries }));
+          return send(response, 200, store.greenLeafBook(month));
+        }
+        if (request.method === "GET" && url.pathname === "/office/month-end-summary") {
+          const month = url.searchParams.get("month");
+          return send(response, 200, store.monthEndSummary(month));
+        }
+        if (request.method === "POST" && url.pathname === "/office/supplier-payments") {
+          return send(response, 201, await store.recordSupplierPayments(await body(request), session.user));
         }
         if (request.method === "GET" && url.pathname === "/office/advance-suggestion") {
           const month = url.searchParams.get("month");

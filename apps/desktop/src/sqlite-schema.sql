@@ -32,6 +32,7 @@ CREATE TABLE suppliers (
   deduction_enabled INTEGER NOT NULL DEFAULT 0,
   own_transport_addition_enabled INTEGER NOT NULL DEFAULT 0,
   factory_transport_deduction_enabled INTEGER NOT NULL DEFAULT 0,
+  exclude_from_balance INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL
 );
@@ -152,6 +153,21 @@ CREATE TABLE arrears_ledger (
   note TEXT
 );
 
+CREATE TABLE supplier_payments (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL,
+  month TEXT NOT NULL,
+  line_name TEXT,
+  scope TEXT NOT NULL,
+  amount REAL NOT NULL,
+  balance_amount REAL NOT NULL,
+  paid_at TEXT NOT NULL,
+  paid_by_office_user_id TEXT,
+  paid_by_office_user_name TEXT,
+  note TEXT,
+  UNIQUE (supplier_id, month)
+);
+
 CREATE TABLE sync_log (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -160,3 +176,5 @@ CREATE TABLE sync_log (
   skipped_count INTEGER,
   synced_at TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);

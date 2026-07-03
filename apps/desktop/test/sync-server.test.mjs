@@ -149,6 +149,12 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.equal(lineOverride.status, 201);
     assert.equal((await lineOverride.json()).updatedCount, 1);
 
+    await fetch(`${baseUrl}/office/suppliers`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ id: "sup_debt", code: "S002", name: "Debt Supplier", lineId: "line_1", lineName: "Line A Updated", active: true })
+    });
+
     const suggestion = await (
       await fetch(`${baseUrl}/office/advance-suggestion?month=2026-05&supplierId=sup_1`, { headers: auth })
     ).json();
@@ -160,6 +166,12 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
       body: JSON.stringify({ supplierId: "sup_1", effectiveMonth: "2026-05", date: "2026-05-12", amount: 500 })
     });
     assert.equal(advance.status, 201);
+    const unpaidDebtAdvance = await fetch(`${baseUrl}/office/advances`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ supplierId: "sup_debt", effectiveMonth: "2026-05", date: "2026-05-15", amount: 100 })
+    });
+    assert.equal(unpaidDebtAdvance.status, 201);
 
     const fertilizer = await fetch(`${baseUrl}/office/fertilizer-issues`, {
       method: "POST",
@@ -197,6 +209,37 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.equal(book.rows[0].fertilizerDeduction, 500);
     assert.equal(book.rows[0].teaPacketDeduction, 200);
     assert.equal(book.rows[0].balanceToPay, 1800);
+
+    const payment = await fetch(`${baseUrl}/office/supplier-payments`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ month: "2026-05", scope: "supplier", supplierId: "sup_1", paidAt: "2026-05-31" })
+    });
+    assert.equal(payment.status, 201);
+    assert.equal((await payment.json()).recordedCount, 1);
+    const paidBook = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
+    assert.equal(paidBook.rows[0].payment.amount, 1800);
+
+    const extraAdvance = await fetch(`${baseUrl}/office/advances`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ supplierId: "sup_1", effectiveMonth: "2026-05", date: "2026-05-20", amount: 3000 })
+    });
+    assert.equal(extraAdvance.status, 201);
+    const debtPayment = await fetch(`${baseUrl}/office/supplier-payments`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ month: "2026-05", scope: "supplier", supplierId: "sup_1", paidAt: "2026-05-31" })
+    });
+    assert.equal(debtPayment.status, 201);
+    const summary = await (await fetch(`${baseUrl}/office/month-end-summary?month=2026-05`, { headers: auth })).json();
+    assert.equal(summary.supplierBills[0].balanceToPay, -1200);
+    assert.equal(summary.lineSummaries[0].balanceToPay, -1300);
+    const juneBook = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-06`, { headers: auth })).json();
+    assert.equal(juneBook.rows[0].arrearsCarriedForward, 1200);
+    const automaticDebtRow = juneBook.rows.find((row) => row.supplierId === "sup_debt");
+    assert.equal(automaticDebtRow.arrearsCarriedForward, 100);
+
     const postedState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
     assert.equal(postedState.collectionEntries[0].postedByOfficeUserName, "Factory Office");
     assert.equal(postedState.fertilizerIssues[0].kgGiven, 20);

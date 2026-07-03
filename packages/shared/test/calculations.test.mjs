@@ -141,3 +141,40 @@ test("suggests advance payment from unpaid effective month balance", () => {
   assert.equal(suggestion.arrearsCarriedForward, 500);
   assert.equal(suggestion.totalAdvances, 1000);
 });
+
+test("factory-owned suppliers keep details but do not calculate payable balance", () => {
+  const book = buildGreenLeafBook({
+    month: "2026-05",
+    suppliers: [
+      {
+        id: "sup_factory",
+        code: "F001",
+        name: "Factory Field",
+        lineName: "Estate",
+        excludeFromBalance: true
+      }
+    ],
+    entries: [{ supplierId: "sup_factory", collectionDate: "2026-05-01", netWeightKg: 100 }]
+  });
+
+  assert.equal(book.rows[0].totalKg, 100);
+  assert.equal(book.rows[0].leafValue, 20000);
+  assert.equal(book.rows[0].balanceExcluded, true);
+  assert.equal(book.rows[0].balanceToPay, 0);
+
+  const suggestion = suggestAdvancePayment({
+    month: "2026-05",
+    supplierId: "sup_factory",
+    suppliers: [
+      {
+        id: "sup_factory",
+        code: "F001",
+        name: "Factory Field",
+        lineName: "Estate",
+        excludeFromBalance: true
+      }
+    ],
+    entries: [{ supplierId: "sup_factory", collectionDate: "2026-05-01", netWeightKg: 100 }]
+  });
+  assert.equal(suggestion.suggestedAmount, 0);
+});

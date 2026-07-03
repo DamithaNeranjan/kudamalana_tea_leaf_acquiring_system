@@ -75,6 +75,8 @@
           <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
           <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
           <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
+          <button class="menu-item" type="button" data-view="supplierBillsView">Supplier Bills</button>
+          <button class="menu-item" type="button" data-view="paymentRecordsView">Balance Payment</button>
           <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
           <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
           <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
@@ -115,11 +117,19 @@
             </button>
             <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
               <strong>Monthly Settings</strong>
-              <span>Set tea price, deduction, and transport rates for each month.</span>
+              <span>Set green leaf price, deduction, and transport rates for each month.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="bookView">
               <strong>Green Leaf Book</strong>
               <span>Open month-wise supplier payment calculations.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="supplierBillsView">
+              <strong>Supplier Bills</strong>
+              <span>Generate supplier bills, line summaries, and payment records.</span>
+            </button>
+            <button class="summary-card" type="button" data-view-shortcut="paymentRecordsView">
+              <strong>Balance Payment</strong>
+              <span>Record and review completed supplier and line payments.</span>
             </button>
             <button class="summary-card" type="button" data-view-shortcut="pairingView">
               <strong>Pair Tablet</strong>
@@ -308,6 +318,7 @@
                   <label><input type="checkbox" name="deductionEnabled" /> 2% end-month deduction</label>
                   <label><input type="checkbox" name="ownTransportAdditionEnabled" /> Own transport addition</label>
                   <label><input type="checkbox" name="factoryTransportDeductionEnabled" /> Factory transport deduction</label>
+                  <label><input type="checkbox" name="excludeFromBalance" /> Factory-owned supplier: do not calculate payable balance</label>
                 </div>
                 <div class="form-actions supplier-actions">
                   <button type="submit">Save supplier</button>
@@ -339,7 +350,7 @@
               <div class="form-intro">
                 <span class="eyebrow">Monthly calculation</span>
                 <h3>Green Leaf Book Rates</h3>
-                <p>These values control tea price, 2% month deduction, transport add, and transport deduction for the selected month.</p>
+                <p>These values control green leaf price, 2% month deduction, transport add, and transport deduction for the selected month.</p>
               </div>
               <form id="monthlySettingsForm" class="form-card monthly-settings-form">
                 <input name="id" type="hidden" />
@@ -348,7 +359,7 @@
                   <input name="month" type="month" required />
                 </label>
                 <label>
-                  Tea price per kg
+                  Green leaf price per kg
                   <input name="teaPricePerKg" type="number" step="0.01" min="0" required />
                 </label>
                 <label>
@@ -376,7 +387,7 @@
                   <thead>
                     <tr>
                       <th>Month</th>
-                      <th>Tea price</th>
+                      <th>Green leaf price</th>
                       <th>Deduction %</th>
                       <th>Transport add</th>
                       <th>Transport deduction</th>
@@ -649,7 +660,6 @@
                     <th>Line</th>
                     <th>Bags</th>
                     <th>Original gross</th>
-                    <th>Office gross</th>
                     <th>Net</th>
                     <th>Print</th>
                     <th>Printed on tablet</th>
@@ -680,10 +690,111 @@
             <div class="toolbar">
               <input id="bookMonth" type="month" />
               <input id="bookSupplierFilter" placeholder="Filter supplier name" />
+              <input id="bookLineFilter" placeholder="Filter line name" />
+              <label class="switch-row inline-switch"><input id="excludeFactorySuppliersFromTotals" type="checkbox" checked /> Exclude factory suppliers from totals</label>
               <button id="loadBook">Load month</button>
+            </div>
+            <div class="book-legend" aria-label="Green Leaf Book color legend">
+              <span><i class="legend-swatch poya"></i>Poya day</span>
+              <span><i class="legend-swatch paid"></i>Paid supplier row</span>
+              <span><i class="legend-swatch factory"></i>Factory-owned supplier</span>
+              <span><i class="legend-text addition">Green text</i>Additions / positive balance total</span>
+              <span><i class="legend-text deduction">Red text</i>Deductions / negative balance total</span>
+              <span><i class="legend-text balance">Bold text</i>Balance</span>
             </div>
             <div class="book-wrap">
               <table id="bookTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <section id="supplierBillsView" class="view">
+          <div class="view-heading">
+            <h2>Supplier Bills</h2>
+            <p>Generate month-end supplier bills, line-wise summaries, and record payments.</p>
+          </div>
+          <section class="panel bills-panel">
+            <div class="toolbar">
+              <input id="billMonth" type="month" />
+              <select id="billSummaryScope" aria-label="Summary scope">
+                <option value="all">All suppliers and lines</option>
+                <option value="supplier">Selected supplier</option>
+                <option value="line">Selected line</option>
+              </select>
+              <select id="billSummarySupplier" aria-label="Supplier for bill summary"></select>
+              <select id="billSummaryLine" aria-label="Line for bill summary"></select>
+              <button id="loadMonthEndSummary" type="button">Generate summaries</button>
+            </div>
+            <div id="monthEndSummary" class="month-summary hidden"></div>
+          </section>
+        </section>
+
+        <section id="paymentRecordsView" class="view">
+          <div class="view-heading">
+            <h2>Balance Payment</h2>
+            <p>Record supplier or line balance payments and review completed payments.</p>
+          </div>
+          <section class="panel records-panel">
+            <div class="payment-entry-card">
+              <h3>Record Payment</h3>
+              <form id="bookPaymentForm" class="inline-form">
+                <input id="paymentRecordMonth" type="month" aria-label="Payment month" />
+                <select name="scope" aria-label="Payment scope">
+                  <option value="supplier">Supplier payment</option>
+                  <option value="line">Line payment</option>
+                </select>
+                <input id="paymentSupplierSearch" list="paymentSupplierOptions" placeholder="Type supplier name" aria-label="Supplier to mark paid" />
+                <input name="supplierId" type="hidden" />
+                <datalist id="paymentSupplierOptions"></datalist>
+                <select name="lineName" aria-label="Line to mark paid"></select>
+                <input name="paidAt" type="date" aria-label="Payment date" />
+                <input name="amount" type="number" step="0.01" min="0" placeholder="Payment amount" />
+                <input name="note" placeholder="Payment note" />
+                <button type="submit">Record payment</button>
+              </form>
+            </div>
+            <div class="payment-list-card">
+              <h3>Completed Payments</h3>
+              <div class="filter-grid">
+                <label>
+                  Supplier
+                  <input id="paymentSupplierFilter" placeholder="Supplier name" />
+                </label>
+                <label>
+                  Line
+                  <input id="paymentLineFilter" placeholder="Line name" />
+                </label>
+                <label>
+                  Month
+                  <input id="paymentMonthFilter" type="month" />
+                </label>
+                <label>
+                  Scope
+                  <select id="paymentScopeFilter">
+                    <option value="">All</option>
+                    <option value="supplier">Supplier</option>
+                    <option value="line">Line</option>
+                  </select>
+                </label>
+              </div>
+              <div class="table-scroll">
+                <table id="paymentsTable">
+                  <thead>
+                    <tr>
+                      <th>Paid At</th>
+                      <th>Supplier</th>
+                      <th>Line</th>
+                      <th>Month</th>
+                      <th>Scope</th>
+                      <th>Amount</th>
+                      <th>Balance</th>
+                      <th>Recorded By</th>
+                      <th>Note</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
             </div>
           </section>
         </section>

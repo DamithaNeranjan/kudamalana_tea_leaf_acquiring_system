@@ -140,7 +140,8 @@ export function buildGreenLeafBook(input) {
           fertilizerDeduction +
           arrearsCarriedForward
       );
-      const balanceToPay = money(leafValue + ownTransportAddition - totalDeductions);
+      const balanceExcluded = Boolean(supplier.excludeFromBalance);
+      const balanceToPay = balanceExcluded ? 0 : money(leafValue + ownTransportAddition - totalDeductions);
 
       return {
         supplierId: supplier.id,
@@ -165,7 +166,8 @@ export function buildGreenLeafBook(input) {
         leafValue,
         totalAdditions,
         totalDeductions,
-        balanceToPay
+        balanceToPay,
+        balanceExcluded
       };
     })
     .filter((row) => row.totalKg > 0 || row.totalDeductions > 0 || row.ownTransportAddition > 0)
@@ -187,6 +189,15 @@ export function suggestAdvancePayment(input) {
     };
   }
   const leafValue = money(row.totalKg * row.pricePerKg);
+  if (row.balanceExcluded) {
+    return {
+      supplierId: input.supplierId,
+      suggestedAmount: 0,
+      leafValue,
+      arrearsCarriedForward: row.arrearsCarriedForward,
+      totalAdvances: row.totalAdvances
+    };
+  }
   return {
     supplierId: input.supplierId,
     suggestedAmount: Math.max(0, money(leafValue - row.arrearsCarriedForward - row.totalAdvances)),

@@ -29,6 +29,7 @@ CREATE TABLE suppliers (
   name TEXT NOT NULL,
   line_id TEXT,
   line_name TEXT NOT NULL,
+  payment_mode TEXT NOT NULL DEFAULT 'cash',
   deduction_enabled INTEGER NOT NULL DEFAULT 0,
   own_transport_addition_enabled INTEGER NOT NULL DEFAULT 0,
   factory_transport_deduction_enabled INTEGER NOT NULL DEFAULT 0,

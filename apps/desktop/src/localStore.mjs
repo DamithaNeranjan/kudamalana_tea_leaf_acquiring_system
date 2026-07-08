@@ -43,6 +43,10 @@ function money(value) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
+function paymentMode(value) {
+  return value === "bank_transfer" ? "bank_transfer" : "cash";
+}
+
 function mapRows(rows, mapper = (row) => row) {
   return rows.map(mapper);
 }
@@ -171,6 +175,9 @@ export class LocalStore {
     }
     if (!this.hasColumn("suppliers", "exclude_from_balance")) {
       this.db.prepare("ALTER TABLE suppliers ADD COLUMN exclude_from_balance INTEGER NOT NULL DEFAULT 0").run();
+    }
+    if (!this.hasColumn("suppliers", "payment_mode")) {
+      this.db.prepare("ALTER TABLE suppliers ADD COLUMN payment_mode TEXT NOT NULL DEFAULT 'cash'").run();
     }
     this.db
       .prepare(
@@ -427,14 +434,15 @@ export class LocalStore {
     this.db
       .prepare(
         `INSERT INTO suppliers
-         (id, code, name, line_id, line_name, deduction_enabled, own_transport_addition_enabled,
+         (id, code, name, line_id, line_name, payment_mode, deduction_enabled, own_transport_addition_enabled,
           factory_transport_deduction_enabled, exclude_from_balance, active, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            code = excluded.code,
            name = excluded.name,
            line_id = excluded.line_id,
            line_name = excluded.line_name,
+           payment_mode = excluded.payment_mode,
            deduction_enabled = excluded.deduction_enabled,
            own_transport_addition_enabled = excluded.own_transport_addition_enabled,
            factory_transport_deduction_enabled = excluded.factory_transport_deduction_enabled,
@@ -445,6 +453,7 @@ export class LocalStore {
            name = excluded.name,
            line_id = excluded.line_id,
            line_name = excluded.line_name,
+           payment_mode = excluded.payment_mode,
            deduction_enabled = excluded.deduction_enabled,
            own_transport_addition_enabled = excluded.own_transport_addition_enabled,
            factory_transport_deduction_enabled = excluded.factory_transport_deduction_enabled,
@@ -458,6 +467,7 @@ export class LocalStore {
         supplier.name,
         supplier.lineId || registeredLine.id,
         registeredLine.name,
+        paymentMode(supplier.paymentMode),
         bool(supplier.deductionEnabled),
         bool(supplier.ownTransportAdditionEnabled),
         bool(supplier.factoryTransportDeductionEnabled),
@@ -918,6 +928,7 @@ export class LocalStore {
     const arrears = this.arrears();
     const payments = this.supplierPayments();
     const supplierBills = book.rows.map((row) => {
+      const supplier = this.suppliers().find((item) => item.id === row.supplierId);
       const supplierEntries = entries.filter((entry) => entry.supplierId === row.supplierId && entry.collectionDate.startsWith(book.month));
       const supplierFertilizer = fertilizerIssues
         .filter((issue) => issue.supplierId === row.supplierId && [issue.effectiveMonth1, issue.effectiveMonth2].includes(book.month))
@@ -939,6 +950,7 @@ export class LocalStore {
         supplierCode: row.supplierCode,
         supplierName: row.supplierName,
         lineName: row.lineName,
+        paymentMode: paymentMode(supplier?.paymentMode),
         month: book.month,
         dailyKg: row.dailyKg,
         collectionEntries: supplierEntries,
@@ -1229,6 +1241,7 @@ export class LocalStore {
       this.db
         .prepare(
           `SELECT id, code, name, line_id AS lineId, line_name AS lineName,
+           payment_mode AS paymentMode,
            deduction_enabled AS deductionEnabled,
            own_transport_addition_enabled AS ownTransportAdditionEnabled,
            factory_transport_deduction_enabled AS factoryTransportDeductionEnabled,
@@ -1239,6 +1252,7 @@ export class LocalStore {
         .all(),
       (row) => ({
         ...row,
+        paymentMode: paymentMode(row.paymentMode),
         deductionEnabled: fromBool(row.deductionEnabled),
         ownTransportAdditionEnabled: fromBool(row.ownTransportAdditionEnabled),
         factoryTransportDeductionEnabled: fromBool(row.factoryTransportDeductionEnabled),
@@ -1433,6 +1447,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   name TEXT NOT NULL,
   line_id TEXT,
   line_name TEXT NOT NULL,
+  payment_mode TEXT NOT NULL DEFAULT 'cash',
   deduction_enabled INTEGER NOT NULL DEFAULT 0,
   own_transport_addition_enabled INTEGER NOT NULL DEFAULT 0,
   factory_transport_deduction_enabled INTEGER NOT NULL DEFAULT 0,

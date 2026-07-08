@@ -56,11 +56,11 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record. The Collection Records desktop table shows original gross and net weights, while reviewed gross remains stored for audit/sync data.
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
 - Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
-- Suppliers are validated against active registered tea lines before saving.
+- Suppliers are validated against active registered tea lines before saving and store a payment mode of Cash or Bank transfer, defaulting to Cash.
 - Monthly settings are stored by calendar month and drive green leaf price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
 - Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default green leaf price.
 - Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Fertilizer issues are stored by supplier, given date, kg given, total rupee value, split count, and effective month or months. Monthly fertilizer installments are generated from those issues and drive the Green Leaf Book fertilizer deduction for each selected month.
 - Made tea packet deductions are stored by supplier, given date, packet count, per-packet price, total amount, and effective month. They are included in Green Leaf Book totals and the desktop book table for the selected month only.
-- Desktop `audit_log` is append-only for office create/update/post/payment actions. It stores the acting user, action, entity metadata, summary, timestamp, and sanitized before/after JSON while excluding passwords, hashes, tokens, and authorization values.
+- Desktop `audit_log` is append-only for office create/update/post/payment actions and successful supplier bill print actions. It stores the acting user, action, entity metadata, summary, timestamp, and sanitized before/after JSON while excluding passwords, hashes, tokens, and authorization values. Viewing bill print previews is not logged.
 - Local runtime data, WAL files, and logs are excluded from Git.

@@ -47,22 +47,23 @@ Manual desktop UI checks:
 - Login with `office` / `office123`.
 - Login with `admin` / `admin123` and confirm the Office Users menu allows creating, editing, activating, and deactivating regular office users.
 - Login with a regular office user and confirm Office Users is visible as a read-only listing, with the Register Office User form and row actions hidden.
-- Confirm the desktop sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports; the section title bands are visually distinct from active menu items; the sidebar scroll reaches Audit Reports; the dashboard mirrors the same group order; and the header user button opens Profile Management.
+- Confirm the desktop sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports; Office Users appears under Monthly Work in both the sidebar and dashboard; the section title bands are visually distinct from active menu items; the sidebar scroll reaches Audit Reports; the dashboard mirrors the same group order; and the header user button opens Profile Management.
 - In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout stays inside the panel in compact windows.
-- Create a tea line, then create a supplier using that registered tea line.
+- Create a tea line, then create a supplier using that registered tea line. Confirm supplier payment mode defaults to Cash and can be changed to Bank transfer.
 - Confirm supplier save rejects unregistered tea-line names.
 - Open Monthly Settings, save the selected month's green leaf price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
 - Edit a supplier and set a month-specific special price; edit a registered tea line and apply a line-level special price, then confirm the selected month's Green Leaf Book uses the override.
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
 - Open Fertilizer, select a supplier, enter date given, kg, total value, split count, and effective month or months. Confirm the Green Leaf Book deducts only the fertilizer rupee amount assigned to the selected month.
 - Open Made Tea Packets, select a supplier, enter date, packet count, per-packet price, total amount, and effective month. Confirm the Green Leaf Book deducts only the made tea packet rupee amount assigned to the selected month.
+- Open Supplier Bills, generate bill preview for all suppliers, confirm the print-preview area is collapsed by default, expand it, select a subset of suppliers, and confirm print actions use the Sinhala half-A4 layout with two bills per A4 sheet, fixed two-decimal rupee values, payment-mode text, daily zero kg values, and selected-supplier printing.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Confirm saved listing tables show 10 records per page, the latest saved records appear first, and Previous/Next controls page through older records.
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
 - Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.
 - Confirm Post all opens a confirmation modal before posting all staged records.
-- Open Audit Reports and confirm create/update/status-checkbox submissions, staging posts, price override batches, and balance payment records appear latest-first with user/action/entity/date filters. Confirm password values are not shown in change details.
+- Open Audit Reports and confirm create/update/status-checkbox submissions, staging posts, price override batches, successful supplier bill print records, and balance payment records appear latest-first with user/action/entity/date filters. Confirm opening or expanding supplier bill print previews does not create an audit record, and password values are not shown in change details.
 
 Backend:
 

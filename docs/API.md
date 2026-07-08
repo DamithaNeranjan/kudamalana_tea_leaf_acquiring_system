@@ -92,8 +92,23 @@ Office-session protected endpoint that generates month-end supplier bills and li
 
 Returns:
 
-- supplier bill details with daily kg, collection entries, price, leaf value, transport additions/deductions, advances, fertilizer installments and carry-forward amounts, made tea packets, arrears, totals, balance, and payment state
+- supplier bill details with daily kg, collection entries, price, leaf value, transport additions/deductions, advances, fertilizer installments and carry-forward amounts, made tea packets, arrears, totals, balance, supplier payment mode, and payment state
 - line summaries with supplier count, kg totals, additions, deductions, balance, and paid count
+
+### `POST /office/supplier-bill-print-audit`
+
+Office-session protected endpoint called by the desktop app after the operating-system print dialog completes for supplier bills. It records a print audit with the selected month, supplier names/codes, and server-side print timestamp. Opening or expanding the print preview does not call this endpoint.
+
+Payload:
+
+```json
+{
+  "month": "2026-06",
+  "suppliers": [
+    { "id": "supplier-id", "code": "S001", "name": "Supplier Name" }
+  ]
+}
+```
 
 ### `POST /office/supplier-payments`
 
@@ -126,7 +141,7 @@ Line-wise payload:
 
 ### `GET /office/audit-log`
 
-Office-session protected endpoint that returns the append-only audit trail for office mutations in latest-first order. The audit log records creations, updates, checkbox/status changes, staging posts, line price override batches, and supplier payment recording. Viewing-only operations are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
+Office-session protected endpoint that returns the append-only audit trail for office mutations in latest-first order. The audit log records creations, updates, checkbox/status changes, staging posts, line price override batches, supplier bill print completion, and supplier payment recording. Viewing-only operations, including supplier bill print-preview viewing, are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
 
 Response shape:
 

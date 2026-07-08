@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   name VARCHAR(180) NOT NULL,
   line_id VARCHAR(80),
   line_name VARCHAR(160) NOT NULL,
+  payment_mode VARCHAR(40) NOT NULL DEFAULT 'cash',
   deduction_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   own_transport_addition_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   factory_transport_deduction_enabled BOOLEAN NOT NULL DEFAULT FALSE,

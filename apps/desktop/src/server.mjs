@@ -303,6 +303,30 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           const month = url.searchParams.get("month");
           return send(response, 200, store.monthEndSummary(month));
         }
+        if (request.method === "POST" && url.pathname === "/office/supplier-bill-print-audit") {
+          const payload = await body(request);
+          const printedAt = new Date().toISOString();
+          const suppliers = Array.isArray(payload.suppliers) ? payload.suppliers : [];
+          const supplierNames = suppliers.map((supplier) => supplier.name || supplier.supplierName || supplier.code || supplier.supplierCode).filter(Boolean);
+          logAudit(session, {
+            action: "print",
+            entityType: "supplier_bill",
+            entityId: `${payload.month || "unknown"}:${suppliers.map((supplier) => supplier.id || supplier.supplierId || supplier.code || "").join(",")}`,
+            entityLabel: supplierNames.join(", "),
+            summary: `Printed ${supplierNames.length} supplier bill${supplierNames.length === 1 ? "" : "s"} for ${payload.month || "selected month"}: ${supplierNames.join(", ")}`,
+            before: null,
+            after: {
+              month: payload.month,
+              printedAt,
+              suppliers: suppliers.map((supplier) => ({
+                id: supplier.id || supplier.supplierId,
+                code: supplier.code || supplier.supplierCode,
+                name: supplier.name || supplier.supplierName
+              }))
+            }
+          });
+          return send(response, 201, { ok: true, printedAt, supplierCount: supplierNames.length });
+        }
         if (request.method === "POST" && url.pathname === "/office/supplier-payments") {
           const payload = await body(request);
           const result = await store.recordSupplierPayments(payload, session.user);

@@ -40,6 +40,10 @@ function numberOrDefault(value, fallback = 0) {
   return Number(value ?? fallback);
 }
 
+function paymentMode(value) {
+  return value === "bank_transfer" ? "bank_transfer" : "cash";
+}
+
 function publicUser(row) {
   return {
     id: row.id,
@@ -105,6 +109,10 @@ async function executeSchema(pool) {
   for (const statement of statements) {
     await pool.query(statement);
   }
+  const [supplierPaymentModeColumns] = await pool.query("SHOW COLUMNS FROM suppliers LIKE 'payment_mode'");
+  if (!supplierPaymentModeColumns.length) {
+    await pool.query("ALTER TABLE suppliers ADD COLUMN payment_mode VARCHAR(40) NOT NULL DEFAULT 'cash' AFTER line_name");
+  }
 }
 
 async function seedSuperAdmin(pool) {
@@ -144,16 +152,17 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       }
       await conn.execute(
         `INSERT INTO suppliers (
-          id, code, name, line_id, line_name, deduction_enabled,
+          id, code, name, line_id, line_name, payment_mode, deduction_enabled,
           own_transport_addition_enabled, factory_transport_deduction_enabled,
           active, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           code = VALUES(code),
           name = VALUES(name),
           line_id = VALUES(line_id),
           line_name = VALUES(line_name),
+          payment_mode = VALUES(payment_mode),
           deduction_enabled = VALUES(deduction_enabled),
           own_transport_addition_enabled = VALUES(own_transport_addition_enabled),
           factory_transport_deduction_enabled = VALUES(factory_transport_deduction_enabled),
@@ -165,6 +174,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           record.name || record.supplierName || "Unknown Supplier",
           record.lineId || null,
           record.lineName || "",
+          paymentMode(record.paymentMode),
           toBool(record.deductionEnabled),
           toBool(record.ownTransportAdditionEnabled),
           toBool(record.factoryTransportDeductionEnabled),
@@ -564,6 +574,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             name: row.name,
             lineId: row.line_id,
             lineName: row.line_name,
+            paymentMode: paymentMode(row.payment_mode),
             deductionEnabled: fromBool(row.deduction_enabled),
             ownTransportAdditionEnabled: fromBool(row.own_transport_addition_enabled),
             factoryTransportDeductionEnabled: fromBool(row.factory_transport_deduction_enabled)

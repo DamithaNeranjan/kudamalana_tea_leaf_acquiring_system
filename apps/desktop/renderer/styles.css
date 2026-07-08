@@ -683,6 +683,21 @@ button {
   padding: 6px 10px;
 }
 
+.toolbar .secondary-button,
+.print-preview-actions .secondary-button,
+.print-selection-toolbar .secondary-button {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
+}
+
+.toolbar .secondary-button:hover,
+.print-preview-actions .secondary-button:hover,
+.print-selection-toolbar .secondary-button:hover {
+  background: var(--brand-strong);
+  border-color: var(--brand-strong);
+}
+
 .logout-button {
   background: var(--logout);
   border-color: var(--logout);
@@ -1210,6 +1225,248 @@ th:first-child {
   grid-template-columns: 1fr auto;
 }
 
+.print-preview-section {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.print-preview-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.print-preview-actions,
+.print-selection-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.print-preview-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.print-selection-toolbar {
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.print-selection-toolbar span {
+  margin-right: auto;
+}
+
+.supplier-print-preview-list {
+  background: #eef1ea;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  max-height: 72vh;
+  overflow: auto;
+  padding: 16px;
+}
+
+.supplier-print-preview-item {
+  display: grid;
+  gap: 8px;
+}
+
+.supplier-print-selector {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  justify-self: center;
+  max-width: 760px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.supplier-print-selector input {
+  height: 16px;
+  width: 16px;
+}
+
+.supplier-print-preview-list .sinhala-bill-sheet {
+  background: #ffffff;
+  border: 1px solid #d6ddd2;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(23, 33, 22, 0.08);
+  box-sizing: border-box;
+  justify-self: center;
+  max-width: 760px;
+  padding: 18px;
+  width: 100%;
+}
+
+.supplier-print-preview-list .sinhala-bill {
+  border: 1.4px solid #202820;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.supplier-print-preview-list .sinhala-bill-header {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 86px 1fr 110px;
+  text-align: center;
+}
+
+.supplier-print-preview-list .sinhala-bill-header img {
+  height: 70px;
+  object-fit: contain;
+  width: 86px;
+}
+
+.supplier-print-preview-list .sinhala-bill-header h1 {
+  color: #4b7e36;
+  font-size: 22px;
+}
+
+.supplier-print-preview-list .sinhala-bill-header h2 {
+  color: #5d8d44;
+  font-size: 19px;
+}
+
+.supplier-print-preview-list .sinhala-bill-header p,
+.supplier-print-preview-list .sinhala-bill-date span,
+.supplier-print-preview-list .sinhala-bill-note {
+  font-size: 12px;
+}
+
+.supplier-print-preview-list .sinhala-bill-ref {
+  color: #8b9189;
+  text-align: left;
+}
+
+.supplier-print-preview-list .sinhala-bill-date {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.supplier-print-preview-list .sinhala-bill-meta {
+  border: 1px solid #404940;
+  display: grid;
+  font-size: 12px;
+  grid-template-columns: 0.7fr 1.4fr 0.8fr 0.9fr;
+}
+
+.supplier-print-preview-list .sinhala-bill-meta span {
+  border-right: 1px solid #404940;
+  padding: 6px 8px;
+}
+
+.supplier-print-preview-list .sinhala-bill-meta span:last-child {
+  border-right: 0;
+}
+
+.supplier-print-preview-list .sinhala-bill-top-values {
+  border: 1px solid #404940;
+  display: grid;
+  font-size: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.supplier-print-preview-list .sinhala-bill-top-values span {
+  border-right: 1px solid #404940;
+  display: grid;
+  gap: 3px;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.supplier-print-preview-list .sinhala-bill-top-values span:last-child {
+  border-right: 0;
+}
+
+.supplier-print-preview-list .sinhala-bill-top-values em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.supplier-print-preview-list .sinhala-bill-top-values strong {
+  color: var(--ink);
+}
+
+.supplier-print-preview-list .sinhala-bill-table,
+.supplier-print-preview-list .sinhala-daily-table {
+  border-collapse: collapse;
+  font-family: "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", Arial, sans-serif;
+  font-size: 10px;
+  width: 100%;
+}
+
+.supplier-print-preview-list .sinhala-bill-table th,
+.supplier-print-preview-list .sinhala-bill-table td,
+.supplier-print-preview-list .sinhala-daily-table th,
+.supplier-print-preview-list .sinhala-daily-table td {
+  border: 1px solid #404940;
+  padding: 5px 7px;
+}
+
+.supplier-print-preview-list .sinhala-bill-table th:first-child,
+.supplier-print-preview-list .sinhala-bill-table td:first-child {
+  text-align: left;
+  width: 55%;
+}
+
+.supplier-print-preview-list .sinhala-bill-table th:nth-child(2),
+.supplier-print-preview-list .sinhala-bill-table td:nth-child(2) {
+  width: 20%;
+}
+
+.supplier-print-preview-list .sinhala-bill-table th:nth-child(3),
+.supplier-print-preview-list .sinhala-bill-table td:nth-child(3) {
+  text-align: right;
+  width: 25%;
+}
+
+.supplier-print-preview-list .sinhala-bill-table tfoot td {
+  font-weight: 800;
+}
+
+.supplier-print-preview-list .sinhala-daily-table {
+  font-size: 10px;
+  text-align: center;
+}
+
+.supplier-print-preview-list .sinhala-bill-note {
+  line-height: 1.45;
+  margin-inline: auto;
+  max-width: 92%;
+  text-align: center;
+}
+
+.supplier-print-preview-list .sinhala-bill-signatures {
+  display: flex;
+  font-size: 12px;
+  justify-content: space-evenly;
+}
+
+.supplier-bill-print-area {
+  display: none;
+}
+
 .payment-entry-card,
 .payment-list-card {
   background: #fbfcfa;
@@ -1311,5 +1568,212 @@ th:first-child {
 
   .subnav {
     display: grid;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: A4 portrait;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .topbar,
+  #loginView,
+  #appView,
+  #toastHost,
+  .modal-backdrop,
+  datalist {
+    display: none !important;
+  }
+
+  .supplier-bill-print-area {
+    color: #111111;
+    display: block;
+    font-family: "Noto Sans Sinhala", "Iskoola Pota", "Nirmala UI", Arial, sans-serif;
+  }
+
+  .sinhala-bill-sheet {
+    box-sizing: border-box;
+    break-inside: avoid;
+    height: 145.5mm;
+    overflow: hidden;
+    padding: 3mm 7mm;
+    page-break-inside: avoid;
+  }
+
+  .sinhala-bill-sheet:nth-child(2n):not(:last-child) {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sinhala-bill {
+    border: 1.4px solid #202820;
+    border-radius: 7px;
+    box-sizing: border-box;
+    display: grid;
+    gap: 0.45mm;
+    height: 100%;
+    overflow: hidden;
+    padding: 2.4mm 3.5mm;
+  }
+
+  .sinhala-bill-header {
+    align-items: center;
+    display: grid;
+    gap: 2.5mm;
+    grid-template-columns: 17mm 1fr 24mm;
+    text-align: center;
+  }
+
+  .sinhala-bill-header img {
+    height: 13mm;
+    object-fit: contain;
+    width: 17mm;
+  }
+
+  .sinhala-bill-header h1 {
+    color: #4b7e36;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+
+  .sinhala-bill-header h2 {
+    color: #5d8d44;
+    font-size: 13px;
+    line-height: 1.1;
+    margin-top: 0.4mm;
+  }
+
+  .sinhala-bill-header p,
+  .sinhala-bill-date span,
+  .sinhala-bill-note {
+    font-size: 9px;
+  }
+
+  .sinhala-bill-ref {
+    color: #9a9a9a;
+    font-size: 8.5px;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .sinhala-bill-date {
+    display: grid;
+    gap: 0.4mm;
+    font-size: 10px;
+    text-align: left;
+  }
+
+  .sinhala-bill-meta {
+    border: 1px solid #404940;
+    display: grid;
+    font-size: 12px;
+    grid-template-columns: 0.7fr 1.4fr 0.8fr 0.9fr;
+  }
+
+  .sinhala-bill-meta span {
+    border-right: 1px solid #404940;
+    padding: 0.55mm 1mm;
+  }
+
+  .sinhala-bill-meta span:last-child {
+    border-right: 0;
+  }
+
+  .sinhala-bill-top-values {
+    border: 1px solid #404940;
+    display: grid;
+    font-size: 10px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .sinhala-bill-top-values span {
+    border-right: 1px solid #404940;
+    display: grid;
+    gap: 0;
+    line-height: 1;
+    padding: 0.45mm 0.6mm;
+    text-align: center;
+  }
+
+  .sinhala-bill-top-values span:last-child {
+    border-right: 0;
+  }
+
+  .sinhala-bill-top-values em {
+    color: #596357;
+    font-style: normal;
+  }
+
+  .sinhala-bill-table,
+  .sinhala-daily-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .sinhala-bill-table {
+    font-size: 4.6px;
+    table-layout: fixed;
+  }
+
+  .sinhala-bill-table th,
+  .sinhala-bill-table td,
+  .sinhala-daily-table th,
+  .sinhala-daily-table td {
+    border: 1px solid #404940;
+    padding: 0.45mm 1mm;
+  }
+
+  .sinhala-bill-table th:first-child,
+  .sinhala-bill-table td:first-child {
+    text-align: left;
+    width: 55%;
+  }
+
+  .sinhala-bill-table th:nth-child(2),
+  .sinhala-bill-table td:nth-child(2) {
+    width: 20%;
+  }
+
+  .sinhala-bill-table th:nth-child(3),
+  .sinhala-bill-table td:nth-child(3) {
+    text-align: right;
+    width: 25%;
+  }
+
+  .sinhala-bill-table tfoot td {
+    font-weight: 800;
+  }
+
+  .sinhala-daily-table {
+    font-size: 4.2px;
+    text-align: center;
+  }
+
+  .sinhala-daily-table th,
+  .sinhala-daily-table td {
+    padding: 0.25mm;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .sinhala-bill-note {
+    font-size: 9px;
+    line-height: 1.15;
+    margin-inline: auto;
+    max-width: 92%;
+    text-align: center;
+  }
+
+  .sinhala-bill-signatures {
+    display: flex;
+    font-size: 10px;
+    justify-content: space-evenly;
+    gap: 28mm;
+    margin-top: auto;
   }
 }

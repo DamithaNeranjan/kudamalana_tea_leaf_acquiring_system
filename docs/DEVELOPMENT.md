@@ -62,14 +62,14 @@ Desktop form inputs, including login and edit-modal fields, trim leading and tra
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
-Use supplier editing to mark factory-owned suppliers when their leaf details should remain visible but payable balance should not be calculated.
+Use supplier editing to choose Cash or Bank transfer as the supplier payment mode and to mark factory-owned suppliers when their leaf details should remain visible but payable balance should not be calculated.
 Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
 Use Made Tea Packets to record packets borrowed by suppliers for deduction in a selected effective Green Leaf Book month.
 The desktop Green Leaf Book table labels kg and rupee columns with units and formats numeric values with thousand separators, using two decimal places only when decimal values are present. It supports supplier and line filters, optional exclusion of factory-owned suppliers from the total row, separate positive and negative balance footer totals, a color legend, paid-row highlighting, grey factory-owned rows, and Poya day cells that override other row backgrounds.
-Use Supplier Bills for month-end supplier/line summary generation. Summaries can be generated for all suppliers, a selected supplier, or a selected line after choosing the option and pressing Generate.
+Use Supplier Bills for month-end supplier/line summary generation. Summaries can be generated for all suppliers, a selected supplier, or a selected line after choosing the option and pressing Generate bill preview. Supplier bill printing uses a Sinhala half-A4 bill format with two bills per A4 sheet, a collapsed print-preview section by default, print-all and selected-supplier print actions, fixed two-decimal rupee values, supplier payment-mode text, and daily kg zeros for days without leaf.
 Use Balance Payment for supplier-wise or line-wise payment recording. Payment amounts are automatically suggested when the supplier or line is selected, but the amount field remains editable. Supplier payment selection is searchable, debt suppliers are shown as inactive options, and completed payments are listed with filters, pagination, and latest payments first.
 Negative Green Leaf Book balances continue into the next month as arrears, even when no payment is recorded for that supplier.
-Use Audit Reports in the Reports sidebar group to review mutation history. The audit trail logs create/update/post/payment actions, including checkbox/status submissions, but does not log viewing-only operations or sensitive password/token values.
+Use Audit Reports in the Reports sidebar group to review mutation history. The audit trail logs create/update/post/payment actions, supplier bill print completion, and checkbox/status submissions, but does not log viewing-only operations, print-preview viewing, or sensitive password/token values.
 
 The visible logo and Electron window icon use:
 

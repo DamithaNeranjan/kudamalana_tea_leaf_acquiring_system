@@ -9,6 +9,7 @@ let activeBillSummaryScope = "all";
 let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
 let paymentSupplierChoices = [];
+let pendingSupplierBillPrintAudit = null;
 const filters = {
   officeUserName: "",
   teaLineName: "",
@@ -177,6 +178,31 @@ function trimInputValue(field) {
 function isRegisteredTeaLine(lineName) {
   const normalized = String(lineName || "").trim().toLowerCase();
   return latestState?.teaLines.some((line) => line.active && line.name.toLowerCase() === normalized);
+}
+
+function paymentModeLabel(mode) {
+  return mode === "bank_transfer" ? "Bank transfer" : "Cash";
+}
+
+function sinhalaPaymentModeLabel(mode) {
+  return mode === "bank_transfer" ? "බැංකු ගිනුමට" : "අතට";
+}
+
+function effectiveFertilizerKg(items = []) {
+  return sumNumbers(
+    items.map((item) => {
+      const kgGiven = Number(item.kgGiven || 0);
+      const totalAmount = Number(item.totalAmount || 0);
+      const effectiveAmount = Number(item.effectiveAmount || 0);
+      if (kgGiven <= 0) return 0;
+      if (totalAmount > 0 && effectiveAmount > 0) return (kgGiven * effectiveAmount) / totalAmount;
+      return kgGiven / Math.max(1, Number(item.splitMonths || 1));
+    })
+  );
+}
+
+function effectiveTeaPacketCount(items = []) {
+  return sumNumbers(items.map((item) => item.packetCount));
 }
 
 function validateSupplierTeaLine(form) {
@@ -852,6 +878,7 @@ function renderRegistrationTables(state) {
         supplier.ownTransportAdditionEnabled ? "Own transport" : "",
         supplier.factoryTransportDeductionEnabled ? "Factory transport" : "",
         supplier.excludeFromBalance ? "Factory-owned" : "",
+        paymentModeLabel(supplier.paymentMode),
         currentSupplierPriceOverride(supplier.id) ? `Special ${currentSupplierPriceOverride(supplier.id).teaPricePerKg}` : ""
       ]
         .filter(Boolean)
@@ -1136,6 +1163,13 @@ function renderSupplierEditForm(supplier) {
         Tea line
         <input name="lineName" list="teaLineOptions" value="${escapeAttribute(supplier.lineName)}" required />
       </label>
+      <label>
+        Payment mode
+        <select name="paymentMode">
+          <option value="cash" ${supplier.paymentMode === "bank_transfer" ? "" : "selected"}>Cash</option>
+          <option value="bank_transfer" ${supplier.paymentMode === "bank_transfer" ? "selected" : ""}>Bank transfer</option>
+        </select>
+      </label>
       <div class="check-list">
         <label><input type="checkbox" name="deductionEnabled" ${checked(supplier.deductionEnabled)} /> 2% end-month deduction</label>
         <label><input type="checkbox" name="ownTransportAdditionEnabled" ${checked(supplier.ownTransportAdditionEnabled)} /> Own transport addition</label>
@@ -1346,8 +1380,10 @@ document.querySelector('#bookPaymentForm select[name="lineName"]').addEventListe
 document.querySelector("#bookPaymentForm").addEventListener("submit", recordBookPayment);
 document.querySelector("#billSummaryScope").addEventListener("change", updateBillSummaryScope);
 document.querySelector("#loadMonthEndSummary").addEventListener("click", loadMonthEndSummary);
+document.querySelector("#printSupplierBills").addEventListener("click", printSupplierBills);
 document.querySelector("#billMonth").addEventListener("change", loadBillSelectorOptions);
 document.querySelector("#paymentRecordMonth").addEventListener("change", loadPaymentBalances);
+window.addEventListener("afterprint", recordSupplierBillPrintAudit);
 
 function renderGreenLeafBook() {
   const book = latestBook;
@@ -1599,11 +1635,7 @@ function renderMonthEndSummary() {
   const scope = activeBillSummaryScope;
   const selectedSupplierId = activeBillSummarySupplier;
   const selectedLineName = activeBillSummaryLine;
-  const supplierBills = summary.supplierBills.filter((bill) => {
-    if (scope === "supplier") return bill.supplierId === selectedSupplierId;
-    if (scope === "line") return bill.lineName === selectedLineName;
-    return true;
-  });
+  const supplierBills = filteredSupplierBills(summary, scope, selectedSupplierId, selectedLineName);
   const lineSummaries = summary.lineSummaries.filter((line) => {
     if (scope === "line") return line.lineName === selectedLineName;
     if (scope === "supplier") return supplierBills.some((bill) => bill.lineName === line.lineName);
@@ -1672,8 +1704,242 @@ function renderMonthEndSummary() {
       <h3>Supplier Bills</h3>
       <div class="supplier-bill-grid">${supplierCards}</div>
     </div>`;
-  host.innerHTML = `${lineSection}${supplierSection}`;
+  const printPreviewSection = `<div class="summary-section print-preview-section is-collapsed">
+      <div class="print-preview-heading">
+        <div>
+          <h3>Supplier Bill Print Preview</h3>
+          <p>${supplierBills.length} bill${supplierBills.length === 1 ? "" : "s"} ready. Default printing uses all bills, two per A4 sheet.</p>
+        </div>
+        <div class="print-preview-actions">
+          <button id="toggleSupplierBillPreview" class="secondary-button" type="button" aria-expanded="false">Show preview</button>
+          <button id="printSupplierBillsPreview" class="secondary-button" type="button">Print all bills</button>
+        </div>
+      </div>
+      <div id="supplierBillPreviewContent" class="print-preview-content hidden">
+        <div class="print-selection-toolbar">
+          <span>Select suppliers to print only chosen bills.</span>
+          <button id="selectAllSupplierBills" class="ghost-button" type="button">Select all</button>
+          <button id="clearSupplierBills" class="ghost-button" type="button">Clear</button>
+          <button id="printSelectedSupplierBills" class="secondary-button" type="button">Print selected bills</button>
+        </div>
+        <div class="supplier-print-preview-list">${supplierBills.map(renderSelectableSupplierBillPreview).join("")}</div>
+      </div>
+    </div>`;
+  host.innerHTML = `${lineSection}${supplierSection}${printPreviewSection}`;
+  document.querySelector("#printSupplierBillsPreview")?.addEventListener("click", printSupplierBills);
+  document.querySelector("#printSelectedSupplierBills")?.addEventListener("click", () => printSupplierBills({ selectedOnly: true }));
+  document.querySelector("#toggleSupplierBillPreview")?.addEventListener("click", toggleSupplierBillPreview);
+  document.querySelector("#selectAllSupplierBills")?.addEventListener("click", () => setSupplierBillSelection(true));
+  document.querySelector("#clearSupplierBills")?.addEventListener("click", () => setSupplierBillSelection(false));
   host.classList.remove("hidden");
+}
+
+function filteredSupplierBills(summary, scope, selectedSupplierId, selectedLineName) {
+  return (summary?.supplierBills || []).filter((bill) => {
+    if (scope === "supplier") return bill.supplierId === selectedSupplierId;
+    if (scope === "line") return bill.lineName === selectedLineName;
+    return true;
+  });
+}
+
+async function printSupplierBills(options = {}) {
+  try {
+    const selectedOnly = options?.selectedOnly === true;
+    const month = document.querySelector("#billMonth").value;
+    if (!month) {
+      showToast("Select a bill month before printing.", "error");
+      return;
+    }
+    if (!latestMonthEndSummary || latestMonthEndSummary.month !== month) {
+      latestBook = await api(`/office/green-leaf-book?month=${month}`);
+      latestMonthEndSummary = await api(`/office/month-end-summary?month=${month}`);
+      populateBookPaymentForm();
+    }
+    activeBillSummaryScope = document.querySelector("#billSummaryScope").value;
+    activeBillSummarySupplier = document.querySelector("#billSummarySupplier").value;
+    activeBillSummaryLine = document.querySelector("#billSummaryLine").value;
+    let bills = filteredSupplierBills(latestMonthEndSummary, activeBillSummaryScope, activeBillSummarySupplier, activeBillSummaryLine);
+    if (selectedOnly) {
+      const selectedSupplierIds = selectedSupplierBillIds();
+      bills = bills.filter((bill) => selectedSupplierIds.includes(bill.supplierId));
+    }
+    if (!bills.length) {
+      showToast(selectedOnly ? "Select at least one supplier bill to print." : "No supplier bills found for the selected option.", "error");
+      return;
+    }
+    document.querySelector("#supplierBillPrintArea").innerHTML = bills.map(renderSinhalaSupplierBill).join("");
+    pendingSupplierBillPrintAudit = {
+      month,
+      suppliers: bills.map((bill) => ({
+        id: bill.supplierId,
+        code: bill.supplierCode,
+        name: bill.supplierName
+      }))
+    };
+    window.print();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function recordSupplierBillPrintAudit() {
+  if (!pendingSupplierBillPrintAudit) return;
+  const payload = pendingSupplierBillPrintAudit;
+  pendingSupplierBillPrintAudit = null;
+  try {
+    await api("/office/supplier-bill-print-audit", { method: "POST", body: JSON.stringify(payload) });
+    if (document.querySelector("#auditReportsView")?.classList.contains("active-view")) {
+      await loadAuditLogs();
+    }
+  } catch (error) {
+    showToast(`Could not record print audit: ${error.message}`, "error");
+  }
+}
+
+function renderSelectableSupplierBillPreview(bill, index) {
+  return `<article class="supplier-print-preview-item">
+    <label class="supplier-print-selector">
+      <input class="supplier-print-checkbox" type="checkbox" value="${escapeAttribute(bill.supplierId)}" checked />
+      <span>${escapeHtml(bill.supplierName)}${bill.lineName ? ` - ${escapeHtml(bill.lineName)}` : ""}</span>
+    </label>
+    ${renderSinhalaSupplierBill(bill, index)}
+  </article>`;
+}
+
+function toggleSupplierBillPreview() {
+  const section = document.querySelector(".print-preview-section");
+  const content = document.querySelector("#supplierBillPreviewContent");
+  const button = document.querySelector("#toggleSupplierBillPreview");
+  const willExpand = content?.classList.contains("hidden");
+  content?.classList.toggle("hidden", !willExpand);
+  section?.classList.toggle("is-collapsed", !willExpand);
+  if (button) {
+    button.textContent = willExpand ? "Hide preview" : "Show preview";
+    button.setAttribute("aria-expanded", String(willExpand));
+  }
+}
+
+function setSupplierBillSelection(checked) {
+  for (const checkbox of document.querySelectorAll(".supplier-print-checkbox")) {
+    checkbox.checked = checked;
+  }
+}
+
+function selectedSupplierBillIds() {
+  return [...document.querySelectorAll(".supplier-print-checkbox:checked")].map((checkbox) => checkbox.value);
+}
+
+function renderSinhalaSupplierBill(bill, index) {
+  const advanceTotal = sumNumbers((bill.advances || []).map((item) => item.amount));
+  const fertilizerTotal = sumNumbers((bill.fertilizer || []).map((item) => item.effectiveAmount));
+  const teaPacketTotal = sumNumbers((bill.teaPackets || []).map((item) => item.totalAmount));
+  const fertilizerKg = effectiveFertilizerKg(bill.fertilizer || []);
+  const teaPacketCount = effectiveTeaPacketCount(bill.teaPackets || []);
+  const topFields = [
+    ["මුළු දළු ප්‍රමාණය", `${formatBookNumber(bill.totalKg)} kg`],
+    ["2% අඩු කිරීම", `${formatBookNumber(bill.deductionKg)} kg`],
+    ["ගෙවිය යුතු දළු ප්‍රමාණය", `${formatBookNumber(bill.finalKg)} kg`],
+    ["දළු කි.ග්‍රෑ. එකක මිල", `රු. ${formatBillCurrency(bill.pricePerKg)}`],
+    ["දළු වටිනාකම", `රු. ${formatBillCurrency(bill.leafValue)}`]
+  ];
+  const rows = [
+    ["ප්‍රවාහන එකතු කිරීම", "", formatBillCurrency(bill.ownTransportAddition)],
+    ["දිරිගැන්වීම්", "", formatBillCurrency(0)],
+    ["අත්තිකාරම්", "", formatBillCurrency(advanceTotal)],
+    ["පොහොර අඩු කිරීම", formatBookNumber(fertilizerKg, { blankZero: true }), formatBillCurrency(fertilizerTotal)],
+    ["තේ පැකට් අඩු කිරීම", formatBookNumber(teaPacketCount, { blankZero: true }), formatBillCurrency(teaPacketTotal)],
+    ["ප්‍රවාහන අඩු කිරීම", "", formatBillCurrency(bill.factoryTransportDeduction)],
+    ["පෙර හිඟ මුදල්", "", formatBillCurrency(bill.arrearsCarriedForward)],
+    ["මුළු එකතු කිරීම්", "", formatBillCurrency(bill.totalAdditions)],
+    ["මුළු අඩු කිරීම්", "", formatBillCurrency(bill.totalDeductions)]
+  ];
+  const dailyRows = dailyKgRows(bill.dailyKg || []);
+  const paymentLabel = bill.balanceExcluded ? "කර්මාන්තශාලාව සතු" : sinhalaPaymentModeLabel(bill.paymentMode);
+  const certificateKg = formatBookNumber(bill.finalKg);
+  const certificateNote = `අධිකාරී 1951 අංක 51 දරන TC 19 ප්‍රකාශනය ආකෘති පත්‍රය ප්‍රකාරව ${escapeHtml(formatSinhalaMonth(bill.month))} මාසය සඳහා සැපයූ තේ දළු කිලෝ ${certificateKg} වෙනුවෙන් ඉහත ප්‍රකාරව මුදල් ලබාගත් බව මෙයින් සහතික කරමි.`;
+  return `
+    <section class="sinhala-bill-sheet">
+      <div class="sinhala-bill">
+        <header class="sinhala-bill-header">
+          <img src="../../logo/KudamalanaLogo1.png" alt="" />
+          <div>
+            <p class="sinhala-bill-ref">MF-259</p>
+            <h1>කුඩමලාන තේ කර්මාන්ත ශාලාව - තල්ගස්වල</h1>
+            <h2>අමු දළු සැපයීමේ බිල්පත</h2>
+            <p>www.web.kudamalana.lk</p>
+          </div>
+          <div class="sinhala-bill-date">
+            <span>දිනය</span>
+            <strong>${escapeHtml(localDateValue())}</strong>
+          </div>
+        </header>
+        <div class="sinhala-bill-meta">
+          <span>අංකය: <strong>${escapeHtml(bill.supplierCode || bill.supplierId || "")}</strong></span>
+          <span>නම: <strong>${escapeHtml(bill.supplierName)}</strong></span>
+          <span>මාසය: <strong>${escapeHtml(formatSinhalaMonth(bill.month))}</strong></span>
+          <span>මාර්ගය: <strong>${escapeHtml(bill.lineName || "")}</strong></span>
+        </div>
+        <div class="sinhala-bill-top-values">
+          ${topFields
+            .map(
+              ([label, value]) => `
+              <span><em>${label}</em><strong>${value}</strong></span>`
+            )
+            .join("")}
+        </div>
+        <table class="sinhala-bill-table">
+          <thead>
+            <tr><th>විස්තරය</th><th>කි.ග්‍රෑ.</th><th>රු.</th></tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                ([label, kg, amount]) => `
+                <tr>
+                  <td>${label}</td>
+                  <td>${kg}</td>
+                  <td>${amount}</td>
+                </tr>`
+              )
+              .join("")}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>ගෙවිය යුතු ශේෂය</td>
+              <td>${paymentLabel}</td>
+              <td>${bill.balanceExcluded ? "" : formatBillCurrency(bill.balanceToPay)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <table class="sinhala-daily-table">
+          <tbody>${dailyRows}</tbody>
+        </table>
+        <p class="sinhala-bill-note">${certificateNote}</p>
+        <div class="sinhala-bill-signatures">
+          <span>දිනය ................................</span>
+          <span>අත්සන ................................</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function dailyKgRows(values) {
+  const days = Array.from({ length: values.length || 31 }, (_, index) => index + 1);
+  const chunks = [days.slice(0, 16), days.slice(16)];
+  return chunks
+    .map((chunk) => {
+      const heads = chunk.map((day) => `<th>${day}</th>`).join("");
+      const weights = chunk.map((day) => `<td>${formatBookNumber(values[day - 1])}</td>`).join("");
+      return `<tr>${heads}</tr><tr>${weights}</tr>`;
+    })
+    .join("");
+}
+
+function formatSinhalaMonth(month) {
+  const [year, monthNumber] = String(month || "").split("-");
+  if (!year || !monthNumber) return month || "";
+  const names = ["ජනවාරි", "පෙබරවාරි", "මාර්තු", "අප්‍රේල්", "මැයි", "ජූනි", "ජූලි", "අගෝස්තු", "සැප්තැම්බර්", "ඔක්තෝබර්", "නොවැම්බර්", "දෙසැම්බර්"];
+  return `${names[Number(monthNumber) - 1] || monthNumber} ${year}`;
 }
 
 function formatBookNumber(value, { blankZero = false } = {}) {
@@ -1683,6 +1949,13 @@ function formatBookNumber(value, { blankZero = false } = {}) {
   return number.toLocaleString("en-US", {
     minimumFractionDigits: hasDecimals ? 2 : 0,
     maximumFractionDigits: hasDecimals ? 2 : 0
+  });
+}
+
+function formatBillCurrency(value) {
+  return Number(value || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   });
 }
 

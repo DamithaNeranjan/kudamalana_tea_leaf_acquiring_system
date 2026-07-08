@@ -82,6 +82,7 @@
             <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
             <button class="menu-item" type="button" data-view="supplierBillsView">Supplier Bills</button>
             <button class="menu-item" type="button" data-view="paymentRecordsView">Balance Payment</button>
+            <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
           </div>
           <div class="menu-section">
             <span class="menu-section-label">Sync & Records</span>
@@ -89,7 +90,6 @@
             <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
             <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
             <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
-            <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
           </div>
           <div class="menu-section">
             <span class="menu-section-label">Reports</span>
@@ -147,6 +147,10 @@
                   <strong>Balance Payment</strong>
                   <span>Record and review completed supplier and line payments.</span>
                 </button>
+                <button class="summary-card" type="button" data-view-shortcut="officeUsersView">
+                  <strong>Office Users</strong>
+                  <span>Review office access and manage users as admin.</span>
+                </button>
               </div>
             </section>
             <section class="dashboard-section">
@@ -167,10 +171,6 @@
                 <button class="summary-card" type="button" data-view-shortcut="recordsView">
                   <strong>Collection Records</strong>
                   <span>View posted mobile records and office adjustments.</span>
-                </button>
-                <button class="summary-card" type="button" data-view-shortcut="officeUsersView">
-                  <strong>Office Users</strong>
-                  <span>Review office access and manage users as admin.</span>
                 </button>
               </div>
             </section>
@@ -345,6 +345,13 @@
                 <label>
                   Tea line
                   <input name="lineName" list="teaLineOptions" placeholder="Select or type tea line" required />
+                </label>
+                <label>
+                  Payment mode
+                  <select name="paymentMode">
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                  </select>
                 </label>
                 <div class="check-list">
                   <label><input type="checkbox" name="deductionEnabled" /> 2% end-month deduction</label>
@@ -755,7 +762,8 @@
               </select>
               <select id="billSummarySupplier" aria-label="Supplier for bill summary"></select>
               <select id="billSummaryLine" aria-label="Line for bill summary"></select>
-              <button id="loadMonthEndSummary" type="button">Generate summaries</button>
+              <button id="loadMonthEndSummary" type="button">Generate bill preview</button>
+              <button id="printSupplierBills" class="secondary-button" type="button">Open printer preview</button>
             </div>
             <div id="monthEndSummary" class="month-summary hidden"></div>
           </section>
@@ -957,6 +965,7 @@
     </div>
 
     <datalist id="teaLineOptions"></datalist>
+    <div id="supplierBillPrintArea" class="supplier-bill-print-area" aria-hidden="true"></div>
 
     <script src="./app.js"></script>
   </body>

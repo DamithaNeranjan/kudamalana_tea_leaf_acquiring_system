@@ -102,6 +102,7 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     });
     const renamedLineState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
     assert.equal(renamedLineState.suppliers.find((supplier) => supplier.id === "sup_1").lineName, "Line A Updated");
+    assert.equal(renamedLineState.suppliers.find((supplier) => supplier.id === "sup_1").paymentMode, "cash");
 
     const upload = await fetch(`${baseUrl}/sync/collections`, {
       method: "POST",
@@ -154,7 +155,15 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     await fetch(`${baseUrl}/office/suppliers`, {
       method: "POST",
       headers: auth,
-      body: JSON.stringify({ id: "sup_debt", code: "S002", name: "Debt Supplier", lineId: "line_1", lineName: "Line A Updated", active: true })
+      body: JSON.stringify({
+        id: "sup_debt",
+        code: "S002",
+        name: "Debt Supplier",
+        lineId: "line_1",
+        lineName: "Line A Updated",
+        paymentMode: "bank_transfer",
+        active: true
+      })
     });
 
     const suggestion = await (
@@ -236,7 +245,21 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.equal(debtPayment.status, 201);
     const summary = await (await fetch(`${baseUrl}/office/month-end-summary?month=2026-05`, { headers: auth })).json();
     assert.equal(summary.supplierBills[0].balanceToPay, -1200);
+    assert.equal(summary.supplierBills.find((bill) => bill.supplierId === "sup_debt").paymentMode, "bank_transfer");
     assert.equal(summary.lineSummaries[0].balanceToPay, -1300);
+    const printAudit = await fetch(`${baseUrl}/office/supplier-bill-print-audit`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        month: "2026-05",
+        suppliers: summary.supplierBills.map((bill) => ({
+          id: bill.supplierId,
+          code: bill.supplierCode,
+          name: bill.supplierName
+        }))
+      })
+    });
+    assert.equal(printAudit.status, 201);
     const juneBook = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-06`, { headers: auth })).json();
     assert.equal(juneBook.rows[0].arrearsCarriedForward, 1200);
     const automaticDebtRow = juneBook.rows.find((row) => row.supplierId === "sup_debt");
@@ -268,6 +291,11 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     );
     assert.ok(
       auditReport.auditLogs.some((entry) => entry.action === "record_payment" && entry.entityType === "supplier_payment")
+    );
+    assert.ok(
+      auditReport.auditLogs.some(
+        (entry) => entry.action === "print" && entry.entityType === "supplier_bill" && entry.summary.includes("Nimal")
+      )
     );
     const officeUserAudit = auditReport.auditLogs.find((entry) => entry.entityType === "office_user");
     assert.ok(officeUserAudit);

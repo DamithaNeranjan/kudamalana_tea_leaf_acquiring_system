@@ -39,14 +39,15 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Fertilizer issues preserve supplier, given date, kg given, total rupee value, repayment split count, and effective month or months. Saving an issue generates monthly fertilizer installments, and the Green Leaf Book deducts only installments for the selected month.
 - Made tea packet records preserve supplier, given date, packet count, per-packet price, total rupee value, and effective month. The Green Leaf Book deducts only made tea packet records for the selected month.
 - Supplier payment records preserve month, supplier, line, scope, paid amount, calculated balance at payment time, paid timestamp, office user, and note. Recording a supplier or line payment marks the month as paid without rewriting the calculated Green Leaf Book balance.
-- Audit log records preserve the acting office user, action type, entity type, entity id/label, timestamp, summary, and sanitized before/after JSON for creations, updates, checkbox/status changes, staging posts, price override batches, and payment recording. Viewing-only operations are not logged.
+- Audit log records preserve the acting office user, action type, entity type, entity id/label, timestamp, summary, and sanitized before/after JSON for creations, updates, checkbox/status changes, staging posts, price override batches, supplier bill print completion, and payment recording. Viewing-only operations and supplier bill print-preview viewing are not logged.
 - Negative Green Leaf Book balances continue into the next month as arrears for the same supplier, including suppliers without a recorded payment.
 - Monthly calculations are calendar-month based.
 - Monthly Settings supplies the selected month's green leaf price, deduction percentage, transport add per kg, and transport deduction per kg.
 - Supplier-month overrides can replace the selected month's default green leaf price for one supplier or all active suppliers in a selected line.
 - Green Leaf Book rows can be created from posted entries even when the supplier master row is unavailable, so staged mobile records remain visible after posting. The desktop book supports supplier-name and line-name filtering, highlights calculated Poya day columns over any row background, centers column headers, shows a color legend, shows advance date, advance amount, and total advance as separate columns, labels kg and rupee columns with units, formats table values with thousand separators and two decimal places when decimals are present, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, splits footer balance totals into positive and negative totals, shows paid rows in light blue, shows factory-owned rows in light grey, shows the selected month's fertilizer and made tea packet deductions before transport deductions, and subtracts advances from balance.
 - Factory-owned suppliers can be marked on the supplier record. Their monthly details remain visible in the Green Leaf Book, but payable balance is not calculated, and the total row can exclude those supplier rows.
-- Month-end summaries produce supplier bill details and line-wise totals from posted entries, monthly rates, advances, fertilizer installments, made tea packets, arrears, and payment records.
+- Supplier records include a payment mode of Cash or Bank transfer for supplier bill printing.
+- Month-end summaries produce supplier bill details and line-wise totals from posted entries, monthly rates, advances, fertilizer installments, made tea packets, arrears, payment mode, and payment records.
 - Supplier-facing identity uses supplier code plus supplier name.
 - Suppliers must reference an active registered tea line before they can be saved.
 - Tablet collection starts from tea line selection; supplier choices are filtered to active suppliers belonging to the selected active line.
@@ -59,14 +60,14 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Form inputs trim leading and trailing spaces before validation and API submission, including login, profile, regular create forms, and edit modal forms.
 - Saved listing tables show 10 records per page and order records by latest saved first.
 - Monthly Settings has a saved-settings table and edit action for month-specific calculation rates.
-- Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override.
+- Supplier screens use registered tea lines as the allowed tea-line source and support one supplier's month-specific green leaf price override and payment mode.
 - Tea Line editing can apply one month-specific special green leaf price to all active suppliers belonging to that line.
 - Staging Review supports manual import refresh, per-record posting, and confirmed Post all.
 - Collection Records is a read-only, paginated audit view with filters for supplier, tea line, date range, posted-by office user, and collector.
-- Supplier Bills generates month-end supplier bills and line-wise summaries for all suppliers, a selected supplier, or a selected line.
+- Supplier Bills generates month-end supplier bills and line-wise summaries for all suppliers, a selected supplier, or a selected line. The desktop bill print path shows a collapsed Sinhala print preview by default, prints two half-A4 supplier bills per A4 sheet, supports selected-supplier printing, and records a print audit only after the print dialog completes.
 - Balance Payment records supplier-wise or line-wise payments against the calculated Green Leaf Book month, provides searchable supplier selection with debt suppliers shown as inactive options, and lists completed month-end payments with filters, pagination, and latest payments first.
 - Audit Reports is in the Reports menu group and provides latest-first mutation history with user, action, entity, and date filters.
-- Office Users is managed by desktop admin users; regular office users can view the listing but cannot create, edit, activate, or deactivate office-user accounts.
+- Office Users appears under Monthly Work and is managed by desktop admin users; regular office users can view the listing but cannot create, edit, activate, or deactivate office-user accounts.
 
 ## Mobile UI Structure
 

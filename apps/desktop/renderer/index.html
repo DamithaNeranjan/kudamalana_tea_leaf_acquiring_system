@@ -67,21 +67,34 @@
           <strong>Operations</strong>
         </div>
         <nav class="menu" aria-label="Office sections">
-          <button class="menu-item active" type="button" data-view="dashboardView">Dashboard</button>
-          <button class="menu-item" type="button" data-view="teaLinesView">Tea Lines</button>
-          <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
-          <button class="menu-item" type="button" data-view="advancesView">Advances</button>
-          <button class="menu-item" type="button" data-view="fertilizerView">Fertilizer</button>
-          <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
-          <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
-          <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
-          <button class="menu-item" type="button" data-view="supplierBillsView">Supplier Bills</button>
-          <button class="menu-item" type="button" data-view="paymentRecordsView">Balance Payment</button>
-          <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
-          <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
-          <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
-          <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
-          <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
+          <div class="menu-section">
+            <span class="menu-section-label">Home</span>
+            <button class="menu-item active" type="button" data-view="dashboardView">Dashboard</button>
+          </div>
+          <div class="menu-section">
+            <span class="menu-section-label">Monthly Work</span>
+            <button class="menu-item" type="button" data-view="teaLinesView">Tea Lines</button>
+            <button class="menu-item" type="button" data-view="suppliersView">Suppliers</button>
+            <button class="menu-item" type="button" data-view="advancesView">Advances</button>
+            <button class="menu-item" type="button" data-view="fertilizerView">Fertilizer</button>
+            <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
+            <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
+            <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
+            <button class="menu-item" type="button" data-view="supplierBillsView">Supplier Bills</button>
+            <button class="menu-item" type="button" data-view="paymentRecordsView">Balance Payment</button>
+          </div>
+          <div class="menu-section">
+            <span class="menu-section-label">Sync & Records</span>
+            <button class="menu-item" type="button" data-view="pairingView">Pair Tablet</button>
+            <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
+            <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
+            <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
+            <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
+          </div>
+          <div class="menu-section">
+            <span class="menu-section-label">Reports</span>
+            <button class="menu-item" type="button" data-view="auditReportsView">Audit Reports</button>
+          </div>
         </nav>
       </aside>
 
@@ -94,63 +107,82 @@
               <p>Choose a section from the office menu to continue daily work.</p>
             </div>
           </div>
-          <div class="summary-grid">
-            <button class="summary-card" type="button" data-view-shortcut="teaLinesView">
-              <strong>Tea Lines</strong>
-              <span>Manage collection routes used by field tablets.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="suppliersView">
-              <strong>Suppliers</strong>
-              <span>Manage supplier master data and payment flags.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="advancesView">
-              <strong>Advances</strong>
-              <span>Record supplier advances and check suggested amounts.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="fertilizerView">
-              <strong>Fertilizer</strong>
-              <span>Record fertilizer issues and monthly deduction splits.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="teaPacketsView">
-              <strong>Made Tea Packets</strong>
-              <span>Record borrowed tea packets and monthly deductions.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
-              <strong>Monthly Settings</strong>
-              <span>Set green leaf price, deduction, and transport rates for each month.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="bookView">
-              <strong>Green Leaf Book</strong>
-              <span>Open month-wise supplier payment calculations.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="supplierBillsView">
-              <strong>Supplier Bills</strong>
-              <span>Generate supplier bills, line summaries, and payment records.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="paymentRecordsView">
-              <strong>Balance Payment</strong>
-              <span>Record and review completed supplier and line payments.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="pairingView">
-              <strong>Pair Tablet</strong>
-              <span>Show the QR code tablets scan before syncing daily work.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="lineUsersView">
-              <strong>Line Users</strong>
-              <span>Manage tablet users who collect tea leaves.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="officeUsersView">
-              <strong>Office Users</strong>
-              <span>Review office access and manage users as admin.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="stagingView">
-              <strong>Staging Review</strong>
-              <span>Review tablet imports and post final net weights.</span>
-            </button>
-            <button class="summary-card" type="button" data-view-shortcut="recordsView">
-              <strong>Collection Records</strong>
-              <span>View posted mobile records and office adjustments.</span>
-            </button>
+          <div class="dashboard-sections">
+            <section class="dashboard-section">
+              <h3>Monthly Work</h3>
+              <div class="summary-grid">
+                <button class="summary-card" type="button" data-view-shortcut="teaLinesView">
+                  <strong>Tea Lines</strong>
+                  <span>Manage collection routes used by field tablets.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="suppliersView">
+                  <strong>Suppliers</strong>
+                  <span>Manage supplier master data and payment flags.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="advancesView">
+                  <strong>Advances</strong>
+                  <span>Record supplier advances and check suggested amounts.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="fertilizerView">
+                  <strong>Fertilizer</strong>
+                  <span>Record fertilizer issues and monthly deduction splits.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="teaPacketsView">
+                  <strong>Made Tea Packets</strong>
+                  <span>Record borrowed tea packets and monthly deductions.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="monthlySettingsView">
+                  <strong>Monthly Settings</strong>
+                  <span>Set green leaf price, deduction, and transport rates for each month.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="bookView">
+                  <strong>Green Leaf Book</strong>
+                  <span>Open month-wise supplier payment calculations.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="supplierBillsView">
+                  <strong>Supplier Bills</strong>
+                  <span>Generate supplier bills, line summaries, and payment records.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="paymentRecordsView">
+                  <strong>Balance Payment</strong>
+                  <span>Record and review completed supplier and line payments.</span>
+                </button>
+              </div>
+            </section>
+            <section class="dashboard-section">
+              <h3>Sync & Records</h3>
+              <div class="summary-grid">
+                <button class="summary-card" type="button" data-view-shortcut="pairingView">
+                  <strong>Pair Tablet</strong>
+                  <span>Show the QR code tablets scan before syncing daily work.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="lineUsersView">
+                  <strong>Line Users</strong>
+                  <span>Manage tablet users who collect tea leaves.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="stagingView">
+                  <strong>Staging Review</strong>
+                  <span>Review tablet imports and post final net weights.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="recordsView">
+                  <strong>Collection Records</strong>
+                  <span>View posted mobile records and office adjustments.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="officeUsersView">
+                  <strong>Office Users</strong>
+                  <span>Review office access and manage users as admin.</span>
+                </button>
+              </div>
+            </section>
+            <section class="dashboard-section">
+              <h3>Reports</h3>
+              <div class="summary-grid">
+                <button class="summary-card" type="button" data-view-shortcut="auditReportsView">
+                  <strong>Audit Reports</strong>
+                  <span>Review office create, update, posting, and payment actions.</span>
+                </button>
+              </div>
+            </section>
           </div>
         </section>
 
@@ -815,6 +847,59 @@
             <div class="pairing-card">
               <img id="pairingQr" alt="Tablet pairing QR code" />
               <strong id="pairingUrl"></strong>
+            </div>
+          </section>
+        </section>
+
+        <section id="auditReportsView" class="view">
+          <div class="view-heading">
+            <h2>Audit Reports</h2>
+            <p>Review office creations, updates, posted records, and payment actions.</p>
+          </div>
+          <section class="panel records-panel audit-panel">
+            <div class="filter-grid">
+              <label>
+                User
+                <input id="auditUserFilter" placeholder="User name" />
+              </label>
+              <label>
+                Action
+                <select id="auditActionFilter">
+                  <option value="">All</option>
+                  <option value="create">Create</option>
+                  <option value="update">Update</option>
+                  <option value="bulk_update">Bulk update</option>
+                  <option value="post">Post</option>
+                  <option value="record_payment">Record payment</option>
+                </select>
+              </label>
+              <label>
+                Entity
+                <input id="auditEntityFilter" placeholder="Record type or name" />
+              </label>
+              <label>
+                From
+                <input id="auditDateFromFilter" type="date" />
+              </label>
+              <label>
+                To
+                <input id="auditDateToFilter" type="date" />
+              </label>
+            </div>
+            <div class="table-scroll">
+              <table id="auditTable">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Summary</th>
+                    <th>Changes</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
             </div>
           </section>
         </section>

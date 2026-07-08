@@ -39,6 +39,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Fertilizer issues preserve supplier, given date, kg given, total rupee value, repayment split count, and effective month or months. Saving an issue generates monthly fertilizer installments, and the Green Leaf Book deducts only installments for the selected month.
 - Made tea packet records preserve supplier, given date, packet count, per-packet price, total rupee value, and effective month. The Green Leaf Book deducts only made tea packet records for the selected month.
 - Supplier payment records preserve month, supplier, line, scope, paid amount, calculated balance at payment time, paid timestamp, office user, and note. Recording a supplier or line payment marks the month as paid without rewriting the calculated Green Leaf Book balance.
+- Audit log records preserve the acting office user, action type, entity type, entity id/label, timestamp, summary, and sanitized before/after JSON for creations, updates, checkbox/status changes, staging posts, price override batches, and payment recording. Viewing-only operations are not logged.
 - Negative Green Leaf Book balances continue into the next month as arrears for the same supplier, including suppliers without a recorded payment.
 - Monthly calculations are calendar-month based.
 - Monthly Settings supplies the selected month's green leaf price, deduction percentage, transport add per kg, and transport deduction per kg.
@@ -53,7 +54,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 ## Desktop UI Structure
 
 - Header: Kudamalana Tea Factory branding, current office session, profile user button, and logout action.
-- Sidebar: Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Supplier Bills, Balance Payment, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the header user button. On desktop-sized windows, the sidebar scrolls independently while section content keeps the standard page flow.
+- Sidebar: grouped as Home; Monthly Work; Sync & Records; and Reports. The dashboard mirrors those groups in the same order with shortcut cards, and Profile opens from the header user button. On desktop-sized windows, the sidebar scrolls independently while section content keeps the standard page flow.
 - Master data screens: each has create forms, filterable registered-data tables, modal editing, active/inactive actions, and toast feedback.
 - Form inputs trim leading and trailing spaces before validation and API submission, including login, profile, regular create forms, and edit modal forms.
 - Saved listing tables show 10 records per page and order records by latest saved first.
@@ -64,6 +65,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Collection Records is a read-only, paginated audit view with filters for supplier, tea line, date range, posted-by office user, and collector.
 - Supplier Bills generates month-end supplier bills and line-wise summaries for all suppliers, a selected supplier, or a selected line.
 - Balance Payment records supplier-wise or line-wise payments against the calculated Green Leaf Book month, provides searchable supplier selection with debt suppliers shown as inactive options, and lists completed month-end payments with filters, pagination, and latest payments first.
+- Audit Reports is in the Reports menu group and provides latest-first mutation history with user, action, entity, and date filters.
 - Office Users is managed by desktop admin users; regular office users can view the listing but cannot create, edit, activate, or deactivate office-user accounts.
 
 ## Mobile UI Structure

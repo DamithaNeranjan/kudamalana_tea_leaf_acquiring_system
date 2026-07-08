@@ -49,6 +49,83 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
     }
   }
 
+  const entityConfig = {
+    lineUsers: { type: "line_user", label: (record) => record.displayName || record.username, unique: ["username"] },
+    officeUsers: { type: "office_user", label: (record) => record.displayName || record.username, unique: ["username"] },
+    teaLines: { type: "tea_line", label: (record) => record.name, unique: ["name"] },
+    suppliers: { type: "supplier", label: (record) => `${record.code || ""} ${record.name || ""}`.trim(), unique: ["code"] },
+    monthlySettings: { type: "monthly_setting", label: (record) => record.month, unique: ["month"] },
+    supplierMonthOverrides: {
+      type: "supplier_month_override",
+      label: (record) => `${record.supplierId || ""} ${record.month || ""}`.trim(),
+      unique: ["supplierId", "month"]
+    },
+    advances: { type: "advance", label: (record) => `${record.date || ""} ${record.amount || ""}`.trim() },
+    fertilizerIssues: { type: "fertilizer_issue", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() },
+    teaPackets: { type: "tea_packet", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() }
+  };
+
+  function sanitizeAuditValue(value) {
+    if (Array.isArray(value)) return value.map((item) => sanitizeAuditValue(item));
+    if (!value || typeof value !== "object") return value;
+    const result = {};
+    for (const [key, childValue] of Object.entries(value)) {
+      if (/password|token|authorization/i.test(key)) continue;
+      result[key] = sanitizeAuditValue(childValue);
+    }
+    return result;
+  }
+
+  function existingRecord(collection, input) {
+    const records = store.data?.[collection] || [];
+    if (input.id) {
+      const byId = records.find((record) => record.id === input.id);
+      if (byId) return byId;
+    }
+    const unique = entityConfig[collection]?.unique || [];
+    if (unique.length && unique.every((field) => input[field] !== undefined && input[field] !== "")) {
+      return records.find((record) => unique.every((field) => String(record[field] || "").toLowerCase() === String(input[field] || "").toLowerCase())) || null;
+    }
+    return null;
+  }
+
+  function auditLabel(collection, record) {
+    if (!record) return "";
+    return entityConfig[collection]?.label(record) || record.name || record.displayName || record.username || record.id || "";
+  }
+
+  function auditSummary(action, collection, record) {
+    const label = auditLabel(collection, record);
+    const noun = entityConfig[collection]?.type || collection;
+    return `${action === "create" ? "Created" : "Updated"} ${noun}${label ? `: ${label}` : ""}`;
+  }
+
+  function logAudit(session, entry) {
+    store.recordAudit({
+      ...entry,
+      user: session.user,
+      before: sanitizeAuditValue(entry.before),
+      after: sanitizeAuditValue(entry.after)
+    });
+  }
+
+  async function auditedUpsert(session, collection, payload, prefix) {
+    const before = existingRecord(collection, payload);
+    const saved = await store.upsert(collection, payload, prefix);
+    const after = existingRecord(collection, saved) || saved;
+    const action = before ? "update" : "create";
+    logAudit(session, {
+      action,
+      entityType: entityConfig[collection].type,
+      entityId: after.id || saved.id,
+      entityLabel: auditLabel(collection, after),
+      summary: auditSummary(action, collection, after),
+      before,
+      after
+    });
+    return saved;
+  }
+
   function localSyncUrls(request) {
     const port = Number(process.env.DESKTOP_SYNC_PORT || 7070);
     const candidates = [];
@@ -99,8 +176,18 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.officeUserById(session.user.id));
         }
         if (request.method === "PUT" && url.pathname === "/office/profile") {
+          const before = store.officeUserById(session.user.id);
           const updatedUser = await store.updateOfficeProfile(session.user.id, await body(request));
           session.user = updatedUser;
+          logAudit(session, {
+            action: "update",
+            entityType: "office_profile",
+            entityId: updatedUser.id,
+            entityLabel: updatedUser.displayName || updatedUser.username,
+            summary: `Updated office profile: ${updatedUser.displayName || updatedUser.username}`,
+            before,
+            after: updatedUser
+          });
           return send(response, 200, updatedUser);
         }
         if (request.method === "POST" && url.pathname === "/office/logout") {
@@ -131,41 +218,79 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           });
         }
         if (request.method === "POST" && url.pathname === "/office/line-users") {
-          return send(response, 201, await store.upsert("lineUsers", await body(request), "line_user"));
+          return send(response, 201, await auditedUpsert(session, "lineUsers", await body(request), "line_user"));
         }
         if (request.method === "POST" && url.pathname === "/office/office-users") {
           requireDesktopAdmin(session);
-          return send(response, 201, await store.upsert("officeUsers", await body(request), "office_user"));
+          return send(response, 201, await auditedUpsert(session, "officeUsers", await body(request), "office_user"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-lines") {
-          return send(response, 201, await store.upsert("teaLines", await body(request), "line"));
+          return send(response, 201, await auditedUpsert(session, "teaLines", await body(request), "line"));
         }
         if (request.method === "POST" && url.pathname === "/office/suppliers") {
-          return send(response, 201, await store.upsert("suppliers", await body(request), "sup"));
+          return send(response, 201, await auditedUpsert(session, "suppliers", await body(request), "sup"));
         }
         if (request.method === "POST" && url.pathname === "/office/monthly-settings") {
-          return send(response, 201, await store.upsert("monthlySettings", await body(request), "settings"));
+          return send(response, 201, await auditedUpsert(session, "monthlySettings", await body(request), "settings"));
         }
         if (request.method === "POST" && url.pathname === "/office/supplier-month-overrides") {
-          return send(response, 201, await store.upsert("supplierMonthOverrides", await body(request), "override"));
+          return send(response, 201, await auditedUpsert(session, "supplierMonthOverrides", await body(request), "override"));
         }
         if (request.method === "POST" && url.pathname === "/office/line-supplier-price-overrides") {
-          return send(response, 201, await store.upsertLineSupplierPriceOverride(await body(request)));
+          const payload = await body(request);
+          const result = await store.upsertLineSupplierPriceOverride(payload);
+          logAudit(session, {
+            action: "bulk_update",
+            entityType: "supplier_month_override",
+            entityId: [result.lineId || result.lineName, result.month].filter(Boolean).join(":"),
+            entityLabel: `${result.lineName || result.lineId || "Line"} ${result.month}`,
+            summary: `Updated ${result.updatedCount} supplier price override${result.updatedCount === 1 ? "" : "s"} for ${result.lineName || result.lineId}`,
+            before: null,
+            after: { request: payload, result }
+          });
+          return send(response, 201, result);
         }
         if (request.method === "POST" && url.pathname === "/office/advances") {
-          return send(response, 201, await store.upsert("advances", await body(request), "adv"));
+          return send(response, 201, await auditedUpsert(session, "advances", await body(request), "adv"));
         }
         if (request.method === "POST" && url.pathname === "/office/fertilizer-issues") {
-          return send(response, 201, await store.upsert("fertilizerIssues", await body(request), "fert"));
+          return send(response, 201, await auditedUpsert(session, "fertilizerIssues", await body(request), "fert"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-packets") {
-          return send(response, 201, await store.upsert("teaPackets", await body(request), "tea_packet"));
+          return send(response, 201, await auditedUpsert(session, "teaPackets", await body(request), "tea_packet"));
         }
         if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
-          return send(response, 200, await store.updateStaging(url.pathname.split("/").pop(), await body(request)));
+          const id = url.pathname.split("/").pop();
+          const before = store.stagingById(id);
+          const updated = await store.updateStaging(id, await body(request));
+          logAudit(session, {
+            action: "update",
+            entityType: "collection_staging",
+            entityId: id,
+            entityLabel: updated?.supplierName || before?.supplierName || id,
+            summary: `Updated staged collection: ${updated?.supplierName || id}`,
+            before,
+            after: updated
+          });
+          return send(response, 200, updated);
         }
         if (request.method === "POST" && url.pathname.endsWith("/post") && url.pathname.startsWith("/office/staging/")) {
-          return send(response, 200, await store.postStaging(url.pathname.split("/").at(-2), session.user));
+          const id = url.pathname.split("/").at(-2);
+          const before = store.stagingById(id);
+          const entry = await store.postStaging(id, session.user);
+          logAudit(session, {
+            action: "post",
+            entityType: "collection_entry",
+            entityId: entry.id,
+            entityLabel: entry.supplierName || entry.supplierCode,
+            summary: `Posted collection entry: ${entry.supplierName || entry.supplierCode}`,
+            before,
+            after: entry
+          });
+          return send(response, 200, entry);
+        }
+        if (request.method === "GET" && url.pathname === "/office/audit-log") {
+          return send(response, 200, { auditLogs: store.auditLogs() });
         }
         if (request.method === "GET" && url.pathname === "/office/state") {
           return send(response, 200, store.data);
@@ -179,7 +304,18 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.monthEndSummary(month));
         }
         if (request.method === "POST" && url.pathname === "/office/supplier-payments") {
-          return send(response, 201, await store.recordSupplierPayments(await body(request), session.user));
+          const payload = await body(request);
+          const result = await store.recordSupplierPayments(payload, session.user);
+          logAudit(session, {
+            action: "record_payment",
+            entityType: "supplier_payment",
+            entityId: `${result.scope}:${result.month}:${payload.supplierId || payload.lineName || "batch"}`,
+            entityLabel: payload.supplierId || payload.lineName || result.month,
+            summary: `Recorded ${result.recordedCount} ${result.scope} payment${result.recordedCount === 1 ? "" : "s"} for ${result.month}`,
+            before: null,
+            after: { request: payload, result }
+          });
+          return send(response, 201, result);
         }
         if (request.method === "GET" && url.pathname === "/office/advance-suggestion") {
           const month = url.searchParams.get("month");

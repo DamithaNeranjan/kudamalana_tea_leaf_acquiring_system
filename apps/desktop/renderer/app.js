@@ -4,6 +4,7 @@ let officeUser = null;
 let latestState = null;
 let latestBook = null;
 let latestMonthEndSummary = null;
+let latestAuditLogs = [];
 let activeBillSummaryScope = "all";
 let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
@@ -23,7 +24,12 @@ const filters = {
   paymentSupplier: "",
   paymentLine: "",
   paymentMonth: "",
-  paymentScope: ""
+  paymentScope: "",
+  auditUser: "",
+  auditAction: "",
+  auditEntity: "",
+  auditDateFrom: "",
+  auditDateTo: ""
 };
 let recordsPage = 1;
 const recordsPageSize = 10;
@@ -38,7 +44,8 @@ const listPages = {
   fertilizer: 1,
   teaPackets: 1,
   staging: 1,
-  payments: 1
+  payments: 1,
+  audit: 1
 };
 
 async function api(path, options = {}) {
@@ -83,12 +90,19 @@ function clearSession() {
   document.querySelector("#paymentLineFilter").value = "";
   document.querySelector("#paymentMonthFilter").value = "";
   document.querySelector("#paymentScopeFilter").value = "";
+  document.querySelector("#auditUserFilter").value = "";
+  document.querySelector("#auditActionFilter").value = "";
+  document.querySelector("#auditEntityFilter").value = "";
+  document.querySelector("#auditDateFromFilter").value = "";
+  document.querySelector("#auditDateToFilter").value = "";
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
   latestMonthEndSummary = null;
+  latestAuditLogs = [];
   document.querySelector("#stagingTable tbody").innerHTML = "";
   document.querySelector("#recordsTable tbody").innerHTML = "";
+  document.querySelector("#auditTable tbody").innerHTML = "";
   document.querySelector("#profileForm").reset();
   showView("dashboardView");
   window.scrollTo({ top: 0, left: 0 });
@@ -126,6 +140,9 @@ function showView(viewId) {
   if (viewId === "paymentRecordsView" && officeToken) {
     refreshState();
     loadPaymentBalances().catch((error) => showToast(error.message, "error"));
+  }
+  if (viewId === "auditReportsView" && officeToken) {
+    loadAuditLogs().catch((error) => showToast(error.message, "error"));
   }
 }
 
@@ -213,7 +230,7 @@ document.querySelector(".menu").addEventListener("click", (event) => {
   if (viewId) showView(viewId);
 });
 
-document.querySelector(".summary-grid").addEventListener("click", (event) => {
+document.querySelector(".dashboard-sections").addEventListener("click", (event) => {
   const shortcut = event.target.closest("[data-view-shortcut]");
   if (shortcut) showView(shortcut.dataset.viewShortcut);
 });
@@ -248,8 +265,13 @@ for (const [selector, key, pageKey] of [
 document.addEventListener("click", (event) => {
   const pageKey = event.target.dataset.pageKey;
   const pageDir = event.target.dataset.pageDir;
-  if (!pageKey || !pageDir || !latestState) return;
+  if (!pageKey || !pageDir) return;
   listPages[pageKey] = Math.max(1, (listPages[pageKey] || 1) + Number(pageDir));
+  if (pageKey === "audit") {
+    renderAuditLogs();
+    return;
+  }
+  if (!latestState) return;
   renderStateTables(latestState);
 });
 
@@ -278,6 +300,20 @@ for (const [selector, key] of [
     filters[key] = event.target.value.trim().toLowerCase();
     listPages.payments = 1;
     if (latestState) renderPayments(latestState);
+  });
+}
+
+for (const [selector, key] of [
+  ["#auditUserFilter", "auditUser"],
+  ["#auditActionFilter", "auditAction"],
+  ["#auditEntityFilter", "auditEntity"],
+  ["#auditDateFromFilter", "auditDateFrom"],
+  ["#auditDateToFilter", "auditDateTo"]
+]) {
+  document.querySelector(selector).addEventListener("input", (event) => {
+    filters[key] = event.target.value.trim().toLowerCase();
+    listPages.audit = 1;
+    renderAuditLogs();
   });
 }
 
@@ -618,6 +654,93 @@ function renderPayments(state) {
       </tr>`;
     })
     .join("");
+}
+
+async function loadAuditLogs() {
+  const payload = await api("/office/audit-log");
+  latestAuditLogs = payload.auditLogs || [];
+  renderAuditLogs();
+}
+
+function renderAuditLogs() {
+  const rows = paginateList(
+    "audit",
+    latestAuditLogs
+      .filter((log) => {
+        const user = String(log.displayName || log.username || "").toLowerCase();
+        const entity = `${log.entityType || ""} ${log.entityLabel || ""} ${log.summary || ""}`.toLowerCase();
+        const date = String(log.createdAt || "").slice(0, 10);
+        return (
+          user.includes(filters.auditUser) &&
+          (!filters.auditAction || log.action === filters.auditAction) &&
+          entity.includes(filters.auditEntity) &&
+          (!filters.auditDateFrom || date >= filters.auditDateFrom) &&
+          (!filters.auditDateTo || date <= filters.auditDateTo)
+        );
+      })
+      .sort((a, b) => compareNewestFirst(a, b, "createdAt")),
+    "auditTable"
+  );
+  document.querySelector("#auditTable tbody").innerHTML = rows
+    .map(
+      (log) => `
+      <tr>
+        <td>${escapeHtml(formatDateTime(log.createdAt))}</td>
+        <td>${escapeHtml(log.displayName || log.username || "-")}</td>
+        <td>${escapeHtml(formatAuditAction(log.action))}</td>
+        <td>${escapeHtml(formatAuditEntity(log))}</td>
+        <td>${escapeHtml(log.summary || "-")}</td>
+        <td class="audit-details">${escapeHtml(formatAuditDetails(log))}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+function formatAuditAction(action) {
+  return String(action || "")
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatAuditEntity(log) {
+  return [formatAuditAction(log.entityType), log.entityLabel].filter(Boolean).join(" - ");
+}
+
+function formatAuditDetails(log) {
+  if (!log.before && log.after) return `Created ${compactAuditValue(log.after)}`;
+  if (log.before && !log.after) return `Before: ${compactAuditValue(log.before)}`;
+  if (!log.before && !log.after) return "-";
+  const before = log.before || {};
+  const after = log.after || {};
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+    (key) => !["id", "updatedAt", "createdAt"].includes(key) && JSON.stringify(before[key]) !== JSON.stringify(after[key])
+  );
+  if (!keys.length) return "-";
+  return keys
+    .slice(0, 5)
+    .map((key) => `${auditFieldLabel(key)}: ${compactAuditValue(before[key])} -> ${compactAuditValue(after[key])}`)
+    .join("; ");
+}
+
+function auditFieldLabel(key) {
+  return String(key)
+    .replace(/([A-Z])/g, " $1")
+    .replaceAll("_", " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function compactAuditValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") {
+    const keys = Object.keys(value).filter((key) => !["id", "updatedAt", "createdAt"].includes(key));
+    return keys
+      .slice(0, 3)
+      .map((key) => `${auditFieldLabel(key)} ${compactAuditValue(value[key])}`)
+      .join(", ");
+  }
+  return String(value);
 }
 
 function formatDateTime(value) {

@@ -56,8 +56,8 @@ username: admin
 password: admin123
 ```
 
-The desktop app starts at the login screen. After login, the sidebar opens Dashboard, Tea Lines, Suppliers, Advances, Fertilizer, Made Tea Packets, Monthly Settings, Green Leaf Book, Supplier Bills, Balance Payment, Pair Tablet, Line Users, Staging Review, Collection Records, and Office Users. Profile opens from the user button in the header.
-On desktop-sized windows, the sidebar has its own scroll area and the opened menu section keeps the normal content layout.
+The desktop app starts at the login screen. After login, the sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports, and the dashboard mirrors those groups with shortcut cards. Profile opens from the user button in the header.
+On desktop-sized windows, the sidebar has its own scroll area, section title bands stay visually distinct from active menu items, and the opened menu section keeps the normal content layout.
 Desktop form inputs, including login and edit-modal fields, trim leading and trailing spaces before validation and API submission.
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
@@ -69,6 +69,7 @@ The desktop Green Leaf Book table labels kg and rupee columns with units and for
 Use Supplier Bills for month-end supplier/line summary generation. Summaries can be generated for all suppliers, a selected supplier, or a selected line after choosing the option and pressing Generate.
 Use Balance Payment for supplier-wise or line-wise payment recording. Payment amounts are automatically suggested when the supplier or line is selected, but the amount field remains editable. Supplier payment selection is searchable, debt suppliers are shown as inactive options, and completed payments are listed with filters, pagination, and latest payments first.
 Negative Green Leaf Book balances continue into the next month as arrears, even when no payment is recorded for that supplier.
+Use Audit Reports in the Reports sidebar group to review mutation history. The audit trail logs create/update/post/payment actions, including checkbox/status submissions, but does not log viewing-only operations or sensitive password/token values.
 
 The visible logo and Electron window icon use:
 

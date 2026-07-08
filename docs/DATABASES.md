@@ -62,4 +62,5 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Fertilizer issues are stored by supplier, given date, kg given, total rupee value, split count, and effective month or months. Monthly fertilizer installments are generated from those issues and drive the Green Leaf Book fertilizer deduction for each selected month.
 - Made tea packet deductions are stored by supplier, given date, packet count, per-packet price, total amount, and effective month. They are included in Green Leaf Book totals and the desktop book table for the selected month only.
+- Desktop `audit_log` is append-only for office create/update/post/payment actions. It stores the acting user, action, entity metadata, summary, timestamp, and sanitized before/after JSON while excluding passwords, hashes, tokens, and authorization values.
 - Local runtime data, WAL files, and logs are excluded from Git.

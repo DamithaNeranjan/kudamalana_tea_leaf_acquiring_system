@@ -124,6 +124,31 @@ Line-wise payload:
 }
 ```
 
+### `GET /office/audit-log`
+
+Office-session protected endpoint that returns the append-only audit trail for office mutations in latest-first order. The audit log records creations, updates, checkbox/status changes, staging posts, line price override batches, and supplier payment recording. Viewing-only operations are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
+
+Response shape:
+
+```json
+{
+  "auditLogs": [
+    {
+      "id": "audit_...",
+      "displayName": "Factory Office",
+      "action": "update",
+      "entityType": "supplier",
+      "entityId": "sup_1",
+      "entityLabel": "S001 Nimal",
+      "summary": "Updated supplier: S001 Nimal",
+      "before": {},
+      "after": {},
+      "createdAt": "2026-06-01T10:30:00.000Z"
+    }
+  ]
+}
+```
+
 ### `POST /office/advances`
 
 Office-session protected endpoint that records an advance given to a supplier for an effective month.

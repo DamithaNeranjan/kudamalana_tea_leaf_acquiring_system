@@ -24,6 +24,8 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
   await withDesktopServer(async (baseUrl) => {
     const blocked = await fetch(`${baseUrl}/office/state`);
     assert.equal(blocked.status, 401);
+    const blockedAudit = await fetch(`${baseUrl}/office/audit-log`);
+    assert.equal(blockedAudit.status, 401);
 
     const adminLogin = await fetch(`${baseUrl}/office/login`, {
       method: "POST",
@@ -251,6 +253,26 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
       ]
     );
     assert.equal(postedState.teaPackets[0].totalAmount, 200);
+
+    const auditReport = await (await fetch(`${baseUrl}/office/audit-log`, { headers: auth })).json();
+    assert.ok(auditReport.auditLogs.length >= 8);
+    assert.ok(
+      auditReport.auditLogs.some(
+        (entry) => entry.action === "create" && entry.entityType === "supplier" && entry.entityLabel.includes("Nimal")
+      )
+    );
+    assert.ok(
+      auditReport.auditLogs.some(
+        (entry) => entry.action === "post" && entry.entityType === "collection_entry" && entry.entityLabel === "Nimal"
+      )
+    );
+    assert.ok(
+      auditReport.auditLogs.some((entry) => entry.action === "record_payment" && entry.entityType === "supplier_payment")
+    );
+    const officeUserAudit = auditReport.auditLogs.find((entry) => entry.entityType === "office_user");
+    assert.ok(officeUserAudit);
+    assert.equal(JSON.stringify(officeUserAudit).includes("counter123"), false);
+    assert.equal(JSON.stringify(officeUserAudit).includes("passwordHash"), false);
 
     const logout = await fetch(`${baseUrl}/office/logout`, { method: "POST", headers: auth });
     assert.equal(logout.status, 200);

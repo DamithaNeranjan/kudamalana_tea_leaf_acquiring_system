@@ -193,6 +193,26 @@ export class LocalStore {
     this.db
       .prepare("CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id)")
       .run();
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS audit_log (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          username TEXT,
+          display_name TEXT,
+          action TEXT NOT NULL,
+          entity_type TEXT NOT NULL,
+          entity_id TEXT,
+          entity_label TEXT,
+          summary TEXT,
+          before_json TEXT,
+          after_json TEXT,
+          created_at TEXT NOT NULL
+        )`
+      )
+      .run();
+    this.db.prepare("CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)").run();
+    this.db.prepare("CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at)").run();
   }
 
   hasColumn(table, column) {
@@ -831,6 +851,61 @@ export class LocalStore {
     }
     this.refreshSnapshot();
     return { month, scope, recordedCount: saved.length, payments: saved };
+  }
+
+  recordAudit(entry) {
+    const createdAt = entry.createdAt || now();
+    const auditEntry = {
+      id: entry.id || makeId("audit"),
+      userId: optional(entry.user?.id ?? entry.userId),
+      username: optional(entry.user?.username ?? entry.username),
+      displayName: optional(entry.user?.displayName ?? entry.displayName),
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: optional(entry.entityId),
+      entityLabel: optional(entry.entityLabel),
+      summary: optional(entry.summary),
+      beforeJson: entry.before === undefined || entry.before === null ? null : JSON.stringify(entry.before),
+      afterJson: entry.after === undefined || entry.after === null ? null : JSON.stringify(entry.after),
+      createdAt
+    };
+    this.db
+      .prepare(
+        `INSERT INTO audit_log
+         (id, user_id, username, display_name, action, entity_type, entity_id, entity_label, summary, before_json, after_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        auditEntry.id,
+        auditEntry.userId,
+        auditEntry.username,
+        auditEntry.displayName,
+        auditEntry.action,
+        auditEntry.entityType,
+        auditEntry.entityId,
+        auditEntry.entityLabel,
+        auditEntry.summary,
+        auditEntry.beforeJson,
+        auditEntry.afterJson,
+        auditEntry.createdAt
+      );
+    return auditEntry;
+  }
+
+  auditLogs() {
+    return this.db
+      .prepare(
+        `SELECT id, user_id AS userId, username, display_name AS displayName, action,
+         entity_type AS entityType, entity_id AS entityId, entity_label AS entityLabel,
+         summary, before_json AS beforeJson, after_json AS afterJson, created_at AS createdAt
+         FROM audit_log ORDER BY created_at DESC, id DESC`
+      )
+      .all()
+      .map((row) => ({
+        ...row,
+        before: row.beforeJson ? JSON.parse(row.beforeJson) : null,
+        after: row.afterJson ? JSON.parse(row.afterJson) : null
+      }));
   }
 
   monthEndSummary(month) {
@@ -1497,6 +1572,21 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   UNIQUE (supplier_id, month)
 );
 
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  username TEXT,
+  display_name TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  entity_label TEXT,
+  summary TEXT,
+  before_json TEXT,
+  after_json TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -1513,4 +1603,6 @@ CREATE INDEX IF NOT EXISTS idx_fertilizer_effective_month ON fertilizer_installm
 CREATE INDEX IF NOT EXISTS idx_tea_packets_effective_month ON tea_packets(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_arrears_effective_month ON arrears_ledger(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);
 `;

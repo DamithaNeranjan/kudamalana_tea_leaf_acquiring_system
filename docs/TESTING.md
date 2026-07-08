@@ -18,7 +18,7 @@ The current suite covers:
 - fertilizer issue recording and generated monthly fertilizer deductions
 - made tea packet recording and selected-month Green Leaf Book deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
-- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by audit tracking, and monthly book impact
+- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by tracking, audit-log mutation tracking, and monthly book impact
 
 ## Manual Checks
 
@@ -47,7 +47,7 @@ Manual desktop UI checks:
 - Login with `office` / `office123`.
 - Login with `admin` / `admin123` and confirm the Office Users menu allows creating, editing, activating, and deactivating regular office users.
 - Login with a regular office user and confirm Office Users is visible as a read-only listing, with the Register Office User form and row actions hidden.
-- Confirm the desktop sidebar order matches the operations flow and the header user button opens Profile Management.
+- Confirm the desktop sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports; the section title bands are visually distinct from active menu items; the sidebar scroll reaches Audit Reports; the dashboard mirrors the same group order; and the header user button opens Profile Management.
 - In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout stays inside the panel in compact windows.
 - Create a tea line, then create a supplier using that registered tea line.
 - Confirm supplier save rejects unregistered tea-line names.
@@ -62,6 +62,7 @@ Manual desktop UI checks:
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
 - Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.
 - Confirm Post all opens a confirmation modal before posting all staged records.
+- Open Audit Reports and confirm create/update/status-checkbox submissions, staging posts, price override batches, and balance payment records appear latest-first with user/action/entity/date filters. Confirm password values are not shown in change details.
 
 Backend:
 

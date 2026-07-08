@@ -168,6 +168,21 @@ CREATE TABLE supplier_payments (
   UNIQUE (supplier_id, month)
 );
 
+CREATE TABLE audit_log (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  username TEXT,
+  display_name TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  entity_label TEXT,
+  summary TEXT,
+  before_json TEXT,
+  after_json TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE sync_log (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -178,3 +193,5 @@ CREATE TABLE sync_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);

@@ -17,7 +17,7 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
     return {
       "access-control-allow-origin": origin || "*",
       "access-control-allow-credentials": "true",
-      "access-control-allow-headers": "content-type, authorization",
+      "access-control-allow-headers": "content-type, authorization, x-sync-token",
       "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
       vary: "Origin"
     };
@@ -55,6 +55,12 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
 
   function sessionToken(request) {
     return bearer(request) || cookieToken(request);
+  }
+
+  function validDesktopSyncToken(request) {
+    const expected = process.env.CLOUD_SYNC_TOKEN || process.env.DESKTOP_CLOUD_SYNC_TOKEN || "";
+    const provided = request.headers["x-sync-token"] || "";
+    return Boolean(expected && provided && provided === expected);
   }
 
   function sessionCookie(token) {
@@ -114,12 +120,25 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         return send(request, response, 201, await store.createDirector(sessionToken(request), await parseBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/sync/desktop") {
-        return send(request, response, 200, await store.syncFromDesktop(sessionToken(request), await parseBody(request)));
+        const payload = await parseBody(request);
+        if (validDesktopSyncToken(request) && store.syncFromTrustedDesktop) {
+          return send(request, response, 200, await store.syncFromTrustedDesktop(payload));
+        }
+        return send(request, response, 200, await store.syncFromDesktop(sessionToken(request), payload));
       }
       if (request.method === "GET" && url.pathname === "/green-leaf-book") {
         const month = url.searchParams.get("month");
         const input = await store.getGreenLeafInput(sessionToken(request), month);
-        return send(request, response, 200, buildGreenLeafBook(input));
+        const book = buildGreenLeafBook(input);
+        const payments = new Map(
+          (input.supplierPayments || [])
+            .filter((payment) => payment.month === book.month)
+            .map((payment) => [payment.supplierId, payment])
+        );
+        return send(request, response, 200, {
+          ...book,
+          rows: book.rows.map((row) => ({ ...row, payment: payments.get(row.supplierId) || null }))
+        });
       }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {

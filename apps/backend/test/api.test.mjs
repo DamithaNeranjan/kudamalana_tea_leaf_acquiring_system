@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomBytes, scryptSync } from "node:crypto";
 import { createBackendServer } from "../src/server.mjs";
 import { createMemoryStore } from "../src/store.mjs";
+
+function desktopHash(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(String(password), salt, 64).toString("hex");
+  return `scrypt$${salt}$${hash}`;
+}
 
 async function withServer(fn) {
   const server = createBackendServer({ store: createMemoryStore() });
@@ -99,12 +106,51 @@ test("super admin can create directors and director can view green leaf book", a
       method: "POST",
       headers: { authorization: `Bearer ${login.token}` },
       body: JSON.stringify({
-        suppliers: [{ id: "sup_1", code: "S001", name: "Nimal", lineName: "Line A" }],
-        collectionEntries: [{ id: "entry_1", supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 12 }],
+        officeUsers: [
+          {
+            id: "office_desktop_1",
+            role: "office_user",
+            username: "desktop-office",
+            displayName: "Desktop Office",
+            passwordHash: desktopHash("desktop-secret"),
+            active: true,
+            updatedAt: "2026-05-02T10:00:00.000Z"
+          }
+        ],
+        suppliers: [
+          { id: "sup_2", code: "S002", name: "Factory", lineName: "Line B", excludeFromBalance: true },
+          { id: "sup_1", code: "S001", name: "Nimal", lineName: "Line A" }
+        ],
+        collectionEntries: [
+          { id: "entry_1", supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 12 },
+          { id: "entry_2", supplierId: "sup_2", collectionDate: "2026-05-01", netWeightKg: 5 }
+        ],
+        supplierPayments: [
+          {
+            id: "payment_1",
+            supplierId: "sup_1",
+            month: "2026-05",
+            lineName: "Line A",
+            scope: "supplier",
+            amount: 2400,
+            balanceAmount: 2400,
+            paidAt: "2026-05-31T10:00:00.000Z",
+            paidByOfficeUserName: "Office Viewer"
+          }
+        ],
         monthlySettings: [{ month: "2026-05", teaPricePerKg: 200 }]
       })
     });
     assert.equal(syncResponse.status, 200);
+    const syncResult = await syncResponse.json();
+    assert.ok(syncResult.officeUsers.some((user) => user.username === "desktop-office"));
+    assert.ok(syncResult.officeUsers.some((user) => user.username === "office-viewer"));
+
+    const desktopOfficeLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "desktop-office", password: "desktop-secret" })
+    });
+    assert.equal(desktopOfficeLoginResponse.status, 200);
 
     const directorLoginResponse = await fetch(`${baseUrl}/auth/login`, {
       method: "POST",
@@ -185,6 +231,10 @@ test("super admin can create directors and director can view green leaf book", a
     const book = await bookResponse.json();
     assert.equal(book.rows[0].supplierCode, "S001");
     assert.equal(book.rows[0].balanceToPay, 2400);
+    assert.equal(book.rows[0].payment.id, "payment_1");
+    assert.equal(book.rows[1].supplierCode, "S002");
+    assert.equal(book.rows[1].balanceExcluded, true);
+    assert.equal(book.rows[1].balanceToPay, 0);
   });
 });
 

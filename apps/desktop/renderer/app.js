@@ -96,6 +96,10 @@ function clearSession() {
   document.querySelector("#auditEntityFilter").value = "";
   document.querySelector("#auditDateFromFilter").value = "";
   document.querySelector("#auditDateToFilter").value = "";
+  document.querySelector("#cloudSyncRunsTable tbody").innerHTML = "";
+  document.querySelector("#cloudSyncLastSuccess").textContent = "No successful sync yet";
+  document.querySelector("#cloudSyncCursor").textContent = "";
+  document.querySelector("#cloudSyncMessage").textContent = "";
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
@@ -144,6 +148,9 @@ function showView(viewId) {
   }
   if (viewId === "auditReportsView" && officeToken) {
     loadAuditLogs().catch((error) => showToast(error.message, "error"));
+  }
+  if (viewId === "cloudSyncView" && officeToken) {
+    loadCloudSyncStatus().catch((error) => showToast(error.message, "error"));
   }
 }
 
@@ -811,6 +818,78 @@ async function refreshPairingQr() {
     message.textContent = error.message;
     qrImage.removeAttribute("src");
     urlText.textContent = "";
+  }
+}
+
+function summarizeCounts(counts = {}) {
+  const entries = Object.entries(counts || {}).filter(([, value]) => Number(value || 0) > 0);
+  if (!entries.length) return "No changed records";
+  return entries.map(([key, value]) => `${key}: ${value}`).join(", ");
+}
+
+function summarizeReceived(received = {}) {
+  if (!received) return summarizeCounts();
+  const counts = { ...(received.counts || {}) };
+  if (received.importedOfficeUsers) {
+    counts.importedOfficeUsers = received.importedOfficeUsers.importedCount || 0;
+  }
+  return summarizeCounts(counts);
+}
+
+function renderCloudSyncStatus(status) {
+  const last = status.lastSuccessfulSync;
+  document.querySelector("#cloudSyncLastSuccess").textContent = last
+    ? `${formatDateTime(last.completedAt || last.startedAt)} (${last.mode})`
+    : "No successful sync yet";
+  document.querySelector("#cloudSyncCursor").textContent = last?.cursorTo ? `Next incremental sync starts after ${formatDateTime(last.cursorTo)}` : "";
+  document.querySelector("#cloudSyncRunsTable tbody").innerHTML = (status.recentRuns || [])
+    .map(
+      (run) => `
+      <tr>
+        <td>${escapeHtml(formatDateTime(run.startedAt))}</td>
+        <td><span class="status-pill ${run.status === "success" ? "active" : "inactive"}">${escapeHtml(run.status)}</span></td>
+        <td>${escapeHtml(run.mode)}</td>
+        <td>${escapeHtml(summarizeCounts(run.sent))}</td>
+        <td>${escapeHtml(summarizeReceived(run.received))}</td>
+        <td>${escapeHtml(run.error || "")}</td>
+      </tr>`
+    )
+    .join("");
+}
+
+async function loadCloudSyncStatus() {
+  const status = await api("/office/cloud-sync/status");
+  renderCloudSyncStatus(status);
+}
+
+async function runCloudSync(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = {
+    fullSync: form.elements.fullSync.checked,
+    syncOfficeUsers: !form.elements.greenLeafOnly.checked
+  };
+  const message = document.querySelector("#cloudSyncMessage");
+  const button = form.querySelector('button[type="submit"]');
+  message.className = "message info";
+  message.textContent = payload.fullSync ? "Running full cloud sync..." : "Running incremental cloud sync...";
+  button.disabled = true;
+  try {
+    const result = await api("/office/cloud-sync", { method: "POST", body: JSON.stringify(payload) });
+    const sent = summarizeCounts(result.sentCounts);
+    const imported = result.importedOfficeUsers?.importedCount || 0;
+    message.className = "message success";
+    message.textContent = `Sync completed. Sent ${sent}. Imported ${imported} office user records from web.`;
+    showToast("Cloud sync completed.");
+    await loadCloudSyncStatus();
+    await refreshState();
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+    await loadCloudSyncStatus().catch(() => {});
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -1982,6 +2061,7 @@ function poyaDaysForMonth(month) {
 }
 
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
+document.querySelector("#cloudSyncForm").addEventListener("submit", runCloudSync);
 
 document.querySelector("#bookMonth").value = localMonthValue();
 document.querySelector("#billMonth").value = localMonthValue();

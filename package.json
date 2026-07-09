@@ -12,7 +12,8 @@
   "scripts": {
     "test": "node test/all.test.mjs",
     "backend": "node apps/backend/src/server.mjs",
-    "desktop:sync": "node apps/desktop/src/server.mjs",
+    "desktop": "npm --workspace @tea/desktop run start",
+    "desktop:sync": "npm --workspace @tea/desktop run sync-server",
     "web:dev": "npm --workspace @tea/web run dev",
     "web:build": "npm --workspace @tea/web run build"
   }

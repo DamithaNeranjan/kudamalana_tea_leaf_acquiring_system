@@ -1,14 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDesktopSyncServer } from "../src/server.mjs";
 import { LocalStore } from "../src/localStore.mjs";
+import { createBackendServer } from "../../backend/src/server.mjs";
+import { createMemoryStore } from "../../backend/src/store.mjs";
 
-async function withDesktopServer(fn) {
+function webHash(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+  return `${salt}:${hash}`;
+}
+
+async function withDesktopServer(fn, env = {}) {
   const dir = await mkdtemp(join(tmpdir(), "tea-desktop-"));
   const store = new LocalStore(join(dir, "tea-local-db.sqlite"));
+  const previousEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    previousEnv[key] = process.env[key];
+    process.env[key] = value;
+  }
   const server = await createDesktopSyncServer({ store });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
@@ -16,7 +30,22 @@ async function withDesktopServer(fn) {
     await fn(`http://127.0.0.1:${port}`);
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    for (const key of Object.keys(env)) {
+      if (previousEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnv[key];
+    }
     await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function withBackendServer(fn) {
+  const server = createBackendServer({ store: createMemoryStore() });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  try {
+    await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 }
 
@@ -313,4 +342,107 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     });
     assert.equal(relogin.status, 200);
   });
+});
+
+test("desktop can import web-created office users for local login", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tea-desktop-users-"));
+  const store = new LocalStore(join(dir, "tea-local-db.sqlite"));
+  try {
+    await store.load();
+    const result = store.importSyncedOfficeUsers([
+      {
+        id: "web_office_1",
+        role: "office_user",
+        username: "web-office",
+        displayName: "Web Office",
+        passwordHash: webHash("web-secret"),
+        active: true,
+        updatedAt: "2026-05-03T08:00:00.000Z"
+      }
+    ]);
+    assert.equal(result.importedCount, 1);
+    assert.ok(store.officeUsersForSync().some((user) => user.username === "web-office" && user.passwordHash.includes(":")));
+    const login = store.login("web-office", "web-secret");
+    assert.equal(login.displayName, "Web Office");
+  } finally {
+    store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("desktop cloud sync records status and sends only changed data after first sync", async () => {
+  const previousToken = process.env.CLOUD_SYNC_TOKEN;
+  process.env.CLOUD_SYNC_TOKEN = "test-cloud-sync-token";
+  try {
+    await withBackendServer(async (backendUrl) => {
+      await withDesktopServer(async (desktopUrl) => {
+      const adminLogin = await fetch(`${desktopUrl}/office/login`, {
+        method: "POST",
+        body: JSON.stringify({ username: "admin", password: "admin123" })
+      });
+      assert.equal(adminLogin.status, 200);
+      const { token } = await adminLogin.json();
+      const auth = { authorization: `Bearer ${token}` };
+
+      const officeUserResponse = await fetch(`${desktopUrl}/office/office-users`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ username: "daily-sync-user", password: "daily123", displayName: "Daily Sync User" })
+      });
+      assert.equal(officeUserResponse.status, 201);
+
+      const syncLineResponse = await fetch(`${desktopUrl}/office/tea-lines`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ name: "Sync Line" })
+      });
+      assert.equal(syncLineResponse.status, 201);
+      const lineState = await (await fetch(`${desktopUrl}/office/state`, { headers: auth })).json();
+      const syncLine = lineState.teaLines.find((line) => line.name === "Sync Line");
+      assert.ok(syncLine);
+      const syncSupplierResponse = await fetch(`${desktopUrl}/office/suppliers`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ code: "SYNC001", name: "Sync Supplier", lineName: syncLine.name, paymentMode: "cash" })
+      });
+      assert.equal(syncSupplierResponse.status, 201);
+
+      const firstSync = await fetch(`${desktopUrl}/office/cloud-sync`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ fullSync: true, syncOfficeUsers: true })
+      });
+      assert.equal(firstSync.status, 200);
+      const firstResult = await firstSync.json();
+      assert.equal(firstResult.sentCounts.officeUsers >= 2, true);
+      assert.equal(firstResult.syncRun.status, "success");
+
+      const webLogin = await fetch(`${backendUrl}/auth/login`, {
+        method: "POST",
+        body: JSON.stringify({ username: "daily-sync-user", password: "daily123" })
+      });
+      assert.equal(webLogin.status, 200);
+
+      const secondSync = await fetch(`${desktopUrl}/office/cloud-sync`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({})
+      });
+      assert.equal(secondSync.status, 200);
+      const secondResult = await secondSync.json();
+      assert.equal(secondResult.syncRun.mode, "incremental");
+      assert.equal(secondResult.sentCounts.officeUsers, 0);
+      assert.equal(secondResult.sentCounts.collectionEntries, 0);
+      assert.equal(secondResult.sentCounts.teaLines > 0, true);
+      assert.equal(secondResult.sentCounts.suppliers > 0, true);
+
+      const status = await (await fetch(`${desktopUrl}/office/cloud-sync/status`, { headers: auth })).json();
+      assert.equal(status.lastSuccessfulSync.status, "success");
+      assert.equal(status.recentRuns.length, 2);
+      }, { BACKEND_URL: backendUrl, CLOUD_SYNC_TOKEN: "test-cloud-sync-token" });
+    });
+  } finally {
+    if (previousToken === undefined) delete process.env.CLOUD_SYNC_TOKEN;
+    else process.env.CLOUD_SYNC_TOKEN = previousToken;
+  }
 });

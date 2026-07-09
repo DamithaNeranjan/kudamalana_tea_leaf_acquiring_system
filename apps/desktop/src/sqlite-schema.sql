@@ -4,7 +4,8 @@ CREATE TABLE office_users (
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL,
-  active INTEGER NOT NULL DEFAULT 1
+  active INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT
 );
 
 CREATE TABLE line_users (
@@ -56,6 +57,7 @@ CREATE TABLE supplier_month_overrides (
   disable_deduction INTEGER NOT NULL DEFAULT 0,
   disable_own_transport_addition INTEGER NOT NULL DEFAULT 0,
   disable_factory_transport_deduction INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT,
   UNIQUE (supplier_id, month)
 );
 
@@ -132,7 +134,8 @@ CREATE TABLE fertilizer_installments (
   fertilizer_issue_id TEXT NOT NULL,
   supplier_id TEXT NOT NULL,
   effective_month TEXT NOT NULL,
-  amount REAL NOT NULL
+  amount REAL NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE tea_packets (
@@ -151,7 +154,8 @@ CREATE TABLE arrears_ledger (
   supplier_id TEXT NOT NULL,
   effective_month TEXT NOT NULL,
   amount REAL NOT NULL,
-  note TEXT
+  note TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE supplier_payments (
@@ -193,6 +197,21 @@ CREATE TABLE sync_log (
   synced_at TEXT NOT NULL
 );
 
+CREATE TABLE cloud_sync_runs (
+  id TEXT PRIMARY KEY,
+  mode TEXT NOT NULL,
+  backend_url TEXT,
+  cursor_from TEXT,
+  cursor_to TEXT,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL,
+  sent_json TEXT,
+  received_json TEXT,
+  error TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_runs_started_at ON cloud_sync_runs(started_at);

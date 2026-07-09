@@ -1,12 +1,32 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import QRCode from "qrcode";
 import { suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 import { LocalStore } from "./localStore.mjs";
 
+async function loadDesktopEnv(cwd = process.cwd()) {
+  for (const envPath of [join(cwd, ".env"), join(cwd, "..", ".env"), join(cwd, "..", "..", ".env")]) {
+    try {
+      const content = await readFile(envPath, "utf8");
+      for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+        const [key, ...rest] = trimmed.split("=");
+        if (!process.env[key]) process.env[key] = rest.join("=").trim();
+      }
+      return;
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+}
+
 export async function createDesktopSyncServer({ store = new LocalStore() } = {}) {
+  await loadDesktopEnv();
   await store.load();
   const sessions = new Map();
 
@@ -294,6 +314,91 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "GET" && url.pathname === "/office/state") {
           return send(response, 200, store.data);
+        }
+        if (request.method === "GET" && url.pathname === "/office/cloud-sync/status") {
+          return send(response, 200, store.cloudSyncStatus());
+        }
+        if (request.method === "POST" && url.pathname === "/office/cloud-sync") {
+          const payload = await body(request);
+          const backendUrl = String(payload.backendUrl || process.env.BACKEND_URL || "").replace(/\/$/, "");
+          if (!backendUrl) {
+            const error = new Error("BACKEND_URL is not configured for web app sync");
+            error.status = 400;
+            throw error;
+          }
+          let backendToken = String(payload.backendToken || process.env.CLOUD_SYNC_TOKEN || process.env.DESKTOP_CLOUD_SYNC_TOKEN || "");
+          if (!backendToken && payload.username && payload.password) {
+            const loginResponse = await fetch(`${backendUrl}/auth/login`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ username: payload.username, password: payload.password })
+            });
+            const loginPayload = await loginResponse.json();
+            if (!loginResponse.ok) {
+              const error = new Error(loginPayload.error || "Backend login failed");
+              error.status = loginResponse.status;
+              throw error;
+            }
+            backendToken = loginPayload.token;
+          }
+          if (!backendToken) {
+            const error = new Error("CLOUD_SYNC_TOKEN is not configured for web app sync");
+            error.status = 400;
+            throw error;
+          }
+          const lastSuccessfulSync = store.lastSuccessfulCloudSync();
+          const cursorFrom = payload.fullSync ? "" : lastSuccessfulSync?.cursorTo || "";
+          const cursorTo = new Date().toISOString();
+          const syncPayload = store.exportChangedGreenLeafBookSyncData({
+            since: cursorFrom,
+            full: Boolean(payload.fullSync),
+            cursorTo,
+            includeOfficeUsers: payload.syncOfficeUsers === true
+          });
+          const sentCounts = Object.fromEntries(
+            Object.entries(syncPayload)
+              .filter(([, value]) => Array.isArray(value))
+              .map(([key, value]) => [key, value.length])
+          );
+          const syncRun = store.beginCloudSyncRun({
+            mode: syncPayload.sync.mode,
+            backendUrl,
+            cursorFrom,
+            cursorTo,
+            sent: sentCounts
+          });
+          try {
+            const syncResponse = await fetch(`${backendUrl}/sync/desktop`, {
+              method: "POST",
+              headers: {
+              authorization: `Bearer ${backendToken}`,
+              "x-sync-token": backendToken,
+              "content-type": "application/json"
+            },
+              body: JSON.stringify(syncPayload)
+            });
+            const responsePayload = await syncResponse.json();
+            if (!syncResponse.ok) {
+              const error = new Error(responsePayload.error || "Cloud sync failed");
+              error.status = syncResponse.status;
+              throw error;
+            }
+            const importedOfficeUsers =
+              payload.syncOfficeUsers === true
+                ? store.importSyncedOfficeUsers(responsePayload.officeUsers || [])
+                : { importedCount: 0 };
+            const completedRun = store.completeCloudSyncRun(syncRun.id, {
+              received: {
+                backendSyncId: responsePayload.id,
+                counts: responsePayload.counts,
+                importedOfficeUsers
+              }
+            });
+            return send(response, 200, { ...responsePayload, sentCounts, importedOfficeUsers, syncRun: completedRun });
+          } catch (error) {
+            store.failCloudSyncRun(syncRun.id, error);
+            throw error;
+          }
         }
         if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
           const month = url.searchParams.get("month");

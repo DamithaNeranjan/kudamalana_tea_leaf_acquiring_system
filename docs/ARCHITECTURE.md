@@ -18,6 +18,8 @@ The hosted backend is used for cloud backup/reporting and for the director web a
 
 The backend stores web users, director accounts, office-user accounts, sessions, synced supplier data, collection entries, monthly settings, and green leaf book source data in MySQL.
 
+The local desktop server and hosted web backend are intentionally separate sources. The desktop server lives in `apps/desktop/src/server.mjs`, runs beside the Electron app, uses SQLite, and includes local office, tablet sync, audit, printing, and desktop-only workflows. The hosted backend lives in `apps/backend/src/server.mjs`, uses MySQL, and should expose the lighter online API needed by the web app and desktop cloud sync. Production should not host the desktop local server as the web API.
+
 ## Data Flow
 
 1. Office users log in locally and register line users, tea lines, suppliers, and monthly Green Leaf Book rate settings in the desktop app.
@@ -27,7 +29,7 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 5. Tablets upload unsynced collections back to the desktop.
 6. Desktop imports records into staging.
 7. Office users review/edit net weights and post permanent entries individually or through a confirmed Post all action.
-8. Desktop syncs finalized data to the hosted backend.
+8. Desktop syncs the Green Leaf Book source data to the hosted backend and receives backend office-user accounts in the same exchange.
 9. Directors view monthly green leaf books and managed user lists in the web app.
 
 ## Sync Principles
@@ -38,6 +40,9 @@ The backend stores web users, director accounts, office-user accounts, sessions,
 - Supplier advances preserve supplier, effective month, given date, and amount. Advance suggestions use month kg times the effective supplier price minus pending arrears and advances already given for that effective month.
 - Fertilizer issues preserve supplier, given date, kg given, total rupee value, repayment split count, and effective month or months. Saving an issue generates monthly fertilizer installments, and the Green Leaf Book deducts only installments for the selected month.
 - Made tea packet records preserve supplier, given date, packet count, per-packet price, total rupee value, and effective month. The Green Leaf Book deducts only made tea packet records for the selected month.
+- Desktop-to-web cloud sync sends only data needed to calculate and display the hosted Green Leaf Book plus office-user account records when that option is enabled. This includes supplier payment state and factory-owned balance-exclusion flags, so the web Green Leaf Book row order, paid/factory row colors, payable balance behavior, and totals match the desktop book. Office users sync bidirectionally with password hashes so desktop-created office users can log in on the web app and web-created office users can log in on the desktop app.
+- The desktop app exposes a Sync to Web App menu item below Green Leaf Book. Normal daily syncs use a last-successful-sync cursor and per-record update timestamps for high-volume transaction rows, so edits to previous dates are included while unchanged collection/deduction rows are skipped. Low-volume Green Leaf Book display/reference rows, such as tea lines, suppliers, monthly settings, supplier overrides, and supplier payment state, are resent idempotently each daily sync so the hosted book cannot miss row colors or balance-exclusion flags. A full sync option is available for first-time setup or recovery.
+- In production, mobile tablets communicate only with the local desktop sync server. The desktop app communicates with the hosted backend only during Sync to Web App, using configured `BACKEND_URL` and `CLOUD_SYNC_TOKEN`. The web app communicates with the hosted backend API and MySQL database; it does not run against the desktop SQLite database.
 - Supplier payment records preserve month, supplier, line, scope, paid amount, calculated balance at payment time, paid timestamp, office user, and note. Recording a supplier or line payment marks the month as paid without rewriting the calculated Green Leaf Book balance.
 - Audit log records preserve the acting office user, action type, entity type, entity id/label, timestamp, summary, and sanitized before/after JSON for creations, updates, checkbox/status changes, staging posts, price override batches, supplier bill print completion, and payment recording. Viewing-only operations and supplier bill print-preview viewing are not logged.
 - Negative Green Leaf Book balances continue into the next month as arrears for the same supplier, including suppliers without a recorded payment.

@@ -61,6 +61,7 @@ On desktop-sized windows, the sidebar has its own scroll area, section title ban
 Desktop form inputs, including login and edit-modal fields, trim leading and trailing spaces before validation and API submission.
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
+The Sync to Web App section is available below Green Leaf Book. It uses `BACKEND_URL` and `CLOUD_SYNC_TOKEN` from `.env`, so office users can sync with one button without typing web credentials. Keep Sync Green Leaf Book data only checked for normal daily syncs; uncheck it when office-user accounts also need to sync in both directions.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
 Use supplier editing to choose Cash or Bank transfer as the supplier payment mode and to mark factory-owned suppliers when their leaf details should remain visible but payable balance should not be calculated.
 Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
@@ -83,6 +84,45 @@ apps/logo/KudamalanaLogo1.png
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System\apps\desktop"
 node src/server.mjs
 ```
+
+## Local Production-Style Run
+
+Before going live, run the desktop/local side and web/hosted side as separate services on your machine:
+
+1. Start MySQL.
+2. Start the hosted-style backend API from the repository root:
+
+```powershell
+npm.cmd run backend
+```
+
+3. In another terminal, start the web frontend:
+
+```powershell
+npm.cmd run web:dev
+```
+
+4. In another terminal, start the desktop frontend. This also starts the desktop local backend server on port `7070`:
+
+```powershell
+npm.cmd run desktop
+```
+
+5. Log in to the desktop app and use Sync to Web App.
+6. Open the web app, log in through the backend API on `http://127.0.0.1:8080`, and confirm the Green Leaf Book data appears.
+
+For normal desktop UI testing, start either `npm.cmd run desktop` or `npm.cmd run desktop:sync`, not both. The Electron desktop app starts its own local server on port `7070`. Running `desktop:sync` separately is useful for API/tablet testing without opening Electron.
+
+For this local production-style run, `.env` must include:
+
+```text
+BACKEND_URL=http://localhost:8080
+CLOUD_SYNC_TOKEN=<same secret used by backend and desktop>
+```
+
+The backend and desktop sync server must use the same `CLOUD_SYNC_TOKEN`. In production, `BACKEND_URL` should point to the hosted API domain, for example `https://api.example.com`.
+
+This local run is deliberately split the same way production should be split. `npm.cmd run desktop` starts the Electron desktop frontend from `apps/desktop/src/main.js` and `apps/desktop/renderer/index.html`, and Electron automatically starts the local desktop server source from `apps/desktop/src/server.mjs`. That desktop side uses the development SQLite data folder `apps/desktop/desktop-data` and is the heavier offline office/tablet server that should run at the factory only. `npm.cmd run desktop:sync` starts only that local desktop server and is useful for API/tablet testing without opening Electron. `npm.cmd run backend` starts the hosted web backend source from `apps/backend/src/server.mjs`; it is the lighter online API and is the one to deploy with MySQL for the web app.
 
 ## Run Android Tablet App
 

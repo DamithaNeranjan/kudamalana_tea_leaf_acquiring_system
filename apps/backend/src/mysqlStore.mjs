@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,13 @@ function hashPassword(password, salt = randomBytes(16).toString("hex")) {
 }
 
 function verifyPassword(password, stored) {
+  if (String(stored || "").startsWith("scrypt$")) {
+    const [, salt, hash] = String(stored).split("$");
+    if (!salt || !hash) return false;
+    const actual = Buffer.from(scryptSync(String(password), salt, 64).toString("hex"), "hex");
+    const expected = Buffer.from(hash, "hex");
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
   const [salt, expected] = String(stored || "").split(":");
   if (!salt || !expected) return false;
   return hashPassword(password, salt) === stored;
@@ -51,7 +58,8 @@ function publicUser(row) {
     displayName: row.display_name,
     role: row.role,
     active: fromBool(row.active),
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at
   };
 }
 
@@ -113,6 +121,21 @@ async function executeSchema(pool) {
   if (!supplierPaymentModeColumns.length) {
     await pool.query("ALTER TABLE suppliers ADD COLUMN payment_mode VARCHAR(40) NOT NULL DEFAULT 'cash' AFTER line_name");
   }
+  const [supplierExcludeColumns] = await pool.query("SHOW COLUMNS FROM suppliers LIKE 'exclude_from_balance'");
+  if (!supplierExcludeColumns.length) {
+    await pool.query(
+      "ALTER TABLE suppliers ADD COLUMN exclude_from_balance BOOLEAN NOT NULL DEFAULT FALSE AFTER factory_transport_deduction_enabled"
+    );
+  }
+  const [userUpdatedAtColumns] = await pool.query("SHOW COLUMNS FROM users LIKE 'updated_at'");
+  if (!userUpdatedAtColumns.length) {
+    await pool.query("ALTER TABLE users ADD COLUMN updated_at DATETIME NULL AFTER created_at");
+    await pool.query("UPDATE users SET updated_at = created_at WHERE updated_at IS NULL");
+  }
+  const [passwordHashColumns] = await pool.query("SHOW COLUMNS FROM users LIKE 'password_hash'");
+  if (passwordHashColumns[0] && Number(passwordHashColumns[0].Type.match(/\d+/)?.[0] || 0) < 220) {
+    await pool.query("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(220) NOT NULL");
+  }
 }
 
 async function seedSuperAdmin(pool) {
@@ -121,10 +144,10 @@ async function seedSuperAdmin(pool) {
     { id: "user_admin", username: "admin", displayName: "Admin" }
   ]) {
     await pool.execute(
-      `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE username = username`,
-      [user.id, user.username, user.displayName, "super_admin", hashPassword("admin123"), 1, toMysqlDateTime()]
+      [user.id, user.username, user.displayName, "super_admin", hashPassword("admin123"), 1, toMysqlDateTime(), toMysqlDateTime()]
     );
   }
 }
@@ -143,6 +166,24 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
   await executeSchema(pool);
   await seedSuperAdmin(pool);
 
+  async function upsertTeaLines(conn, records = []) {
+    for (const record of records) {
+      if (!record.id) {
+        const error = new Error("Synced tea lines must include ids");
+        error.status = 400;
+        throw error;
+      }
+      await conn.execute(
+        `INSERT INTO tea_lines (id, name, active)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           active = VALUES(active)`,
+        [record.id, record.name, record.active === false ? 0 : 1]
+      );
+    }
+  }
+
   async function upsertSuppliers(conn, records = []) {
     for (const record of records) {
       if (!record.id) {
@@ -154,9 +195,9 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         `INSERT INTO suppliers (
           id, code, name, line_id, line_name, payment_mode, deduction_enabled,
           own_transport_addition_enabled, factory_transport_deduction_enabled,
-          active, updated_at
+          exclude_from_balance, active, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           code = VALUES(code),
           name = VALUES(name),
@@ -166,6 +207,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           deduction_enabled = VALUES(deduction_enabled),
           own_transport_addition_enabled = VALUES(own_transport_addition_enabled),
           factory_transport_deduction_enabled = VALUES(factory_transport_deduction_enabled),
+          exclude_from_balance = VALUES(exclude_from_balance),
           active = VALUES(active),
           updated_at = VALUES(updated_at)`,
         [
@@ -178,11 +220,69 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           toBool(record.deductionEnabled),
           toBool(record.ownTransportAdditionEnabled),
           toBool(record.factoryTransportDeductionEnabled),
+          toBool(record.excludeFromBalance || record.exclude_from_balance),
           record.active === false ? 0 : 1,
           toMysqlDateTime(record.updatedAt)
         ]
       );
     }
+  }
+
+  async function upsertOfficeUsers(conn, records = []) {
+    for (const record of records) {
+      if (record?.role !== "office_user") continue;
+      if (!record.id || !record.username || !record.displayName || !record.passwordHash) {
+        const error = new Error("Synced office users must include id, username, displayName, and passwordHash");
+        error.status = 400;
+        throw error;
+      }
+      const [existingRows] = await conn.execute("SELECT role FROM users WHERE id = ? OR username = ? LIMIT 1", [
+        record.id,
+        record.username
+      ]);
+      if (existingRows[0] && existingRows[0].role !== "office_user") continue;
+      const updatedAt = toMysqlDateTime(record.updatedAt || record.createdAt || new Date());
+      await conn.execute(
+        `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           username = IF(COALESCE(updated_at, created_at) <= VALUES(updated_at), VALUES(username), username),
+           display_name = IF(COALESCE(updated_at, created_at) <= VALUES(updated_at), VALUES(display_name), display_name),
+           password_hash = IF(COALESCE(updated_at, created_at) <= VALUES(updated_at), VALUES(password_hash), password_hash),
+           active = IF(COALESCE(updated_at, created_at) <= VALUES(updated_at), VALUES(active), active),
+           updated_at = IF(COALESCE(updated_at, created_at) <= VALUES(updated_at), VALUES(updated_at), updated_at)`,
+        [
+          record.id,
+          record.username,
+          record.displayName,
+          "office_user",
+          record.passwordHash,
+          record.active === false ? 0 : 1,
+          toMysqlDateTime(record.createdAt || record.updatedAt || new Date()),
+          updatedAt
+        ]
+      );
+    }
+  }
+
+  async function syncedOfficeUsers(conn) {
+    const [rows] = await conn.execute(
+      `SELECT id, username, display_name, role, password_hash, active, created_at, updated_at
+       FROM users
+       WHERE role = ?
+       ORDER BY username`,
+      ["office_user"]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.display_name,
+      role: row.role,
+      passwordHash: row.password_hash,
+      active: fromBool(row.active),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at || row.created_at
+    }));
   }
 
   async function upsertCollectionEntries(conn, records = []) {
@@ -314,6 +414,46 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
     }
   }
 
+  async function upsertSupplierPayments(conn, records = []) {
+    for (const record of records) {
+      if (!record.id) {
+        const error = new Error("Synced records must include ids");
+        error.status = 400;
+        throw error;
+      }
+      await conn.execute(
+        `INSERT INTO supplier_payments (
+          id, supplier_id, month, line_name, scope, amount, balance_amount,
+          paid_at, paid_by_office_user_id, paid_by_office_user_name, note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          month = VALUES(month),
+          line_name = VALUES(line_name),
+          scope = VALUES(scope),
+          amount = VALUES(amount),
+          balance_amount = VALUES(balance_amount),
+          paid_at = VALUES(paid_at),
+          paid_by_office_user_id = VALUES(paid_by_office_user_id),
+          paid_by_office_user_name = VALUES(paid_by_office_user_name),
+          note = VALUES(note)`,
+        [
+          record.id,
+          record.supplierId || record.supplier_id,
+          record.month,
+          record.lineName || record.line_name || null,
+          record.scope || "supplier",
+          numberOrDefault(record.amount),
+          numberOrDefault(record.balanceAmount ?? record.balance_amount),
+          toMysqlDateTime(record.paidAt || record.paid_at),
+          record.paidByOfficeUserId || record.paid_by_office_user_id || null,
+          record.paidByOfficeUserName || record.paid_by_office_user_name || null,
+          record.note || null
+        ]
+      );
+    }
+  }
+
   return {
     async close() {
       await pool.end();
@@ -369,12 +509,13 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           role: input.role,
           passwordHash: hashPassword(input.password),
           active: true,
-          createdAt: toMysqlDateTime()
+          createdAt: toMysqlDateTime(),
+          updatedAt: toMysqlDateTime()
         };
         await conn.execute(
-          `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [user.id, user.username, user.displayName, user.role, user.passwordHash, 1, user.createdAt]
+          `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [user.id, user.username, user.displayName, user.role, user.passwordHash, 1, user.createdAt, user.updatedAt]
         );
         await conn.commit();
         return {
@@ -441,12 +582,13 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         const nextDisplayName = input.displayName || current.display_name;
         const nextActive = typeof input.active === "boolean" ? toBool(input.active) : current.active;
         const nextPasswordHash = input.password ? hashPassword(input.password) : current.password_hash;
+        const nextUpdatedAt = toMysqlDateTime();
 
         await conn.execute(
           `UPDATE users
-           SET username = ?, display_name = ?, active = ?, password_hash = ?
+           SET username = ?, display_name = ?, active = ?, password_hash = ?, updated_at = ?
            WHERE id = ?`,
-          [nextUsername, nextDisplayName, nextActive, nextPasswordHash, userId]
+          [nextUsername, nextDisplayName, nextActive, nextPasswordHash, nextUpdatedAt, userId]
         );
         const [updatedRows] = await conn.execute("SELECT * FROM users WHERE id = ?", [userId]);
         await conn.commit();
@@ -478,11 +620,12 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       }
     },
 
-    async syncFromDesktop(sessionToken, payload) {
+    async syncFromDesktopPayload(payload, actorId, source = "desktop") {
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        const user = await requireRole(conn, sessionToken, ["super_admin", "office_user"]);
+        await upsertOfficeUsers(conn, payload.officeUsers);
+        await upsertTeaLines(conn, payload.teaLines);
         await upsertSuppliers(conn, payload.suppliers);
         await upsertCollectionEntries(conn, payload.collectionEntries);
         await upsertMonthlySettings(conn, payload.monthlySettings);
@@ -512,6 +655,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             )],
           ["effective_month", (item) => item.effectiveMonth || item.effective_month]
         ]);
+        await upsertSupplierPayments(conn, payload.supplierPayments);
         await upsertMoneyRows(conn, "arrears_ledger", payload.arrears, [
           ["supplier_id", (item) => item.supplierId || item.supplier_id],
           ["effective_month", (item) => item.effectiveMonth || item.effective_month],
@@ -521,21 +665,25 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
 
         const result = {
           id: makeId("sync"),
-          userId: user.id,
+          userId: actorId,
           syncedAt: toMysqlDateTime(),
           counts: {
             suppliers: payload.suppliers?.length || 0,
+            teaLines: payload.teaLines?.length || 0,
             collectionEntries: payload.collectionEntries?.length || 0,
+            officeUsers: payload.officeUsers?.length || 0,
             advances: payload.advances?.length || 0,
             fertilizerInstallments: payload.fertilizerInstallments?.length || 0,
             teaPackets: payload.teaPackets?.length || 0,
+            supplierPayments: payload.supplierPayments?.length || 0,
             arrears: payload.arrears?.length || 0
           }
         };
         await conn.execute(
           "INSERT INTO sync_log (id, source, synced_at, summary_json) VALUES (?, ?, ?, ?)",
-          [result.id, "desktop", result.syncedAt, JSON.stringify(result.counts)]
+          [result.id, source, result.syncedAt, JSON.stringify(result.counts)]
         );
+        result.officeUsers = await syncedOfficeUsers(conn);
         await conn.commit();
         return result;
       } catch (error) {
@@ -546,11 +694,25 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       }
     },
 
+    async syncFromDesktop(sessionToken, payload) {
+      const conn = await pool.getConnection();
+      try {
+        const user = await requireRole(conn, sessionToken, ["super_admin", "office_user"]);
+        return await this.syncFromDesktopPayload(payload, user.id, "desktop");
+      } finally {
+        conn.release();
+      }
+    },
+
+    async syncFromTrustedDesktop(payload) {
+      return await this.syncFromDesktopPayload(payload, "trusted_desktop_sync", "trusted_desktop");
+    },
+
     async getGreenLeafInput(sessionToken, month) {
       const conn = await pool.getConnection();
       try {
         await requireRole(conn, sessionToken, ["super_admin", "office_user", "director"]);
-        const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE");
+        const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE ORDER BY code");
         const [entries] = await conn.execute(
           "SELECT * FROM collection_entries WHERE collection_date >= ? AND collection_date < DATE_ADD(?, INTERVAL 1 MONTH)",
           [`${month}-01`, `${month}-01`]
@@ -563,6 +725,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           [month]
         );
         const [teaPackets] = await conn.execute("SELECT * FROM tea_packets WHERE effective_month = ?", [month]);
+        const [supplierPayments] = await conn.execute("SELECT * FROM supplier_payments WHERE month = ?", [month]);
         const [arrears] = await conn.execute("SELECT * FROM arrears_ledger WHERE effective_month = ?", [month]);
 
         const settings = settingsRows[0];
@@ -577,7 +740,8 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             paymentMode: paymentMode(row.payment_mode),
             deductionEnabled: fromBool(row.deduction_enabled),
             ownTransportAdditionEnabled: fromBool(row.own_transport_addition_enabled),
-            factoryTransportDeductionEnabled: fromBool(row.factory_transport_deduction_enabled)
+            factoryTransportDeductionEnabled: fromBool(row.factory_transport_deduction_enabled),
+            excludeFromBalance: fromBool(row.exclude_from_balance)
           })),
           entries: entries.map((row) => ({
             id: row.id,
@@ -628,6 +792,19 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             perPacketPrice: numberOrDefault(row.per_packet_price),
             totalAmount: numberOrDefault(row.total_amount),
             effectiveMonth: row.effective_month
+          })),
+          supplierPayments: supplierPayments.map((row) => ({
+            id: row.id,
+            supplierId: row.supplier_id,
+            month: row.month,
+            lineName: row.line_name,
+            scope: row.scope,
+            amount: numberOrDefault(row.amount),
+            balanceAmount: numberOrDefault(row.balance_amount),
+            paidAt: row.paid_at,
+            paidByOfficeUserId: row.paid_by_office_user_id,
+            paidByOfficeUserName: row.paid_by_office_user_name,
+            note: row.note
           })),
           arrears: arrears.map((row) => ({
             id: row.id,

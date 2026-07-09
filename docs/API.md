@@ -384,7 +384,45 @@ Payload fields are optional:
 
 ### `POST /sync/desktop`
 
-Accepts finalized desktop data for cloud sync.
+Accepts finalized desktop data for cloud sync. The desktop sync payload should include only Green Leaf Book source data plus office-user account records:
+
+- `officeUsers`
+- `teaLines`
+- `suppliers`
+- `collectionEntries`
+- `monthlySettings`
+- `supplierMonthOverrides`
+- `advances`
+- `fertilizerInstallments`
+- `teaPackets`
+- `supplierPayments`
+- `arrears`
+
+Office-user records sync with password hashes, not plain-text passwords. The response includes the backend office-user directory as `officeUsers` so the desktop app can import web-created office users locally.
+
+### `POST /office/cloud-sync`
+
+Desktop-session protected endpoint on the local desktop sync server. Posts the desktop Green Leaf Book sync payload to the backend `/sync/desktop` endpoint, then imports returned backend office users into the desktop SQLite database.
+
+By default this endpoint runs an incremental sync from the last successful cloud-sync cursor. Send `fullSync: true` to resend all Green Leaf Book source data and office users.
+
+Incremental Green Leaf Book sync still resends low-volume display/reference data, including tea lines, suppliers, monthly settings, supplier overrides, and supplier payment state. High-volume transaction rows remain cursor-based. This keeps daily syncs light while ensuring hosted row ordering, paid/factory row colors, and factory-owned balance exclusion do not become stale.
+
+In production, the desktop sync server reads these deployment settings from environment variables:
+
+- `BACKEND_URL`
+- `CLOUD_SYNC_TOKEN`
+
+The office user does not enter web credentials in the desktop UI. The logged-in desktop office session authorizes pressing the local sync button, while `CLOUD_SYNC_TOKEN` authenticates the desktop server to the hosted backend.
+
+Request body options:
+
+- `fullSync: true` resends all records instead of using the last successful cursor.
+- `syncOfficeUsers: true` includes bidirectional office-user account sync. Omit or set false for daily Green Leaf Book-only syncs; in that mode the desktop does not send local office users or import backend office users.
+
+### `GET /office/cloud-sync/status`
+
+Desktop-session protected endpoint returning the last successful web-app sync and recent sync runs for the desktop status report.
 
 ### `GET /green-leaf-book?month=YYYY-MM`
 

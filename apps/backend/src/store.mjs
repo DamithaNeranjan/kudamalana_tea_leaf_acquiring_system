@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { makeId } from "../../../packages/shared/src/index.mjs";
 
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
@@ -7,6 +7,13 @@ function hashPassword(password, salt = randomBytes(16).toString("hex")) {
 }
 
 function verifyPassword(password, stored) {
+  if (String(stored || "").startsWith("scrypt$")) {
+    const [, salt, hash] = String(stored).split("$");
+    if (!salt || !hash) return false;
+    const actual = Buffer.from(scryptSync(String(password), salt, 64).toString("hex"), "hex");
+    const expected = Buffer.from(hash, "hex");
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
   const [salt, expected] = String(stored || "").split(":");
   if (!salt || !expected) return false;
   return hashPassword(password, salt) === stored;
@@ -15,6 +22,7 @@ function verifyPassword(password, stored) {
 export function createMemoryStore() {
   const users = new Map();
   const sessions = new Map();
+  const teaLines = new Map();
   const suppliers = new Map();
   const entries = new Map();
   const monthlySettings = new Map();
@@ -22,6 +30,7 @@ export function createMemoryStore() {
   const advances = new Map();
   const fertilizerInstallments = new Map();
   const teaPackets = new Map();
+  const supplierPayments = new Map();
   const arrears = new Map();
   const syncLog = [];
 
@@ -78,12 +87,87 @@ export function createMemoryStore() {
     }
   }
 
+  function syncedOfficeUsers() {
+    return [...users.values()]
+      .filter((user) => user.role === "office_user")
+      .map((user) => ({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+        passwordHash: user.passwordHash,
+        active: Boolean(user.active),
+        updatedAt: user.updatedAt || user.createdAt
+      }))
+      .sort((a, b) => a.username.localeCompare(b.username));
+  }
+
+  function upsertOfficeUsers(records = []) {
+    for (const record of records) {
+      if (record?.role !== "office_user") continue;
+      if (!record.id || !record.username || !record.displayName || !record.passwordHash) {
+        const error = new Error("Synced office users must include id, username, displayName, and passwordHash");
+        error.status = 400;
+        throw error;
+      }
+      const existing = users.get(record.id) || [...users.values()].find((user) => user.username === record.username);
+      if (existing && existing.role !== "office_user") continue;
+      if (existing?.updatedAt && record.updatedAt && new Date(existing.updatedAt) > new Date(record.updatedAt)) continue;
+      const user = {
+        id: existing?.id || record.id,
+        username: record.username,
+        displayName: record.displayName,
+        role: "office_user",
+        passwordHash: record.passwordHash,
+        active: record.active !== false,
+        createdAt: existing?.createdAt || record.createdAt || new Date().toISOString(),
+        updatedAt: record.updatedAt || new Date().toISOString()
+      };
+      users.set(user.id, user);
+    }
+  }
+
   function assertManagedRole(role) {
     if (!["director", "office_user"].includes(role)) {
       const error = new Error("role must be director or office_user");
       error.status = 400;
       throw error;
     }
+  }
+
+  function syncDesktopPayload(actor, payload) {
+    upsertOfficeUsers(payload.officeUsers);
+    upsertMany(teaLines, payload.teaLines);
+    upsertMany(suppliers, payload.suppliers);
+    upsertMany(entries, payload.collectionEntries);
+    upsertMany(advances, payload.advances);
+    upsertMany(fertilizerInstallments, payload.fertilizerInstallments);
+    upsertMany(teaPackets, payload.teaPackets);
+    upsertMany(supplierPayments, payload.supplierPayments);
+    upsertMany(arrears, payload.arrears);
+    upsertMany(supplierMonthOverrides, payload.supplierMonthOverrides);
+    for (const setting of payload.monthlySettings || []) {
+      monthlySettings.set(setting.month, setting);
+    }
+    const result = {
+      id: makeId("sync"),
+      userId: actor.id,
+      syncedAt: new Date().toISOString(),
+      counts: {
+        suppliers: payload.suppliers?.length || 0,
+        teaLines: payload.teaLines?.length || 0,
+        collectionEntries: payload.collectionEntries?.length || 0,
+        officeUsers: payload.officeUsers?.length || 0,
+        advances: payload.advances?.length || 0,
+        fertilizerInstallments: payload.fertilizerInstallments?.length || 0,
+        teaPackets: payload.teaPackets?.length || 0,
+        supplierPayments: payload.supplierPayments?.length || 0,
+        arrears: payload.arrears?.length || 0
+      },
+      officeUsers: syncedOfficeUsers()
+    };
+    syncLog.push(result);
+    return result;
   }
 
   return {
@@ -124,7 +208,8 @@ export function createMemoryStore() {
         role: input.role,
         passwordHash: hashPassword(input.password),
         active: true,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       users.set(user.id, user);
       return publicUser(user);
@@ -166,6 +251,7 @@ export function createMemoryStore() {
       if (input.displayName) user.displayName = input.displayName;
       if (typeof input.active === "boolean") user.active = input.active;
       if (input.password) user.passwordHash = hashPassword(input.password);
+      user.updatedAt = new Date().toISOString();
       users.set(userId, user);
       return publicUser(user);
     },
@@ -181,44 +267,25 @@ export function createMemoryStore() {
 
     syncFromDesktop(sessionToken, payload) {
       const user = requireRole(sessionToken, ["super_admin", "office_user"]);
-      upsertMany(suppliers, payload.suppliers);
-      upsertMany(entries, payload.collectionEntries);
-      upsertMany(advances, payload.advances);
-      upsertMany(fertilizerInstallments, payload.fertilizerInstallments);
-      upsertMany(teaPackets, payload.teaPackets);
-      upsertMany(arrears, payload.arrears);
-      upsertMany(supplierMonthOverrides, payload.supplierMonthOverrides);
-      for (const setting of payload.monthlySettings || []) {
-        monthlySettings.set(setting.month, setting);
-      }
-      const result = {
-        id: makeId("sync"),
-        userId: user.id,
-        syncedAt: new Date().toISOString(),
-        counts: {
-          suppliers: payload.suppliers?.length || 0,
-          collectionEntries: payload.collectionEntries?.length || 0,
-          advances: payload.advances?.length || 0,
-          fertilizerInstallments: payload.fertilizerInstallments?.length || 0,
-          teaPackets: payload.teaPackets?.length || 0,
-          arrears: payload.arrears?.length || 0
-        }
-      };
-      syncLog.push(result);
-      return result;
+      return syncDesktopPayload(user, payload);
+    },
+
+    syncFromTrustedDesktop(payload) {
+      return syncDesktopPayload({ id: "trusted_desktop_sync" }, payload);
     },
 
     getGreenLeafInput(sessionToken, month) {
       requireRole(sessionToken, ["super_admin", "office_user", "director"]);
       return {
         month,
-        suppliers: [...suppliers.values()],
+        suppliers: [...suppliers.values()].sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""))),
         entries: [...entries.values()],
         monthlySettings: monthlySettings.get(month),
         supplierMonthOverrides: [...supplierMonthOverrides.values()],
         advances: [...advances.values()],
         fertilizerInstallments: [...fertilizerInstallments.values()],
         teaPackets: [...teaPackets.values()],
+        supplierPayments: [...supplierPayments.values()].filter((payment) => payment.month === month),
         arrears: [...arrears.values()]
       };
     },

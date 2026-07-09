@@ -80,6 +80,7 @@
             <button class="menu-item" type="button" data-view="teaPacketsView">Made Tea Packets</button>
             <button class="menu-item" type="button" data-view="monthlySettingsView">Monthly Settings</button>
             <button class="menu-item" type="button" data-view="bookView">Green Leaf Book</button>
+            <button class="menu-item" type="button" data-view="cloudSyncView">Sync to Web App</button>
             <button class="menu-item" type="button" data-view="supplierBillsView">Supplier Bills</button>
             <button class="menu-item" type="button" data-view="paymentRecordsView">Balance Payment</button>
             <button class="menu-item" type="button" data-view="officeUsersView">Office Users</button>
@@ -138,6 +139,10 @@
                 <button class="summary-card" type="button" data-view-shortcut="bookView">
                   <strong>Green Leaf Book</strong>
                   <span>Open month-wise supplier payment calculations.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="cloudSyncView">
+                  <strong>Sync to Web App</strong>
+                  <span>Send Green Leaf Book changes and office users to the web database.</span>
                 </button>
                 <button class="summary-card" type="button" data-view-shortcut="supplierBillsView">
                   <strong>Supplier Bills</strong>
@@ -743,6 +748,49 @@
             </div>
             <div class="book-wrap">
               <table id="bookTable"></table>
+            </div>
+          </section>
+        </section>
+
+        <section id="cloudSyncView" class="view">
+          <div class="view-heading">
+            <h2>Sync to Web App</h2>
+            <p>Send Green Leaf Book changes and office-user accounts to the hosted web database.</p>
+          </div>
+          <section class="panel cloud-sync-panel">
+            <form id="cloudSyncForm" class="cloud-sync-form">
+              <label class="switch-row cloud-sync-option">
+                <input name="fullSync" type="checkbox" />
+                Run a full sync instead of only unsynced changes
+              </label>
+              <label class="switch-row cloud-sync-option">
+                <input name="greenLeafOnly" type="checkbox" checked />
+                Sync Green Leaf Book data only
+              </label>
+              <button type="submit">Sync now</button>
+            </form>
+            <div class="cloud-sync-status">
+              <div class="status-card">
+                <span class="eyebrow">Last successful sync</span>
+                <strong id="cloudSyncLastSuccess">No successful sync yet</strong>
+                <span id="cloudSyncCursor" class="muted-text"></span>
+              </div>
+              <span id="cloudSyncMessage" class="message"></span>
+            </div>
+            <div class="table-scroll">
+              <table id="cloudSyncRunsTable">
+                <thead>
+                  <tr>
+                    <th>Started</th>
+                    <th>Status</th>
+                    <th>Mode</th>
+                    <th>Sent</th>
+                    <th>Received</th>
+                    <th>Error</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
             </div>
           </section>
         </section>

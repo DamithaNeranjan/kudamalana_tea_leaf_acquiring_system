@@ -3,9 +3,10 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(120) NOT NULL UNIQUE,
   display_name VARCHAR(160) NOT NULL,
   role ENUM('super_admin', 'office_user', 'director') NOT NULL,
-  password_hash VARCHAR(160) NOT NULL,
+  password_hash VARCHAR(220) NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at DATETIME NOT NULL
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
   deduction_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   own_transport_addition_enabled BOOLEAN NOT NULL DEFAULT FALSE,
   factory_transport_deduction_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  exclude_from_balance BOOLEAN NOT NULL DEFAULT FALSE,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   updated_at DATETIME NOT NULL,
   FOREIGN KEY (line_id) REFERENCES tea_lines(id)
@@ -102,6 +104,22 @@ CREATE TABLE IF NOT EXISTS tea_packets (
   per_packet_price DECIMAL(10,2) NOT NULL,
   total_amount DECIMAL(12,2) NOT NULL,
   effective_month CHAR(7) NOT NULL,
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id VARCHAR(80) PRIMARY KEY,
+  supplier_id VARCHAR(80) NOT NULL,
+  month CHAR(7) NOT NULL,
+  line_name VARCHAR(160),
+  scope VARCHAR(40) NOT NULL DEFAULT 'supplier',
+  amount DECIMAL(12,2) NOT NULL,
+  balance_amount DECIMAL(12,2) NOT NULL,
+  paid_at DATETIME NOT NULL,
+  paid_by_office_user_id VARCHAR(80),
+  paid_by_office_user_name VARCHAR(160),
+  note VARCHAR(255),
+  UNIQUE KEY unique_supplier_payment_month (supplier_id, month),
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 

@@ -287,6 +287,18 @@ main {
   min-height: 20px;
 }
 
+.message.success {
+  color: #1f7a3a;
+}
+
+.message.info {
+  color: var(--muted);
+}
+
+.message.error {
+  color: var(--danger);
+}
+
 .app-shell {
   align-items: start;
   display: grid;
@@ -776,6 +788,84 @@ button {
 .records-panel {
   display: grid;
   gap: 14px;
+}
+
+.cloud-sync-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.cloud-sync-form {
+  align-items: end;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  padding: 16px;
+}
+
+.cloud-sync-form label {
+  color: #334231;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.cloud-sync-form input {
+  min-width: 0;
+}
+
+.cloud-sync-option,
+.cloud-sync-form button[type="submit"] {
+  min-height: 42px;
+}
+
+.cloud-sync-status {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 1fr);
+}
+
+.status-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.status-card strong {
+  color: var(--ink);
+}
+
+.muted-text {
+  color: var(--muted);
+}
+
+.status-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  justify-content: center;
+  min-width: 74px;
+  padding: 5px 9px;
+}
+
+.status-pill.active {
+  background: #e7f5df;
+  color: #24562f;
+}
+
+.status-pill.inactive {
+  background: #f8e8e1;
+  color: var(--logout-dark);
 }
 
 .table-scroll {
@@ -1499,6 +1589,11 @@ th:first-child {
 @media (max-width: 1280px) {
   .profile-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cloud-sync-form,
+  .cloud-sync-status {
+    grid-template-columns: 1fr;
   }
 
   .profile-password-field,

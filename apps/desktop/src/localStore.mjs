@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -25,6 +25,12 @@ function now() {
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
+}
+
+function isAfter(value, since) {
+  if (!since) return true;
+  if (!value) return false;
+  return new Date(value).getTime() > new Date(since).getTime();
 }
 
 function nextMonthValue(month) {
@@ -61,7 +67,21 @@ function isHashedPassword(value) {
   return String(value || "").startsWith("scrypt$");
 }
 
+function isWebHashedPassword(value) {
+  const [salt, hash] = String(value || "").split(":");
+  return Boolean(salt && hash && /^[a-f0-9]{32}$/i.test(salt) && /^[a-f0-9]{64}$/i.test(hash));
+}
+
+function isSupportedPasswordHash(value) {
+  return isHashedPassword(value) || isWebHashedPassword(value);
+}
+
 function verifyPassword(password, stored) {
+  if (isWebHashedPassword(stored)) {
+    const [salt, expected] = String(stored).split(":");
+    const actual = createHash("sha256").update(`${salt}:${password}`).digest("hex");
+    return actual === expected;
+  }
   if (!isHashedPassword(stored)) {
     return String(password) === String(stored || "");
   }
@@ -74,7 +94,7 @@ function verifyPassword(password, stored) {
 
 function passwordValue(inputPassword, inputHash, existingHash = "") {
   if (inputPassword) return hashPassword(inputPassword);
-  if (inputHash && isHashedPassword(inputHash)) return inputHash;
+  if (inputHash && isSupportedPasswordHash(inputHash)) return inputHash;
   if (inputHash) return hashPassword(inputHash);
   return existingHash;
 }
@@ -117,17 +137,17 @@ export class LocalStore {
     this.db
       .prepare(
         `INSERT OR IGNORE INTO office_users
-         (id, username, display_name, password_hash, role, active)
-         VALUES (?, ?, ?, ?, ?, ?)`
+         (id, username, display_name, password_hash, role, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run("office_admin", "office", "Office Admin", hashPassword("office123"), "office_user", 1);
+      .run("office_admin", "office", "Office Admin", hashPassword("office123"), "office_user", 1, now());
     this.db
       .prepare(
         `INSERT OR IGNORE INTO office_users
-         (id, username, display_name, password_hash, role, active)
-         VALUES (?, ?, ?, ?, ?, ?)`
+         (id, username, display_name, password_hash, role, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run("office_root_admin", "admin", "Admin", hashPassword("admin123"), "admin", 1);
+      .run("office_root_admin", "admin", "Admin", hashPassword("admin123"), "admin", 1, now());
     this.db
       .prepare(
         `INSERT OR IGNORE INTO line_users
@@ -165,9 +185,13 @@ export class LocalStore {
       }
     }
     for (const [table, column] of [
+      ["office_users", ["updated_at", "TEXT"]],
+      ["supplier_month_overrides", ["updated_at", "TEXT"]],
       ["advances", ["updated_at", "TEXT"]],
       ["fertilizer_issues", ["updated_at", "TEXT"]],
-      ["tea_packets", ["updated_at", "TEXT"]]
+      ["fertilizer_installments", ["updated_at", "TEXT"]],
+      ["tea_packets", ["updated_at", "TEXT"]],
+      ["arrears_ledger", ["updated_at", "TEXT"]]
     ]) {
       if (!this.hasColumn(table, column[0])) {
         this.db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column[0]} ${column[1]}`).run();
@@ -220,6 +244,24 @@ export class LocalStore {
       .run();
     this.db.prepare("CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)").run();
     this.db.prepare("CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at)").run();
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS cloud_sync_runs (
+          id TEXT PRIMARY KEY,
+          mode TEXT NOT NULL,
+          backend_url TEXT,
+          cursor_from TEXT,
+          cursor_to TEXT,
+          started_at TEXT NOT NULL,
+          completed_at TEXT,
+          status TEXT NOT NULL,
+          sent_json TEXT,
+          received_json TEXT,
+          error TEXT
+        )`
+      )
+      .run();
+    this.db.prepare("CREATE INDEX IF NOT EXISTS idx_cloud_sync_runs_started_at ON cloud_sync_runs(started_at)").run();
   }
 
   hasColumn(table, column) {
@@ -318,10 +360,10 @@ export class LocalStore {
     }
     if (password) {
       this.db
-        .prepare("UPDATE office_users SET username = ?, display_name = ?, password_hash = ? WHERE id = ?")
-        .run(username, displayName, hashPassword(password), userId);
+        .prepare("UPDATE office_users SET username = ?, display_name = ?, password_hash = ?, updated_at = ? WHERE id = ?")
+        .run(username, displayName, hashPassword(password), now(), userId);
     } else {
-      this.db.prepare("UPDATE office_users SET username = ?, display_name = ? WHERE id = ?").run(username, displayName, userId);
+      this.db.prepare("UPDATE office_users SET username = ?, display_name = ?, updated_at = ? WHERE id = ?").run(username, displayName, now(), userId);
     }
     this.refreshSnapshot();
     return { ...current, username, displayName };
@@ -374,8 +416,9 @@ export class LocalStore {
 
   upsertOfficeUser(user) {
     const existing = user.id
-      ? this.db.prepare("SELECT password_hash AS passwordHash, role FROM office_users WHERE id = ?").get(user.id)
-      : this.db.prepare("SELECT password_hash AS passwordHash, role FROM office_users WHERE username = ?").get(user.username);
+      ? this.db.prepare("SELECT password_hash AS passwordHash, role, updated_at AS updatedAt FROM office_users WHERE id = ?").get(user.id)
+      : this.db.prepare("SELECT password_hash AS passwordHash, role, updated_at AS updatedAt FROM office_users WHERE username = ?").get(user.username);
+    if (existing?.updatedAt && user.updatedAt && new Date(existing.updatedAt) > new Date(user.updatedAt)) return;
     const passwordHash = passwordValue(user.password, user.passwordHash, existing?.passwordHash || "");
     if (!passwordHash) {
       const error = new Error("Office user password is required");
@@ -386,21 +429,23 @@ export class LocalStore {
     const active = role === "admin" ? true : user.active !== false;
     this.db
       .prepare(
-        `INSERT INTO office_users (id, username, display_name, password_hash, role, active)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO office_users (id, username, display_name, password_hash, role, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            username = excluded.username,
            display_name = excluded.display_name,
            password_hash = excluded.password_hash,
            role = excluded.role,
-           active = excluded.active
+           active = excluded.active,
+           updated_at = excluded.updated_at
          ON CONFLICT(username) DO UPDATE SET
            display_name = excluded.display_name,
            password_hash = excluded.password_hash,
            role = excluded.role,
-           active = excluded.active`
+           active = excluded.active,
+           updated_at = excluded.updated_at`
       )
-      .run(user.id, user.username, user.displayName, passwordHash, role, bool(active));
+      .run(user.id, user.username, user.displayName, passwordHash, role, bool(active), user.updatedAt || now());
   }
 
   upsertTeaLine(line) {
@@ -514,13 +559,14 @@ export class LocalStore {
       .prepare(
         `INSERT INTO supplier_month_overrides
          (id, supplier_id, month, tea_price_per_kg, disable_deduction,
-          disable_own_transport_addition, disable_factory_transport_deduction)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+          disable_own_transport_addition, disable_factory_transport_deduction, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(supplier_id, month) DO UPDATE SET
            tea_price_per_kg = excluded.tea_price_per_kg,
            disable_deduction = excluded.disable_deduction,
            disable_own_transport_addition = excluded.disable_own_transport_addition,
-           disable_factory_transport_deduction = excluded.disable_factory_transport_deduction`
+           disable_factory_transport_deduction = excluded.disable_factory_transport_deduction,
+           updated_at = excluded.updated_at`
       )
       .run(
         id,
@@ -529,7 +575,8 @@ export class LocalStore {
         override.teaPricePerKg === "" || override.teaPricePerKg === undefined ? null : Number(override.teaPricePerKg),
         bool(override.disableDeduction),
         bool(override.disableOwnTransportAddition),
-        bool(override.disableFactoryTransportDeduction)
+        bool(override.disableFactoryTransportDeduction),
+        override.updatedAt || now()
       );
   }
 
@@ -620,12 +667,13 @@ export class LocalStore {
           issue.updatedAt || now()
         );
       this.db.prepare("DELETE FROM fertilizer_installments WHERE fertilizer_issue_id = ?").run(issue.id);
+      const updatedAt = issue.updatedAt || now();
       const insertInstallment = this.db.prepare(
-        `INSERT INTO fertilizer_installments (id, fertilizer_issue_id, supplier_id, effective_month, amount)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO fertilizer_installments (id, fertilizer_issue_id, supplier_id, effective_month, amount, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
       );
       effectiveMonths.forEach((month, index) => {
-        insertInstallment.run(`${issue.id}_${month}`, issue.id, issue.supplierId, month, installmentAmounts[index]);
+        insertInstallment.run(`${issue.id}_${month}`, issue.id, issue.supplierId, month, installmentAmounts[index], updatedAt);
       });
       this.db.exec("COMMIT");
     } catch (error) {
@@ -838,18 +886,20 @@ export class LocalStore {
           const arrearId = `arrears_${row.supplierId}_${nextMonthValue(month)}_from_${month}`;
           this.db
             .prepare(
-              `INSERT INTO arrears_ledger (id, supplier_id, effective_month, amount, note)
-               VALUES (?, ?, ?, ?, ?)
+              `INSERT INTO arrears_ledger (id, supplier_id, effective_month, amount, note, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)
                ON CONFLICT(id) DO UPDATE SET
                  amount = excluded.amount,
-                 note = excluded.note`
+                 note = excluded.note,
+                 updated_at = excluded.updated_at`
             )
             .run(
               arrearId,
               row.supplierId,
               nextMonthValue(month),
               Math.abs(balanceAmount),
-              `Carried forward from ${month}`
+              `Carried forward from ${month}`,
+              now()
             );
         }
         saved.push({ supplierId: row.supplierId, month, amount, balanceAmount });
@@ -1107,6 +1157,7 @@ export class LocalStore {
 
   exportForCloud() {
     return {
+      officeUsers: this.officeUsersForSync(),
       suppliers: this.suppliers(),
       collectionEntries: this.collectionEntries(),
       monthlySettings: this.monthlySettings(),
@@ -1118,6 +1169,108 @@ export class LocalStore {
       arrears: this.arrears(),
       supplierPayments: this.supplierPayments()
     };
+  }
+
+  exportGreenLeafBookSyncData() {
+    return this.exportChangedGreenLeafBookSyncData();
+  }
+
+  exportChangedGreenLeafBookSyncData({ since = "", full = false, cursorTo = now(), includeOfficeUsers = true } = {}) {
+    const include = (record, field = "updatedAt") => full || isAfter(record[field], since);
+    return {
+      sync: {
+        mode: full || !since ? "full" : "incremental",
+        cursorFrom: since || null,
+        cursorTo
+      },
+      officeUsers: includeOfficeUsers ? this.officeUsersForSync().filter((record) => include(record)) : [],
+      teaLines: this.teaLines().filter((record) => record.active !== false),
+      suppliers: this.suppliers().filter((record) => record.active !== false),
+      collectionEntries: this.collectionEntries().filter((record) => include(record, "postedAt")),
+      monthlySettings: this.monthlySettings(),
+      supplierMonthOverrides: this.supplierMonthOverrides(),
+      advances: this.advances().filter((record) => include(record)),
+      fertilizerInstallments: this.fertilizerInstallments().filter((record) => include(record)),
+      teaPackets: this.teaPackets().filter((record) => include(record)),
+      supplierPayments: this.supplierPayments(),
+      arrears: this.arrears().filter((record) => include(record, "updatedAt"))
+    };
+  }
+
+  lastSuccessfulCloudSync() {
+    return this.cloudSyncRuns().find((run) => run.status === "success") || null;
+  }
+
+  cloudSyncStatus() {
+    return {
+      lastSuccessfulSync: this.lastSuccessfulCloudSync(),
+      recentRuns: this.cloudSyncRuns().slice(0, 10)
+    };
+  }
+
+  beginCloudSyncRun({ mode, backendUrl, cursorFrom, cursorTo, sent }) {
+    const run = {
+      id: makeId("cloud_sync"),
+      mode,
+      backendUrl,
+      cursorFrom,
+      cursorTo,
+      startedAt: now(),
+      status: "running",
+      sent
+    };
+    this.db
+      .prepare(
+        `INSERT INTO cloud_sync_runs
+         (id, mode, backend_url, cursor_from, cursor_to, started_at, status, sent_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        run.id,
+        run.mode,
+        optional(run.backendUrl),
+        optional(run.cursorFrom),
+        optional(run.cursorTo),
+        run.startedAt,
+        run.status,
+        JSON.stringify(sent || {})
+      );
+    return run;
+  }
+
+  completeCloudSyncRun(id, { received }) {
+    this.db
+      .prepare(
+        `UPDATE cloud_sync_runs
+         SET completed_at = ?, status = ?, received_json = ?
+         WHERE id = ?`
+      )
+      .run(now(), "success", JSON.stringify(received || {}), id);
+    this.refreshSnapshot();
+    return this.cloudSyncRuns().find((run) => run.id === id);
+  }
+
+  failCloudSyncRun(id, error) {
+    this.db
+      .prepare(
+        `UPDATE cloud_sync_runs
+         SET completed_at = ?, status = ?, error = ?
+         WHERE id = ?`
+      )
+      .run(now(), "failed", error?.message || String(error || "Cloud sync failed"), id);
+    this.refreshSnapshot();
+    return this.cloudSyncRuns().find((run) => run.id === id);
+  }
+
+  importSyncedOfficeUsers(users = []) {
+    let importedCount = 0;
+    for (const user of users) {
+      if (user?.role !== "office_user") continue;
+      this.upsertOfficeUser(user);
+      importedCount += 1;
+    }
+    this.refreshSnapshot();
+    return { importedCount };
   }
 
   refreshSnapshot() {
@@ -1215,8 +1368,23 @@ export class LocalStore {
 
   officeUsers() {
     return mapRows(
-      this.db.prepare("SELECT id, username, display_name AS displayName, role, active FROM office_users ORDER BY username").all(),
+      this.db.prepare("SELECT id, username, display_name AS displayName, role, active, updated_at AS updatedAt FROM office_users ORDER BY username").all(),
       (row) => ({ ...row, active: fromBool(row.active) })
+    );
+  }
+
+  officeUsersForSync() {
+    return mapRows(
+      this.db
+        .prepare(
+          `SELECT id, username, display_name AS displayName, password_hash AS passwordHash,
+           'office_user' AS role, active, updated_at AS updatedAt
+           FROM office_users
+           WHERE role = 'office_user'
+           ORDER BY username`
+        )
+        .all(),
+      (row) => ({ ...row, active: fromBool(row.active), updatedAt: row.updatedAt || now() })
     );
   }
 
@@ -1281,7 +1449,8 @@ export class LocalStore {
           `SELECT id, supplier_id AS supplierId, month, tea_price_per_kg AS teaPricePerKg,
            disable_deduction AS disableDeduction,
            disable_own_transport_addition AS disableOwnTransportAddition,
-           disable_factory_transport_deduction AS disableFactoryTransportDeduction
+           disable_factory_transport_deduction AS disableFactoryTransportDeduction,
+           updated_at AS updatedAt
            FROM supplier_month_overrides`
         )
         .all(),
@@ -1313,7 +1482,7 @@ export class LocalStore {
   fertilizerInstallments() {
     return this.db
       .prepare(
-        "SELECT id, fertilizer_issue_id AS fertilizerIssueId, supplier_id AS supplierId, effective_month AS effectiveMonth, amount FROM fertilizer_installments"
+        "SELECT id, fertilizer_issue_id AS fertilizerIssueId, supplier_id AS supplierId, effective_month AS effectiveMonth, amount, updated_at AS updatedAt FROM fertilizer_installments"
       )
       .all();
   }
@@ -1341,7 +1510,7 @@ export class LocalStore {
   }
 
   arrears() {
-    return this.db.prepare("SELECT id, supplier_id AS supplierId, effective_month AS effectiveMonth, amount, note FROM arrears_ledger").all();
+    return this.db.prepare("SELECT id, supplier_id AS supplierId, effective_month AS effectiveMonth, amount, note, updated_at AS updatedAt FROM arrears_ledger").all();
   }
 
   supplierPayments() {
@@ -1361,6 +1530,23 @@ export class LocalStore {
         "SELECT id, type, device_id AS deviceId, imported_count AS importedCount, skipped_count AS skippedCount, synced_at AS syncedAt FROM sync_log ORDER BY synced_at DESC"
       )
       .all();
+  }
+
+  cloudSyncRuns() {
+    return this.db
+      .prepare(
+        `SELECT id, mode, backend_url AS backendUrl, cursor_from AS cursorFrom,
+         cursor_to AS cursorTo, started_at AS startedAt, completed_at AS completedAt,
+         status, sent_json AS sentJson, received_json AS receivedJson, error
+         FROM cloud_sync_runs
+         ORDER BY started_at DESC`
+      )
+      .all()
+      .map((run) => ({
+        ...run,
+        sent: run.sentJson ? JSON.parse(run.sentJson) : null,
+        received: run.receivedJson ? JSON.parse(run.receivedJson) : null
+      }));
   }
 }
 
@@ -1422,7 +1608,8 @@ CREATE TABLE IF NOT EXISTS office_users (
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL,
-  active INTEGER NOT NULL DEFAULT 1
+  active INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS line_users (
@@ -1474,6 +1661,7 @@ CREATE TABLE IF NOT EXISTS supplier_month_overrides (
   disable_deduction INTEGER NOT NULL DEFAULT 0,
   disable_own_transport_addition INTEGER NOT NULL DEFAULT 0,
   disable_factory_transport_deduction INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT,
   UNIQUE (supplier_id, month)
 );
 
@@ -1550,7 +1738,8 @@ CREATE TABLE IF NOT EXISTS fertilizer_installments (
   fertilizer_issue_id TEXT NOT NULL,
   supplier_id TEXT NOT NULL,
   effective_month TEXT NOT NULL,
-  amount REAL NOT NULL
+  amount REAL NOT NULL,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tea_packets (
@@ -1569,7 +1758,8 @@ CREATE TABLE IF NOT EXISTS arrears_ledger (
   supplier_id TEXT NOT NULL,
   effective_month TEXT NOT NULL,
   amount REAL NOT NULL,
-  note TEXT
+  note TEXT,
+  updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS supplier_payments (
@@ -1611,6 +1801,20 @@ CREATE TABLE IF NOT EXISTS sync_log (
   synced_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS cloud_sync_runs (
+  id TEXT PRIMARY KEY,
+  mode TEXT NOT NULL,
+  backend_url TEXT,
+  cursor_from TEXT,
+  cursor_to TEXT,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL,
+  sent_json TEXT,
+  received_json TEXT,
+  error TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_collection_entries_month_supplier ON collection_entries(collection_date, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_collection_staging_mobile_record ON collection_staging(mobile_record_id);
 CREATE INDEX IF NOT EXISTS idx_advances_effective_month ON advances(effective_month, supplier_id);
@@ -1620,4 +1824,5 @@ CREATE INDEX IF NOT EXISTS idx_arrears_effective_month ON arrears_ledger(effecti
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_runs_started_at ON cloud_sync_runs(started_at);
 `;

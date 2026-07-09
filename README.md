@@ -16,13 +16,15 @@ Offline-first tea leaf intake and payment system for a tea factory.
 npm.cmd install
 npm.cmd test
 npm.cmd run backend
-npm.cmd run desktop:sync
+npm.cmd run desktop
 npm.cmd run web:dev
 ```
 
 PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
 
 The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission.
+
+`npm.cmd run desktop` starts the Electron desktop frontend and automatically starts the desktop local backend server on port `7070`. Use `npm.cmd run desktop:sync` only when you want the desktop backend server without opening the Electron frontend.
 
 ## Default Accounts
 
@@ -53,8 +55,17 @@ Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-te
 4. Tablets record collection entries offline, preview receipts, print or reprint saved receipts through paired Bluetooth ESC/POS printers, and keep the saved records editable until upload.
 5. Tablets upload unsynced entries back to the desktop over local Wi-Fi.
 6. Desktop imports uploaded entries into staging, office users review/edit net weights, then post permanent entries individually or with Post all confirmation.
-7. Desktop syncs finalized data to the hosted Node.js + MySQL backend.
+7. Desktop syncs finalized Green Leaf Book data to the hosted Node.js + MySQL backend when internet is available.
 8. Directors view month-wise green leaf books in the web app/backend layer.
+
+## Deployment Model
+
+- The Android mobile app is offline-first. It stores collection records locally and syncs over the local Wi-Fi/hotspot to the desktop sync server.
+- The desktop app is also offline-first. It runs a local SQLite database and a local sync server for tablets. It needs internet only when the office user presses Sync to Web App.
+- The web app is an online app. It is served together with, or pointed at, the hosted backend API. The backend API and MySQL database must run on online hosting.
+- The local desktop server and hosted web backend are separate server sources in this repo. The desktop server is `apps/desktop/src/server.mjs` and stays local with SQLite and tablet/offline office workflows. The hosted web backend is `apps/backend/src/server.mjs` and runs online with MySQL and only the API surface needed by the web app plus desktop cloud sync.
+- The desktop-to-web sync uses configured `BACKEND_URL` and `CLOUD_SYNC_TOKEN` values, not human-entered web credentials.
+- Before production, test this with three local terminals: hosted-style backend API on `8080`, Electron desktop app with its bundled local server on `7070`, and web frontend on its Vite port. This mirrors the live split between local desktop operations and hosted web operations.
 
 ## Web Login Notes
 
@@ -88,6 +99,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 - Fertilizer records supplier, date given, kg given, total rupee value, one-month or two-month repayment split, and the effective month or months for Green Leaf Book deductions.
 - Made Tea Packets records supplier, date given, number of packets, per-packet price, total amount, and the effective month for Green Leaf Book deductions.
 - Office users can open Pair Tablet to show a QR code that stores the current desktop sync URL on a tablet.
+- Office users can open Sync to Web App below Green Leaf Book and press Sync now. Normal daily syncs send only records changed after the last successful sync. A full sync checkbox is available for setup/recovery, and a Green Leaf Book-only checkbox skips office-user account sync for daily use.
 - Collection Records is a read-only audit table for posted mobile records, original gross/net weights, print status, tablet saved/printed times, and the office user who posted each record.
 - Audit Reports shows an append-only office action trail for creations, updates, checkbox/status changes, staging posts, price override batches, supplier bill print completion, and payment recording. Viewing-only operations and print-preview viewing are not logged, and sensitive values such as passwords are excluded from before/after details.
 - Green Leaf Book uses posted collection entries for the selected month, supports supplier-name and line-name filtering, highlights calculated Poya day columns over any row background, includes a color legend, splits advance date, advance amount, and total advance into separate columns, labels kg and rupee columns with units, formats table values with thousand separators and two decimal places when decimals are present, shows total additions before total deductions, includes final kg times price in total additions, colors addition values green and deduction values red, shows balance values in bold, splits the balance footer into positive and negative totals, shows paid rows in light blue and factory-owned rows in light grey, subtracts advances from balance, and shows only the selected month's fertilizer and made tea packet rupee deductions before transport deductions.

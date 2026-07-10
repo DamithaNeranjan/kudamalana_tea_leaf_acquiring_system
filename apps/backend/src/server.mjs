@@ -1,6 +1,6 @@
 import http from "node:http";
 import { pathToFileURL } from "node:url";
-import { buildGreenLeafBook } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears } from "../../../packages/shared/src/index.mjs";
 import { createMemoryStore } from "./store.mjs";
 import { createMySqlStore, loadBackendEnv } from "./mysqlStore.mjs";
 
@@ -129,7 +129,7 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       if (request.method === "GET" && url.pathname === "/green-leaf-book") {
         const month = url.searchParams.get("month");
         const input = await store.getGreenLeafInput(sessionToken(request), month);
-        const book = buildGreenLeafBook(input);
+        const book = buildGreenLeafBookWithAutoArrears(input);
         const payments = new Map(
           (input.supplierPayments || [])
             .filter((payment) => payment.month === book.month)

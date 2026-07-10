@@ -3,7 +3,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBook, buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
 
 const DEFAULT_DB_PATH = join(process.cwd(), "desktop-data", "tea-local-db.sqlite");
 
@@ -784,28 +784,9 @@ export class LocalStore {
   }
 
   buildGreenLeafBookWithAutoArrears(month, exported) {
-    const previousMonth = previousMonthValue(month);
-    const payments = this.supplierPayments();
-    const previousPayments = new Set(payments.filter((payment) => payment.month === previousMonth).map((payment) => payment.supplierId));
-    const previousBook = buildGreenLeafBook({ month: previousMonth, ...exported, entries: exported.collectionEntries });
-    const existingCarryForward = new Set(
-      (exported.arrears || [])
-        .filter((item) => item.effectiveMonth === month && String(item.note || "").includes(`from ${previousMonth}`))
-        .map((item) => item.supplierId)
-    );
-    const automaticArrears = previousBook.rows
-      .filter((row) => !row.balanceExcluded && row.balanceToPay < 0 && !previousPayments.has(row.supplierId) && !existingCarryForward.has(row.supplierId))
-      .map((row) => ({
-        id: `auto_arrears_${row.supplierId}_${month}_from_${previousMonth}`,
-        supplierId: row.supplierId,
-        effectiveMonth: month,
-        amount: Math.abs(row.balanceToPay),
-        note: `Automatic carry forward from ${previousMonth}`
-      }));
-    return buildGreenLeafBook({
-      month,
+    return buildGreenLeafBookWithAutoArrears({
       ...exported,
-      arrears: [...(exported.arrears || []), ...automaticArrears],
+      month,
       entries: exported.collectionEntries
     });
   }
@@ -1192,11 +1173,11 @@ export class LocalStore {
       collectionEntries: this.collectionEntries().filter((record) => include(record, "postedAt")),
       monthlySettings: this.monthlySettings(),
       supplierMonthOverrides: this.supplierMonthOverrides(),
-      advances: this.advances().filter((record) => include(record)),
-      fertilizerInstallments: this.fertilizerInstallments().filter((record) => include(record)),
-      teaPackets: this.teaPackets().filter((record) => include(record)),
+      advances: this.advances(),
+      fertilizerInstallments: this.fertilizerInstallments(),
+      teaPackets: this.teaPackets(),
       supplierPayments: this.supplierPayments(),
-      arrears: this.arrears().filter((record) => include(record, "updatedAt"))
+      arrears: this.arrears()
     };
   }
 

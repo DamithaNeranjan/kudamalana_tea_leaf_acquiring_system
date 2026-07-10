@@ -57,10 +57,13 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.
 - Backend logout deletes the current bearer token or web cookie token from the `sessions` table.
 - Suppliers are validated against active registered tea lines before saving and store a payment mode of Cash or Bank transfer, defaulting to Cash.
+- Tea lines store a `whole_line_bank_transfer` flag used by the web Balances view to group a line's positive supplier balances as a single bank-transfer signal. This flag does not change supplier bill payment labels.
 - Monthly settings are stored by calendar month and drive green leaf price, deduction percentage, transport add per kg, and transport deduction per kg in the desktop Green Leaf Book.
+- Supplier month overrides store one supplier's special green leaf price for one month. These rows are synced idempotently to the hosted backend so the web Green Leaf Book uses the same effective price as desktop.
 - Supplier month overrides are stored separately by supplier and month. A supplier override price takes precedence over the selected month's default green leaf price.
 - Advances are stored by supplier, effective month, date given, and amount. They are subtracted from Green Leaf Book balances and shown with date/amount details.
 - Fertilizer issues are stored by supplier, given date, kg given, total rupee value, split count, and effective month or months. Monthly fertilizer installments are generated from those issues and drive the Green Leaf Book fertilizer deduction for each selected month.
 - Made tea packet deductions are stored by supplier, given date, packet count, per-packet price, total amount, and effective month. They are included in Green Leaf Book totals and the desktop book table for the selected month only.
+- The hosted MySQL backend treats `DATE` columns as calendar dates when returning Green Leaf Book inputs. Do not convert date-only values through UTC ISO strings, because timezone shifts can move first-of-month collections into the previous month.
 - Desktop `audit_log` is append-only for office create/update/post/payment actions and successful supplier bill print actions. It stores the acting user, action, entity metadata, summary, timestamp, and sanitized before/after JSON while excluding passwords, hashes, tokens, and authorization values. Viewing bill print previews is not logged.
 - Local runtime data, WAL files, and logs are excluded from Git.

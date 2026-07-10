@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
 
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
@@ -147,12 +147,18 @@ export function createMemoryStore() {
     return date.toISOString().slice(0, 7);
   }
 
+  function previousMonthValue(month) {
+    const [year, monthNumber] = String(month).split("-").map(Number);
+    const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
+    return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
   function publicBalanceSignal(signal) {
     return signal || null;
   }
 
   function buildBalances(input, signals, factorySignals) {
-    const book = buildGreenLeafBook(input);
+    const book = buildGreenLeafBookWithAutoArrears(input);
     const teaLineMap = new Map((input.teaLines || []).map((line) => [line.id || line.name, line]));
     const lineRows = new Map();
     const supplierRows = [];
@@ -266,6 +272,7 @@ export function createMemoryStore() {
         fertilizerInstallments: payload.fertilizerInstallments?.length || 0,
         teaPackets: payload.teaPackets?.length || 0,
         supplierPayments: payload.supplierPayments?.length || 0,
+        supplierMonthOverrides: payload.supplierMonthOverrides?.length || 0,
         arrears: payload.arrears?.length || 0
       },
       officeUsers: syncedOfficeUsers()
@@ -381,17 +388,18 @@ export function createMemoryStore() {
     getGreenLeafInput(sessionToken, month) {
       requireRole(sessionToken, ["super_admin", "office_user", "director"]);
       const normalizedMonth = normalizeMonth(month);
+      const previousMonth = previousMonthValue(normalizedMonth);
       return {
         month: normalizedMonth,
         teaLines: [...teaLines.values()].filter((line) => line.active !== false),
         suppliers: [...suppliers.values()].sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""))),
         entries: [...entries.values()],
-        monthlySettings: monthlySettings.get(normalizedMonth),
+        monthlySettings: [monthlySettings.get(previousMonth), monthlySettings.get(normalizedMonth)].filter(Boolean),
         supplierMonthOverrides: [...supplierMonthOverrides.values()],
         advances: [...advances.values()],
         fertilizerInstallments: [...fertilizerInstallments.values()],
         teaPackets: [...teaPackets.values()],
-        supplierPayments: [...supplierPayments.values()].filter((payment) => payment.month === normalizedMonth),
+        supplierPayments: [...supplierPayments.values()].filter((payment) => [previousMonth, normalizedMonth].includes(payment.month)),
         arrears: [...arrears.values()]
       };
     },

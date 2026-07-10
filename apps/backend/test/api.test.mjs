@@ -129,10 +129,17 @@ test("super admin can create directors and director can view green leaf book", a
           { id: "sup_4", code: "S004", name: "Cash Supplier", lineId: "line_b", lineName: "Line B", paymentMode: "cash" }
         ],
         collectionEntries: [
+          { id: "entry_0", supplierId: "sup_4", collectionDate: "2026-04-01", netWeightKg: 1 },
           { id: "entry_1", supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 12 },
           { id: "entry_2", supplierId: "sup_2", collectionDate: "2026-05-01", netWeightKg: 5 },
           { id: "entry_3", supplierId: "sup_3", collectionDate: "2026-05-01", netWeightKg: 4 },
           { id: "entry_4", supplierId: "sup_4", collectionDate: "2026-05-01", netWeightKg: 3 }
+        ],
+        supplierMonthOverrides: [
+          { id: "override_sup_3_2026_05", supplierId: "sup_3", month: "2026-05", teaPricePerKg: 300 }
+        ],
+        advances: [
+          { id: "advance_sup_4_2026_04", supplierId: "sup_4", date: "2026-04-15", effectiveMonth: "2026-04", amount: 400 }
         ],
         supplierPayments: [
           {
@@ -147,7 +154,10 @@ test("super admin can create directors and director can view green leaf book", a
             paidByOfficeUserName: "Office Viewer"
           }
         ],
-        monthlySettings: [{ month: "2026-05", teaPricePerKg: 200 }]
+        monthlySettings: [
+          { month: "2026-04", teaPricePerKg: 200 },
+          { month: "2026-05", teaPricePerKg: 200 }
+        ]
       })
     });
     assert.equal(syncResponse.status, 200);
@@ -244,6 +254,12 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(book.rows[1].supplierCode, "S002");
     assert.equal(book.rows[1].balanceExcluded, true);
     assert.equal(book.rows[1].balanceToPay, 0);
+    const bankSupplierBookRow = book.rows.find((row) => row.supplierId === "sup_3");
+    assert.equal(bankSupplierBookRow.pricePerKg, 300);
+    assert.equal(bankSupplierBookRow.balanceToPay, 1200);
+    const cashSupplierBookRow = book.rows.find((row) => row.supplierId === "sup_4");
+    assert.equal(cashSupplierBookRow.arrearsCarriedForward, 200);
+    assert.equal(cashSupplierBookRow.balanceToPay, 400);
 
     const balancesResponse = await fetch(`${baseUrl}/balances?month=2026-05`, {
       headers: { authorization: `Bearer ${directorLogin.token}` }
@@ -253,9 +269,9 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(balances.lineWiseBankTransfers[0].lineName, "Line A");
     assert.equal(balances.lineWiseBankTransfers[0].positiveBalance, 2400);
     assert.equal(balances.supplierWiseBankTransfers[0].supplierCode, "S003");
-    assert.equal(balances.supplierWiseBankTransfers[0].positiveBalance, 800);
+    assert.equal(balances.supplierWiseBankTransfers[0].positiveBalance, 1200);
     assert.equal(balances.factoryOfficerTransfers.suppliers[0].supplierCode, "S004");
-    assert.equal(balances.factoryOfficerTransfers.positiveBalance, 600);
+    assert.equal(balances.factoryOfficerTransfers.positiveBalance, 400);
 
     const officeMarkPaidResponse = await fetch(`${baseUrl}/balances/mark-paid`, {
       method: "POST",
@@ -290,7 +306,7 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(signalledBalancesResponse.status, 200);
     const signalledBalances = await signalledBalancesResponse.json();
     assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.comment, "Transferred as a whole line");
-    assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 350);
+    assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 150);
   });
 });
 

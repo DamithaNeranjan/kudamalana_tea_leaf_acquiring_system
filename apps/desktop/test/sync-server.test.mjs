@@ -407,6 +407,46 @@ test("desktop cloud sync records status and sends only changed data after first 
         body: JSON.stringify({ code: "SYNC001", name: "Sync Supplier", lineName: syncLine.name, paymentMode: "cash" })
       });
       assert.equal(syncSupplierResponse.status, 201);
+      const syncSupplierState = await (await fetch(`${desktopUrl}/office/state`, { headers: auth })).json();
+      const syncSupplier = syncSupplierState.suppliers.find((supplier) => supplier.code === "SYNC001");
+      assert.ok(syncSupplier);
+      const syncCollection = await fetch(`${desktopUrl}/sync/collections`, {
+        method: "POST",
+        body: JSON.stringify({
+          deviceId: "tablet-sync-test",
+          records: [
+            {
+              id: "sync_mobile_1",
+              supplierId: syncSupplier.id,
+              supplierCode: syncSupplier.code,
+              supplierName: syncSupplier.name,
+              lineId: syncSupplier.lineId,
+              lineName: syncSupplier.lineName,
+              collectionDate: "2026-05-01",
+              collectionTime: "08:15",
+              bagCount: 1,
+              grossWeightKg: 10,
+              netWeightKg: 10,
+              lineUserName: "Sync Collector",
+              printStatus: "printed"
+            }
+          ]
+        })
+      });
+      assert.equal(syncCollection.status, 200);
+      const syncCollectionResult = await syncCollection.json();
+      const syncStageId = syncCollectionResult.imported[0];
+      await fetch(`${desktopUrl}/office/staging/${syncStageId}/post`, { method: "POST", headers: auth });
+      const individualPriceOverride = await fetch(`${desktopUrl}/office/supplier-month-overrides`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({
+          supplierId: syncSupplier.id,
+          month: "2026-05",
+          teaPricePerKg: 350
+        })
+      });
+      assert.equal(individualPriceOverride.status, 201);
 
       const firstSync = await fetch(`${desktopUrl}/office/cloud-sync`, {
         method: "POST",
@@ -416,6 +456,7 @@ test("desktop cloud sync records status and sends only changed data after first 
       assert.equal(firstSync.status, 200);
       const firstResult = await firstSync.json();
       assert.equal(firstResult.sentCounts.officeUsers >= 2, true);
+      assert.equal(firstResult.sentCounts.supplierMonthOverrides, 1);
       assert.equal(firstResult.syncRun.status, "success");
 
       const webLogin = await fetch(`${backendUrl}/auth/login`, {
@@ -423,6 +464,15 @@ test("desktop cloud sync records status and sends only changed data after first 
         body: JSON.stringify({ username: "daily-sync-user", password: "daily123" })
       });
       assert.equal(webLogin.status, 200);
+      const webLoginResult = await webLogin.json();
+      const webBook = await (
+        await fetch(`${backendUrl}/green-leaf-book?month=2026-05`, {
+          headers: { authorization: `Bearer ${webLoginResult.token}` }
+        })
+      ).json();
+      const webSyncSupplierRow = webBook.rows.find((row) => row.supplierCode === "SYNC001");
+      assert.equal(webSyncSupplierRow.pricePerKg, 350);
+      assert.equal(webSyncSupplierRow.balanceToPay, 3500);
 
       const secondSync = await fetch(`${desktopUrl}/office/cloud-sync`, {
         method: "POST",

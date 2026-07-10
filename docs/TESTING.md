@@ -53,6 +53,7 @@ Manual desktop UI checks:
 - Confirm supplier save rejects unregistered tea-line names.
 - Open Monthly Settings, save the selected month's green leaf price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
 - Edit a supplier and set a month-specific special price; edit a registered tea line and apply a line-level special price, then confirm the selected month's Green Leaf Book uses the override.
+- After setting a supplier-specific special price, run Sync to Web App and confirm the web Green Leaf Book uses the override for that supplier. The sync status should show `supplierMonthOverrides` when override rows exist.
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
 - Open Fertilizer, select a supplier, enter date given, kg, total value, split count, and effective month or months. Confirm the Green Leaf Book deducts only the fertilizer rupee amount assigned to the selected month.
 - Open Made Tea Packets, select a supplier, enter date, packet count, per-packet price, total amount, and effective month. Confirm the Green Leaf Book deducts only the made tea packet rupee amount assigned to the selected month.
@@ -107,3 +108,5 @@ Manual web UI checks:
 - Confirm the Green Leaf Book supplier filter narrows rows by supplier name, headers are centered, the color legend is visible, Poya day columns are lightly highlighted and override other row background colors, Total Additions appears before Total Deductions, additions are green, deductions are red, balance values are bold, paid rows are light blue, factory-owned rows are light grey, and the balance footer shows separate positive and negative totals.
 - Confirm the Green Leaf Book shows the selected month's Fertilizer and Made Tea Packets deductions before Transport Deduct.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.
+- Confirm first-of-month posted entries, such as `2026-07-01`, appear in the same month on the web Green Leaf Book after cloud sync.
+- Confirm web Balances shows whole-line bank transfer lines, supplier bank transfer rows, and factory officer cash-supplier totals for the selected month. Office users should be view-only; directors/admins should be able to add paid signals without creating desktop payment records.

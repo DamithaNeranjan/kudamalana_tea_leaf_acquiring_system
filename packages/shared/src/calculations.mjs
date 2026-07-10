@@ -23,6 +23,12 @@ function sameMonth(dateValue, month) {
   return String(dateValue || "").startsWith(month);
 }
 
+function previousMonthValue(month) {
+  const [year, monthNumber] = normalizeMonth(month).split("-").map(Number);
+  const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 function supplierOverride(overrides, supplierId, month) {
   return overrides.find(
     (override) => override.supplierId === supplierId && override.month === month
@@ -176,6 +182,36 @@ export function buildGreenLeafBook(input) {
     .map((row, index) => ({ rowNumber: index + 1, ...row }));
 
   return { month, settings, dayCount, rows };
+}
+
+export function buildGreenLeafBookWithAutoArrears(input) {
+  const month = normalizeMonth(input.month);
+  const previousMonth = previousMonthValue(month);
+  const payments = input.supplierPayments || [];
+  const previousPayments = new Set(
+    payments.filter((payment) => payment.month === previousMonth).map((payment) => payment.supplierId)
+  );
+  const previousBook = buildGreenLeafBook({ ...input, month: previousMonth });
+  const existingCarryForward = new Set(
+    (input.arrears || [])
+      .filter((item) => item.effectiveMonth === month && String(item.note || "").includes(`from ${previousMonth}`))
+      .map((item) => item.supplierId)
+  );
+  const automaticArrears = previousBook.rows
+    .filter((row) => !row.balanceExcluded && row.balanceToPay < 0 && !previousPayments.has(row.supplierId) && !existingCarryForward.has(row.supplierId))
+    .map((row) => ({
+      id: `auto_arrears_${row.supplierId}_${month}_from_${previousMonth}`,
+      supplierId: row.supplierId,
+      effectiveMonth: month,
+      amount: Math.abs(row.balanceToPay),
+      note: `Automatic carry forward from ${previousMonth}`
+    }));
+
+  return buildGreenLeafBook({
+    ...input,
+    month,
+    arrears: [...(input.arrears || []), ...automaticArrears]
+  });
 }
 
 export function suggestAdvancePayment(input) {

@@ -400,13 +400,15 @@ Accepts finalized desktop data for cloud sync. The desktop sync payload should i
 
 Office-user records sync with password hashes, not plain-text passwords. The response includes the backend office-user directory as `officeUsers` so the desktop app can import web-created office users locally.
 
+The hosted backend stores MySQL `DATE` values as calendar dates when building Green Leaf Books. Date-only collection fields must not be converted through UTC, because a `2026-07-01` collection can otherwise appear as `2026-06-30` on servers ahead of UTC and disappear from the selected month.
+
 ### `POST /office/cloud-sync`
 
 Desktop-session protected endpoint on the local desktop sync server. Posts the desktop Green Leaf Book sync payload to the backend `/sync/desktop` endpoint, then imports returned backend office users into the desktop SQLite database.
 
 By default this endpoint runs an incremental sync from the last successful cloud-sync cursor. Send `fullSync: true` to resend all Green Leaf Book source data and office users.
 
-Incremental Green Leaf Book sync still resends low-volume display/reference data, including tea lines, suppliers, monthly settings, supplier overrides, and supplier payment state. High-volume transaction rows remain cursor-based. This keeps daily syncs light while ensuring hosted row ordering, paid/factory row colors, and factory-owned balance exclusion do not become stale.
+Incremental Green Leaf Book sync still resends display/reference and adjustment data, including tea lines, suppliers, monthly settings, supplier overrides, advances, fertilizer installments, made tea packets, supplier payment state, and arrears. Posted collection entries remain cursor-based. This keeps daily syncs light while ensuring hosted calculations, paid/factory row colors, special prices, arrears, and factory-owned balance exclusion do not become stale.
 
 In production, the desktop sync server reads these deployment settings from environment variables:
 
@@ -426,7 +428,50 @@ Desktop-session protected endpoint returning the last successful web-app sync an
 
 ### `GET /green-leaf-book?month=YYYY-MM`
 
-Returns a role-protected monthly green leaf book from synced backend data.
+Returns a role-protected monthly green leaf book from synced backend data. The backend uses the shared Green Leaf Book calculation, applies supplier and line special prices, and calculates automatic arrears from the previous month using previous-month collection, settings, deduction, payment, and arrears inputs.
+
+### `GET /balances?month=YYYY-MM`
+
+Returns the web Balances view model from synced backend data. Office users, directors, and super admins can view it.
+
+The response includes:
+
+- `lineWiseBankTransfers`: lines marked `Whole Tea Line Bank Transfer` with summed positive supplier balances and any director/admin paid signal
+- `supplierWiseBankTransfers`: suppliers whose payment mode is `bank_transfer`, excluding suppliers already included in whole-line bank transfer lines
+- `factoryOfficerTransfers`: remaining cash suppliers, positive and negative totals, director/admin added payment rows, and remaining positive balance
+
+### `POST /balances/mark-paid`
+
+Director/super-admin endpoint that marks a line-wise or supplier-wise bank transfer row as paid for web signalling only. This does not record a desktop supplier payment.
+
+Payload:
+
+```json
+{
+  "month": "2026-06",
+  "section": "line",
+  "targetId": "line-id",
+  "targetLabel": "Line A",
+  "amount": 12500,
+  "comment": "Bank transfer completed"
+}
+```
+
+Use `"section": "supplier"` with a supplier id for supplier-wise bank transfer rows.
+
+### `POST /balances/factory-officer-payments`
+
+Director/super-admin endpoint that adds a web-only factory officer transfer signal row. The backend recalculates the remaining positive balance by subtracting these added rows from the selected month's positive cash-supplier total. This does not record a desktop supplier payment.
+
+Payload:
+
+```json
+{
+  "month": "2026-06",
+  "amount": 50000,
+  "comment": "First transfer to factory officer"
+}
+```
 
 ## Authentication Notes
 

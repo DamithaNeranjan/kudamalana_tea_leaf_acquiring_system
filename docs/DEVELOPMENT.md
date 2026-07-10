@@ -61,7 +61,7 @@ On desktop-sized windows, the sidebar has its own scroll area, section title ban
 Desktop form inputs, including login and edit-modal fields, trim leading and trailing spaces before validation and API submission.
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
-The Sync to Web App section is available below Green Leaf Book. It uses `BACKEND_URL` and `CLOUD_SYNC_TOKEN` from `.env`, so office users can sync with one button without typing web credentials. Keep Sync Green Leaf Book data only checked for normal daily syncs; uncheck it when office-user accounts also need to sync in both directions.
+The Sync to Web App section is available below Green Leaf Book. It uses `BACKEND_URL` and `CLOUD_SYNC_TOKEN` from `.env`, so office users can sync with one button without typing web credentials. Keep Sync Green Leaf Book data only checked for normal daily syncs; uncheck it when office-user accounts also need to sync in both directions. Normal syncs send changed posted collection entries and resend calculation adjustment/reference rows such as supplier special prices, advances, fertilizer installments, made tea packets, supplier payments, and arrears.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
 Use supplier editing to choose Cash or Bank transfer as the supplier payment mode and to mark factory-owned suppliers when their leaf details should remain visible but payable balance should not be calculated.
 Use Fertilizer to record supplier fertilizer issues and split the rupee deduction across one or two effective Green Leaf Book months.
@@ -69,7 +69,7 @@ Use Made Tea Packets to record packets borrowed by suppliers for deduction in a 
 The desktop Green Leaf Book table labels kg and rupee columns with units and formats numeric values with thousand separators, using two decimal places only when decimal values are present. It supports supplier and line filters, optional exclusion of factory-owned suppliers from the total row, separate positive and negative balance footer totals, a color legend, paid-row highlighting, grey factory-owned rows, and Poya day cells that override other row backgrounds.
 Use Supplier Bills for month-end supplier/line summary generation. Summaries can be generated for all suppliers, a selected supplier, or a selected line after choosing the option and pressing Generate bill preview. Supplier bill printing uses a Sinhala half-A4 bill format with two bills per A4 sheet, a collapsed print-preview section by default, print-all and selected-supplier print actions, fixed two-decimal rupee values, supplier payment-mode text, and daily kg zeros for days without leaf.
 Use Balance Payment for supplier-wise or line-wise payment recording. Payment amounts are automatically suggested when the supplier or line is selected, but the amount field remains editable. Supplier payment selection is searchable, debt suppliers are shown as inactive options, and completed payments are listed with filters, pagination, and latest payments first.
-Negative Green Leaf Book balances continue into the next month as arrears, even when no payment is recorded for that supplier.
+Negative Green Leaf Book balances continue into the next month as arrears, even when no payment is recorded for that supplier. Desktop and web should use the shared automatic arrears logic; the backend must load previous-month calculation inputs for the selected month.
 Use Audit Reports in the Reports sidebar group to review mutation history. The audit trail logs create/update/post/payment actions, supplier bill print completion, and checkbox/status submissions, but does not log viewing-only operations, print-preview viewing, or sensitive password/token values.
 
 The visible logo and Electron window icon use:
@@ -110,6 +110,8 @@ npm.cmd run desktop
 
 5. Log in to the desktop app and use Sync to Web App.
 6. Open the web app, log in through the backend API on `http://127.0.0.1:8080`, and confirm the Green Leaf Book data appears.
+
+When debugging a synced row that exists in MySQL but does not appear in the web Green Leaf Book, first check the selected month and the row's `collection_date`. MySQL `DATE` values must remain calendar-date strings in backend calculation input; UTC conversion can shift first-of-month rows into the previous month.
 
 For normal desktop UI testing, start either `npm.cmd run desktop` or `npm.cmd run desktop:sync`, not both. The Electron desktop app starts its own local server on port `7070`. Running `desktop:sync` separately is useful for API/tablet testing without opening Electron.
 

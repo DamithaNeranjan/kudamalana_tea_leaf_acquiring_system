@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
-import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +31,9 @@ function toMysqlDateTime(value = new Date()) {
 
 function toDateOnly(value) {
   if (!value) return null;
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
   return String(value).slice(0, 10);
 }
 
@@ -58,6 +60,12 @@ function paymentMode(value) {
 function normalizeMonth(month) {
   if (/^\d{4}-\d{2}$/.test(String(month || ""))) return month;
   return new Date().toISOString().slice(0, 7);
+}
+
+function previousMonthValue(month) {
+  const [year, monthNumber] = normalizeMonth(month).split("-").map(Number);
+  const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function publicUser(row) {
@@ -181,7 +189,7 @@ function mapFactoryOfficerSignal(row) {
 }
 
 function buildBalances(input, balanceSignals, factorySignals) {
-  const book = buildGreenLeafBook(input);
+  const book = buildGreenLeafBookWithAutoArrears(input);
   const teaLineMap = new Map((input.teaLines || []).map((line) => [line.id || line.name, line]));
   const lineRows = new Map();
   const supplierRows = [];
@@ -794,6 +802,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             fertilizerInstallments: payload.fertilizerInstallments?.length || 0,
             teaPackets: payload.teaPackets?.length || 0,
             supplierPayments: payload.supplierPayments?.length || 0,
+            supplierMonthOverrides: payload.supplierMonthOverrides?.length || 0,
             arrears: payload.arrears?.length || 0
           }
         };
@@ -831,24 +840,24 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       try {
         await requireRole(conn, sessionToken, ["super_admin", "office_user", "director"]);
         month = normalizeMonth(month);
+        const previousMonth = previousMonthValue(month);
         const [teaLines] = await conn.execute("SELECT * FROM tea_lines WHERE active = TRUE ORDER BY name");
         const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE ORDER BY code");
         const [entries] = await conn.execute(
           "SELECT * FROM collection_entries WHERE collection_date >= ? AND collection_date < DATE_ADD(?, INTERVAL 1 MONTH)",
-          [`${month}-01`, `${month}-01`]
+          [`${previousMonth}-01`, `${month}-01`]
         );
-        const [settingsRows] = await conn.execute("SELECT * FROM monthly_settings WHERE month = ?", [month]);
-        const [overrides] = await conn.execute("SELECT * FROM supplier_month_overrides WHERE month = ?", [month]);
-        const [advances] = await conn.execute("SELECT * FROM advances WHERE effective_month = ?", [month]);
+        const [settingsRows] = await conn.execute("SELECT * FROM monthly_settings WHERE month IN (?, ?)", [previousMonth, month]);
+        const [overrides] = await conn.execute("SELECT * FROM supplier_month_overrides WHERE month IN (?, ?)", [previousMonth, month]);
+        const [advances] = await conn.execute("SELECT * FROM advances WHERE effective_month IN (?, ?)", [previousMonth, month]);
         const [fertilizerInstallments] = await conn.execute(
-          "SELECT * FROM fertilizer_installments WHERE effective_month = ?",
-          [month]
+          "SELECT * FROM fertilizer_installments WHERE effective_month IN (?, ?)",
+          [previousMonth, month]
         );
-        const [teaPackets] = await conn.execute("SELECT * FROM tea_packets WHERE effective_month = ?", [month]);
-        const [supplierPayments] = await conn.execute("SELECT * FROM supplier_payments WHERE month = ?", [month]);
-        const [arrears] = await conn.execute("SELECT * FROM arrears_ledger WHERE effective_month = ?", [month]);
+        const [teaPackets] = await conn.execute("SELECT * FROM tea_packets WHERE effective_month IN (?, ?)", [previousMonth, month]);
+        const [supplierPayments] = await conn.execute("SELECT * FROM supplier_payments WHERE month IN (?, ?)", [previousMonth, month]);
+        const [arrears] = await conn.execute("SELECT * FROM arrears_ledger WHERE effective_month IN (?, ?)", [previousMonth, month]);
 
-        const settings = settingsRows[0];
         return {
           month,
           teaLines: teaLines.map((row) => ({
@@ -879,15 +888,13 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             netWeightKg: numberOrDefault(row.net_weight_kg),
             grossWeightKg: numberOrDefault(row.gross_weight_kg)
           })),
-          monthlySettings: settings
-            ? {
-                month: settings.month,
-                teaPricePerKg: numberOrDefault(settings.tea_price_per_kg),
-                deductionPercent: numberOrDefault(settings.deduction_percent),
-                ownTransportAdditionPerKg: numberOrDefault(settings.own_transport_addition_per_kg),
-                factoryTransportDeductionPerKg: numberOrDefault(settings.factory_transport_deduction_per_kg)
-              }
-            : undefined,
+          monthlySettings: settingsRows.map((settings) => ({
+            month: settings.month,
+            teaPricePerKg: numberOrDefault(settings.tea_price_per_kg),
+            deductionPercent: numberOrDefault(settings.deduction_percent),
+            ownTransportAdditionPerKg: numberOrDefault(settings.own_transport_addition_per_kg),
+            factoryTransportDeductionPerKg: numberOrDefault(settings.factory_transport_deduction_per_kg)
+          })),
           supplierMonthOverrides: overrides.map((row) => ({
             id: row.id,
             supplierId: row.supplier_id,

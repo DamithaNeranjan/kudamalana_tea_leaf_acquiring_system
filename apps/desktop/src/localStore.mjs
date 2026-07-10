@@ -8,7 +8,7 @@ import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.m
 const DEFAULT_DB_PATH = join(process.cwd(), "desktop-data", "tea-local-db.sqlite");
 
 function bool(value) {
-  return value === true || value === 1 ? 1 : 0;
+  return value === true || value === 1 || value === "1" || value === "on" ? 1 : 0;
 }
 
 function fromBool(value) {
@@ -186,6 +186,7 @@ export class LocalStore {
     }
     for (const [table, column] of [
       ["office_users", ["updated_at", "TEXT"]],
+      ["tea_lines", ["whole_line_bank_transfer", "INTEGER NOT NULL DEFAULT 0"]],
       ["supplier_month_overrides", ["updated_at", "TEXT"]],
       ["advances", ["updated_at", "TEXT"]],
       ["fertilizer_issues", ["updated_at", "TEXT"]],
@@ -451,17 +452,19 @@ export class LocalStore {
   upsertTeaLine(line) {
     this.db
       .prepare(
-        `INSERT INTO tea_lines (id, name, active, updated_at)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO tea_lines (id, name, whole_line_bank_transfer, active, updated_at)
+         VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
+           whole_line_bank_transfer = excluded.whole_line_bank_transfer,
            active = excluded.active,
            updated_at = excluded.updated_at
          ON CONFLICT(name) DO UPDATE SET
+           whole_line_bank_transfer = excluded.whole_line_bank_transfer,
            active = excluded.active,
            updated_at = excluded.updated_at`
       )
-      .run(line.id, line.name, bool(line.active !== false), line.updatedAt);
+      .run(line.id, line.name, bool(line.wholeLineBankTransfer), bool(line.active !== false), line.updatedAt);
     this.db
       .prepare("UPDATE suppliers SET line_name = ?, updated_at = ? WHERE line_id = ?")
       .run(line.name, line.updatedAt || now(), line.id);
@@ -1399,8 +1402,14 @@ export class LocalStore {
 
   teaLines() {
     return mapRows(
-      this.db.prepare("SELECT id, name, active, updated_at AS updatedAt FROM tea_lines ORDER BY name").all(),
-      (row) => ({ ...row, active: fromBool(row.active) })
+      this.db
+        .prepare(
+          `SELECT id, name, whole_line_bank_transfer AS wholeLineBankTransfer,
+           active, updated_at AS updatedAt
+           FROM tea_lines ORDER BY name`
+        )
+        .all(),
+      (row) => ({ ...row, wholeLineBankTransfer: fromBool(row.wholeLineBankTransfer), active: fromBool(row.active) })
     );
   }
 
@@ -1624,6 +1633,7 @@ CREATE TABLE IF NOT EXISTS line_users (
 CREATE TABLE IF NOT EXISTS tea_lines (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
+  whole_line_bank_transfer INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL
 );

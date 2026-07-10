@@ -140,6 +140,15 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
           rows: book.rows.map((row) => ({ ...row, payment: payments.get(row.supplierId) || null }))
         });
       }
+      if (request.method === "GET" && url.pathname === "/balances") {
+        return send(request, response, 200, await store.getBalances(sessionToken(request), url.searchParams.get("month")));
+      }
+      if (request.method === "POST" && url.pathname === "/balances/mark-paid") {
+        return send(request, response, 201, await store.markBalancePaid(sessionToken(request), await parseBody(request)));
+      }
+      if (request.method === "POST" && url.pathname === "/balances/factory-officer-payments") {
+        return send(request, response, 201, await store.addFactoryOfficerTransfer(sessionToken(request), await parseBody(request)));
+      }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {
       return send(request, response, error.status || 500, { error: error.message || "Internal server error" });

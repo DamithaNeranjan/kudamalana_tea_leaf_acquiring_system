@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
-import { makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -47,8 +47,17 @@ function numberOrDefault(value, fallback = 0) {
   return Number(value ?? fallback);
 }
 
+function money(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
 function paymentMode(value) {
   return value === "bank_transfer" ? "bank_transfer" : "cash";
+}
+
+function normalizeMonth(month) {
+  if (/^\d{4}-\d{2}$/.test(String(month || ""))) return month;
+  return new Date().toISOString().slice(0, 7);
 }
 
 function publicUser(row) {
@@ -121,6 +130,12 @@ async function executeSchema(pool) {
   if (!supplierPaymentModeColumns.length) {
     await pool.query("ALTER TABLE suppliers ADD COLUMN payment_mode VARCHAR(40) NOT NULL DEFAULT 'cash' AFTER line_name");
   }
+  const [teaLineWholeBankTransferColumns] = await pool.query("SHOW COLUMNS FROM tea_lines LIKE 'whole_line_bank_transfer'");
+  if (!teaLineWholeBankTransferColumns.length) {
+    await pool.query(
+      "ALTER TABLE tea_lines ADD COLUMN whole_line_bank_transfer BOOLEAN NOT NULL DEFAULT FALSE AFTER name"
+    );
+  }
   const [supplierExcludeColumns] = await pool.query("SHOW COLUMNS FROM suppliers LIKE 'exclude_from_balance'");
   if (!supplierExcludeColumns.length) {
     await pool.query(
@@ -136,6 +151,108 @@ async function executeSchema(pool) {
   if (passwordHashColumns[0] && Number(passwordHashColumns[0].Type.match(/\d+/)?.[0] || 0) < 220) {
     await pool.query("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(220) NOT NULL");
   }
+}
+
+function mapBalanceSignal(row) {
+  return {
+    id: row.id,
+    month: row.month,
+    section: row.section,
+    targetId: row.target_id,
+    targetLabel: row.target_label,
+    amount: numberOrDefault(row.amount),
+    comment: row.comment || "",
+    markedAt: row.marked_at,
+    markedByUserId: row.marked_by_user_id,
+    markedByDisplayName: row.marked_by_display_name
+  };
+}
+
+function mapFactoryOfficerSignal(row) {
+  return {
+    id: row.id,
+    month: row.month,
+    amount: numberOrDefault(row.amount),
+    comment: row.comment || "",
+    markedAt: row.marked_at,
+    markedByUserId: row.marked_by_user_id,
+    markedByDisplayName: row.marked_by_display_name
+  };
+}
+
+function buildBalances(input, balanceSignals, factorySignals) {
+  const book = buildGreenLeafBook(input);
+  const teaLineMap = new Map((input.teaLines || []).map((line) => [line.id || line.name, line]));
+  const lineRows = new Map();
+  const supplierRows = [];
+  const factorySupplierRows = [];
+
+  for (const row of book.rows.filter((item) => !item.balanceExcluded)) {
+    const line = teaLineMap.get(row.lineId) || teaLineMap.get(row.lineName) || {};
+    const positiveBalance = Math.max(0, Number(row.balanceToPay || 0));
+    if (line.wholeLineBankTransfer) {
+      const lineKey = row.lineId || row.lineName;
+      const current = lineRows.get(lineKey) || {
+        lineId: row.lineId || lineKey,
+        lineName: row.lineName || line.name || "",
+        supplierCount: 0,
+        positiveBalance: 0
+      };
+      current.supplierCount += 1;
+      current.positiveBalance = money(current.positiveBalance + positiveBalance);
+      lineRows.set(lineKey, current);
+    } else if (row.paymentMode === "bank_transfer") {
+      supplierRows.push({
+        supplierId: row.supplierId,
+        supplierCode: row.supplierCode,
+        supplierName: row.supplierName,
+        lineName: row.lineName,
+        balanceToPay: row.balanceToPay,
+        positiveBalance
+      });
+    } else {
+      factorySupplierRows.push({
+        supplierId: row.supplierId,
+        supplierCode: row.supplierCode,
+        supplierName: row.supplierName,
+        lineName: row.lineName,
+        balanceToPay: row.balanceToPay
+      });
+    }
+  }
+
+  const signalKey = (section, targetId) => `${book.month}:${section}:${targetId}`;
+  const signals = new Map(balanceSignals.map((signal) => [signalKey(signal.section, signal.targetId), signal]));
+  const lineWiseBankTransfers = [...lineRows.values()]
+    .filter((row) => row.positiveBalance > 0)
+    .map((row) => ({ ...row, signal: signals.get(signalKey("line", row.lineId || row.lineName)) || null }))
+    .sort((a, b) => a.lineName.localeCompare(b.lineName));
+  const supplierWiseBankTransfers = supplierRows
+    .filter((row) => row.positiveBalance > 0)
+    .map((row) => ({ ...row, signal: signals.get(signalKey("supplier", row.supplierId)) || null }))
+    .sort((a, b) => String(a.supplierCode || "").localeCompare(String(b.supplierCode || "")));
+  const positiveBalance = money(factorySupplierRows.reduce((total, row) => total + Math.max(0, Number(row.balanceToPay || 0)), 0));
+  const negativeBalance = money(factorySupplierRows.reduce((total, row) => total + Math.min(0, Number(row.balanceToPay || 0)), 0));
+  let runningRemaining = positiveBalance;
+  const payments = factorySignals
+    .sort((a, b) => new Date(a.markedAt) - new Date(b.markedAt))
+    .map((payment) => {
+      runningRemaining = money(Math.max(0, runningRemaining - Number(payment.amount || 0)));
+      return { ...payment, remainingPositiveBalance: runningRemaining };
+    });
+
+  return {
+    month: book.month,
+    lineWiseBankTransfers,
+    supplierWiseBankTransfers,
+    factoryOfficerTransfers: {
+      suppliers: factorySupplierRows.sort((a, b) => String(a.supplierCode || "").localeCompare(String(b.supplierCode || ""))),
+      positiveBalance,
+      negativeBalance,
+      payments,
+      remainingPositiveBalance: runningRemaining
+    }
+  };
 }
 
 async function seedSuperAdmin(pool) {
@@ -174,12 +291,13 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         throw error;
       }
       await conn.execute(
-        `INSERT INTO tea_lines (id, name, active)
-         VALUES (?, ?, ?)
+        `INSERT INTO tea_lines (id, name, whole_line_bank_transfer, active)
+         VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            name = VALUES(name),
+           whole_line_bank_transfer = VALUES(whole_line_bank_transfer),
            active = VALUES(active)`,
-        [record.id, record.name, record.active === false ? 0 : 1]
+        [record.id, record.name, toBool(record.wholeLineBankTransfer || record.whole_line_bank_transfer), record.active === false ? 0 : 1]
       );
     }
   }
@@ -712,6 +830,8 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       const conn = await pool.getConnection();
       try {
         await requireRole(conn, sessionToken, ["super_admin", "office_user", "director"]);
+        month = normalizeMonth(month);
+        const [teaLines] = await conn.execute("SELECT * FROM tea_lines WHERE active = TRUE ORDER BY name");
         const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE ORDER BY code");
         const [entries] = await conn.execute(
           "SELECT * FROM collection_entries WHERE collection_date >= ? AND collection_date < DATE_ADD(?, INTERVAL 1 MONTH)",
@@ -731,6 +851,12 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         const settings = settingsRows[0];
         return {
           month,
+          teaLines: teaLines.map((row) => ({
+            id: row.id,
+            name: row.name,
+            wholeLineBankTransfer: fromBool(row.whole_line_bank_transfer),
+            active: fromBool(row.active)
+          })),
           suppliers: suppliers.map((row) => ({
             id: row.id,
             code: row.code,
@@ -814,6 +940,122 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             note: row.note
           }))
         };
+      } finally {
+        conn.release();
+      }
+    },
+
+    async getBalances(sessionToken, month) {
+      month = normalizeMonth(month);
+      const input = await this.getGreenLeafInput(sessionToken, month);
+      const conn = await pool.getConnection();
+      try {
+        const [signalRows] = await conn.execute("SELECT * FROM balance_transfer_signals WHERE month = ?", [month]);
+        const [factoryRows] = await conn.execute("SELECT * FROM factory_officer_transfer_signals WHERE month = ?", [month]);
+        return buildBalances(input, signalRows.map(mapBalanceSignal), factoryRows.map(mapFactoryOfficerSignal));
+      } finally {
+        conn.release();
+      }
+    },
+
+    async markBalancePaid(sessionToken, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const month = normalizeMonth(input.month);
+        const section = input.section === "supplier" ? "supplier" : "line";
+        const targetId = String(input.targetId || "").trim();
+        if (!targetId) {
+          const error = new Error("targetId is required");
+          error.status = 400;
+          throw error;
+        }
+        const signal = {
+          id: makeId("balance_signal"),
+          month,
+          section,
+          targetId,
+          targetLabel: input.targetLabel || "",
+          amount: money(input.amount),
+          comment: input.comment || "",
+          markedAt: toMysqlDateTime(),
+          markedByUserId: user.id,
+          markedByDisplayName: user.display_name || user.username
+        };
+        await conn.execute(
+          `INSERT INTO balance_transfer_signals
+           (id, month, section, target_id, target_label, amount, comment, marked_at, marked_by_user_id, marked_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             target_label = VALUES(target_label),
+             amount = VALUES(amount),
+             comment = VALUES(comment),
+             marked_at = VALUES(marked_at),
+             marked_by_user_id = VALUES(marked_by_user_id),
+             marked_by_display_name = VALUES(marked_by_display_name)`,
+          [
+            signal.id,
+            signal.month,
+            signal.section,
+            signal.targetId,
+            signal.targetLabel,
+            signal.amount,
+            signal.comment,
+            signal.markedAt,
+            signal.markedByUserId,
+            signal.markedByDisplayName
+          ]
+        );
+        await conn.commit();
+        return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async addFactoryOfficerTransfer(sessionToken, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const amount = money(input.amount);
+        if (amount <= 0) {
+          const error = new Error("amount must be greater than zero");
+          error.status = 400;
+          throw error;
+        }
+        const signal = {
+          id: makeId("factory_transfer"),
+          month: normalizeMonth(input.month),
+          amount,
+          comment: input.comment || "",
+          markedAt: toMysqlDateTime(),
+          markedByUserId: user.id,
+          markedByDisplayName: user.display_name || user.username
+        };
+        await conn.execute(
+          `INSERT INTO factory_officer_transfer_signals
+           (id, month, amount, comment, marked_at, marked_by_user_id, marked_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            signal.id,
+            signal.month,
+            signal.amount,
+            signal.comment,
+            signal.markedAt,
+            signal.markedByUserId,
+            signal.markedByDisplayName
+          ]
+        );
+        await conn.commit();
+        return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
       } finally {
         conn.release();
       }

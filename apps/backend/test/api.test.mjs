@@ -117,13 +117,22 @@ test("super admin can create directors and director can view green leaf book", a
             updatedAt: "2026-05-02T10:00:00.000Z"
           }
         ],
+        teaLines: [
+          { id: "line_a", name: "Line A", wholeLineBankTransfer: true },
+          { id: "line_b", name: "Line B" },
+          { id: "line_c", name: "Line C" }
+        ],
         suppliers: [
           { id: "sup_2", code: "S002", name: "Factory", lineName: "Line B", excludeFromBalance: true },
-          { id: "sup_1", code: "S001", name: "Nimal", lineName: "Line A" }
+          { id: "sup_1", code: "S001", name: "Nimal", lineId: "line_a", lineName: "Line A" },
+          { id: "sup_3", code: "S003", name: "Bank Supplier", lineId: "line_c", lineName: "Line C", paymentMode: "bank_transfer" },
+          { id: "sup_4", code: "S004", name: "Cash Supplier", lineId: "line_b", lineName: "Line B", paymentMode: "cash" }
         ],
         collectionEntries: [
           { id: "entry_1", supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 12 },
-          { id: "entry_2", supplierId: "sup_2", collectionDate: "2026-05-01", netWeightKg: 5 }
+          { id: "entry_2", supplierId: "sup_2", collectionDate: "2026-05-01", netWeightKg: 5 },
+          { id: "entry_3", supplierId: "sup_3", collectionDate: "2026-05-01", netWeightKg: 4 },
+          { id: "entry_4", supplierId: "sup_4", collectionDate: "2026-05-01", netWeightKg: 3 }
         ],
         supplierPayments: [
           {
@@ -235,6 +244,53 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(book.rows[1].supplierCode, "S002");
     assert.equal(book.rows[1].balanceExcluded, true);
     assert.equal(book.rows[1].balanceToPay, 0);
+
+    const balancesResponse = await fetch(`${baseUrl}/balances?month=2026-05`, {
+      headers: { authorization: `Bearer ${directorLogin.token}` }
+    });
+    assert.equal(balancesResponse.status, 200);
+    const balances = await balancesResponse.json();
+    assert.equal(balances.lineWiseBankTransfers[0].lineName, "Line A");
+    assert.equal(balances.lineWiseBankTransfers[0].positiveBalance, 2400);
+    assert.equal(balances.supplierWiseBankTransfers[0].supplierCode, "S003");
+    assert.equal(balances.supplierWiseBankTransfers[0].positiveBalance, 800);
+    assert.equal(balances.factoryOfficerTransfers.suppliers[0].supplierCode, "S004");
+    assert.equal(balances.factoryOfficerTransfers.positiveBalance, 600);
+
+    const officeMarkPaidResponse = await fetch(`${baseUrl}/balances/mark-paid`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` },
+      body: JSON.stringify({ month: "2026-05", section: "line", targetId: "line_a", amount: 2400 })
+    });
+    assert.equal(officeMarkPaidResponse.status, 403);
+
+    const markLinePaidResponse = await fetch(`${baseUrl}/balances/mark-paid`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({
+        month: "2026-05",
+        section: "line",
+        targetId: "line_a",
+        targetLabel: "Line A",
+        amount: 2400,
+        comment: "Transferred as a whole line"
+      })
+    });
+    assert.equal(markLinePaidResponse.status, 201);
+    const factoryOfficerPaymentResponse = await fetch(`${baseUrl}/balances/factory-officer-payments`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({ month: "2026-05", amount: 250, comment: "First cash batch" })
+    });
+    assert.equal(factoryOfficerPaymentResponse.status, 201);
+
+    const signalledBalancesResponse = await fetch(`${baseUrl}/balances?month=2026-05`, {
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+    });
+    assert.equal(signalledBalancesResponse.status, 200);
+    const signalledBalances = await signalledBalancesResponse.json();
+    assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.comment, "Transferred as a whole line");
+    assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 350);
   });
 });
 

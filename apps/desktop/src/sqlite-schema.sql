@@ -20,6 +20,7 @@ CREATE TABLE line_users (
 CREATE TABLE tea_lines (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
+  whole_line_bank_transfer INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL
 );

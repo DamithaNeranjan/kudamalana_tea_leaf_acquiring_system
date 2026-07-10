@@ -209,6 +209,10 @@
                   Line name
                   <input name="name" placeholder="Example: Line A" required />
                 </label>
+                <label class="switch-row">
+                  <input name="wholeLineBankTransfer" type="checkbox" />
+                  Whole Tea Line Bank Transfer
+                </label>
                 <div class="form-actions">
                   <button type="submit">Save tea line</button>
                   <button class="ghost-button" type="button" data-clear-form="lineForm">Clear</button>
@@ -220,7 +224,7 @@
                   <input id="teaLineFilter" class="table-filter" placeholder="Filter by name" />
                 </div>
                 <table id="teaLinesTable">
-                  <thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Name</th><th>Bank transfer flag</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody></tbody>
                 </table>
               </div>

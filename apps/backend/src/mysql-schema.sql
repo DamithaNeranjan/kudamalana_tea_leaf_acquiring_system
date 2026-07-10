@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS tea_lines (
   id VARCHAR(80) PRIMARY KEY,
   name VARCHAR(160) NOT NULL UNIQUE,
+  whole_line_bank_transfer BOOLEAN NOT NULL DEFAULT FALSE,
   active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
@@ -121,6 +122,30 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   note VARCHAR(255),
   UNIQUE KEY unique_supplier_payment_month (supplier_id, month),
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+);
+
+CREATE TABLE IF NOT EXISTS balance_transfer_signals (
+  id VARCHAR(80) PRIMARY KEY,
+  month CHAR(7) NOT NULL,
+  section VARCHAR(40) NOT NULL,
+  target_id VARCHAR(160),
+  target_label VARCHAR(180),
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  comment VARCHAR(255),
+  marked_at DATETIME NOT NULL,
+  marked_by_user_id VARCHAR(80),
+  marked_by_display_name VARCHAR(160),
+  UNIQUE KEY unique_balance_signal_target (month, section, target_id)
+);
+
+CREATE TABLE IF NOT EXISTS factory_officer_transfer_signals (
+  id VARCHAR(80) PRIMARY KEY,
+  month CHAR(7) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  comment VARCHAR(255),
+  marked_at DATETIME NOT NULL,
+  marked_by_user_id VARCHAR(80),
+  marked_by_display_name VARCHAR(160)
 );
 
 CREATE TABLE IF NOT EXISTS arrears_ledger (

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBook, makeId } from "../../../packages/shared/src/index.mjs";
 
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
@@ -31,6 +31,8 @@ export function createMemoryStore() {
   const fertilizerInstallments = new Map();
   const teaPackets = new Map();
   const supplierPayments = new Map();
+  const balanceTransferSignals = new Map();
+  const factoryOfficerTransferSignals = new Map();
   const arrears = new Map();
   const syncLog = [];
 
@@ -133,6 +135,108 @@ export function createMemoryStore() {
       error.status = 400;
       throw error;
     }
+  }
+
+  function money(value) {
+    return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  }
+
+  function normalizeMonth(month) {
+    if (/^\d{4}-\d{2}$/.test(String(month || ""))) return month;
+    const date = new Date();
+    return date.toISOString().slice(0, 7);
+  }
+
+  function publicBalanceSignal(signal) {
+    return signal || null;
+  }
+
+  function buildBalances(input, signals, factorySignals) {
+    const book = buildGreenLeafBook(input);
+    const teaLineMap = new Map((input.teaLines || []).map((line) => [line.id || line.name, line]));
+    const lineRows = new Map();
+    const supplierRows = [];
+    const factorySupplierRows = [];
+
+    for (const row of book.rows.filter((item) => !item.balanceExcluded)) {
+      const line = teaLineMap.get(row.lineId) || teaLineMap.get(row.lineName) || {};
+      const isWholeLine = Boolean(line.wholeLineBankTransfer);
+      const positiveBalance = Math.max(0, Number(row.balanceToPay || 0));
+      if (isWholeLine) {
+        const lineKey = row.lineId || row.lineName;
+        const current = lineRows.get(lineKey) || {
+          lineId: row.lineId || lineKey,
+          lineName: row.lineName || line.name || "",
+          supplierCount: 0,
+          positiveBalance: 0
+        };
+        current.supplierCount += 1;
+        current.positiveBalance = money(current.positiveBalance + positiveBalance);
+        lineRows.set(lineKey, current);
+      } else if (row.paymentMode === "bank_transfer") {
+        supplierRows.push({
+          supplierId: row.supplierId,
+          supplierCode: row.supplierCode,
+          supplierName: row.supplierName,
+          lineName: row.lineName,
+          balanceToPay: row.balanceToPay,
+          positiveBalance
+        });
+      } else {
+        factorySupplierRows.push({
+          supplierId: row.supplierId,
+          supplierCode: row.supplierCode,
+          supplierName: row.supplierName,
+          lineName: row.lineName,
+          balanceToPay: row.balanceToPay
+        });
+      }
+    }
+
+    const signalKey = (section, targetId) => `${book.month}:${section}:${targetId}`;
+    const lineWiseBankTransfers = [...lineRows.values()]
+      .filter((row) => row.positiveBalance > 0)
+      .map((row) => ({
+        ...row,
+        signal: publicBalanceSignal(signals.get(signalKey("line", row.lineId || row.lineName)))
+      }))
+      .sort((a, b) => a.lineName.localeCompare(b.lineName));
+
+    const supplierWiseBankTransfers = supplierRows
+      .filter((row) => row.positiveBalance > 0)
+      .map((row) => ({
+        ...row,
+        signal: publicBalanceSignal(signals.get(signalKey("supplier", row.supplierId)))
+      }))
+      .sort((a, b) => String(a.supplierCode || "").localeCompare(String(b.supplierCode || "")));
+
+    const factoryPositiveBalance = money(
+      factorySupplierRows.reduce((total, row) => total + Math.max(0, Number(row.balanceToPay || 0)), 0)
+    );
+    const factoryNegativeBalance = money(
+      factorySupplierRows.reduce((total, row) => total + Math.min(0, Number(row.balanceToPay || 0)), 0)
+    );
+    const factoryOfficerPayments = factorySignals
+      .filter((signal) => signal.month === book.month)
+      .sort((a, b) => new Date(a.markedAt) - new Date(b.markedAt));
+    let runningRemaining = factoryPositiveBalance;
+    const paymentsWithRemaining = factoryOfficerPayments.map((payment) => {
+      runningRemaining = money(Math.max(0, runningRemaining - Number(payment.amount || 0)));
+      return { ...payment, remainingPositiveBalance: runningRemaining };
+    });
+
+    return {
+      month: book.month,
+      lineWiseBankTransfers,
+      supplierWiseBankTransfers,
+      factoryOfficerTransfers: {
+        suppliers: factorySupplierRows.sort((a, b) => String(a.supplierCode || "").localeCompare(String(b.supplierCode || ""))),
+        positiveBalance: factoryPositiveBalance,
+        negativeBalance: factoryNegativeBalance,
+        payments: paymentsWithRemaining,
+        remainingPositiveBalance: runningRemaining
+      }
+    };
   }
 
   function syncDesktopPayload(actor, payload) {
@@ -276,18 +380,73 @@ export function createMemoryStore() {
 
     getGreenLeafInput(sessionToken, month) {
       requireRole(sessionToken, ["super_admin", "office_user", "director"]);
+      const normalizedMonth = normalizeMonth(month);
       return {
-        month,
+        month: normalizedMonth,
+        teaLines: [...teaLines.values()].filter((line) => line.active !== false),
         suppliers: [...suppliers.values()].sort((a, b) => String(a.code || "").localeCompare(String(b.code || ""))),
         entries: [...entries.values()],
-        monthlySettings: monthlySettings.get(month),
+        monthlySettings: monthlySettings.get(normalizedMonth),
         supplierMonthOverrides: [...supplierMonthOverrides.values()],
         advances: [...advances.values()],
         fertilizerInstallments: [...fertilizerInstallments.values()],
         teaPackets: [...teaPackets.values()],
-        supplierPayments: [...supplierPayments.values()].filter((payment) => payment.month === month),
+        supplierPayments: [...supplierPayments.values()].filter((payment) => payment.month === normalizedMonth),
         arrears: [...arrears.values()]
       };
+    },
+
+    getBalances(sessionToken, month) {
+      const input = this.getGreenLeafInput(sessionToken, month);
+      return buildBalances(input, balanceTransferSignals, [...factoryOfficerTransferSignals.values()]);
+    },
+
+    markBalancePaid(sessionToken, input) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const month = normalizeMonth(input.month);
+      const section = input.section === "supplier" ? "supplier" : "line";
+      const targetId = String(input.targetId || "").trim();
+      if (!targetId) {
+        const error = new Error("targetId is required");
+        error.status = 400;
+        throw error;
+      }
+      const id = `${month}:${section}:${targetId}`;
+      const signal = {
+        id,
+        month,
+        section,
+        targetId,
+        targetLabel: input.targetLabel || "",
+        amount: money(input.amount),
+        comment: input.comment || "",
+        markedAt: new Date().toISOString(),
+        markedByUserId: user.id,
+        markedByDisplayName: user.displayName || user.username
+      };
+      balanceTransferSignals.set(id, signal);
+      return signal;
+    },
+
+    addFactoryOfficerTransfer(sessionToken, input) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const amount = money(input.amount);
+      if (amount <= 0) {
+        const error = new Error("amount must be greater than zero");
+        error.status = 400;
+        throw error;
+      }
+      const signal = {
+        id: makeId("factory_transfer"),
+        month: normalizeMonth(input.month),
+        amount,
+        comment: input.comment || "",
+        markedAt: new Date().toISOString(),
+        markedByUserId: user.id,
+        markedByDisplayName: user.displayName || user.username
+      };
+      factoryOfficerTransferSignals.set(signal.id, signal);
+      return signal;
     },
 
     seedDesktopData(payload) {

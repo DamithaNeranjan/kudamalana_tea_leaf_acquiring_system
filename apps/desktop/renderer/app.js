@@ -911,6 +911,7 @@ function renderRegistrationTables(state) {
       (line) => `
       <tr>
         <td>${line.name}</td>
+        <td>${line.wholeLineBankTransfer ? "Whole line bank transfer" : "-"}</td>
         <td>${line.active ? "Active" : "Inactive"}</td>
         <td>
           <button class="table-action" type="button" data-edit-line="${line.id}">Edit</button>
@@ -1183,6 +1184,7 @@ function renderTeaLineEditForm(line) {
         Line name
         <input name="name" value="${escapeAttribute(line.name)}" required />
       </label>
+      <label class="switch-row"><input name="wholeLineBankTransfer" type="checkbox" ${checked(line.wholeLineBankTransfer)} /> Whole Tea Line Bank Transfer</label>
       <div class="check-list">
         <strong>Special price for suppliers in this tea line</strong>
         <input name="overrideLineId" type="hidden" value="${escapeAttribute(line.id)}" />

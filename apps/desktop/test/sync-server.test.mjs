@@ -115,7 +115,7 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     await fetch(`${baseUrl}/office/tea-lines`, {
       method: "POST",
       headers: auth,
-      body: JSON.stringify({ id: "line_1", name: "Line A", active: true })
+      body: JSON.stringify({ id: "line_1", name: "Line A", wholeLineBankTransfer: true, active: true })
     });
 
     await fetch(`${baseUrl}/office/suppliers`, {
@@ -127,9 +127,10 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     await fetch(`${baseUrl}/office/tea-lines`, {
       method: "POST",
       headers: auth,
-      body: JSON.stringify({ id: "line_1", name: "Line A Updated", active: true })
+      body: JSON.stringify({ id: "line_1", name: "Line A Updated", wholeLineBankTransfer: true, active: true })
     });
     const renamedLineState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    assert.equal(renamedLineState.teaLines.find((line) => line.id === "line_1").wholeLineBankTransfer, true);
     assert.equal(renamedLineState.suppliers.find((supplier) => supplier.id === "sup_1").lineName, "Line A Updated");
     assert.equal(renamedLineState.suppliers.find((supplier) => supplier.id === "sup_1").paymentMode, "cash");
 

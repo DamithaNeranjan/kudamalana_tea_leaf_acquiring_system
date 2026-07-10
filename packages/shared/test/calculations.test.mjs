@@ -136,9 +136,34 @@ test("suggests advance payment from unpaid effective month balance", () => {
     arrears: [{ supplierId: "sup_1", effectiveMonth: "2026-05", amount: 500 }]
   });
 
-  assert.equal(suggestion.suggestedAmount, 3500);
-  assert.equal(suggestion.leafValue, 5000);
+  assert.equal(suggestion.suggestedAmount, 3420);
+  assert.equal(suggestion.leafValue, 4800);
   assert.equal(suggestion.arrearsCarriedForward, 500);
+  assert.equal(suggestion.totalAdvances, 1000);
+});
+
+test("advance suggestion follows the green leaf payable balance", () => {
+  const suggestion = suggestAdvancePayment({
+    month: "2026-05",
+    supplierId: "sup_1",
+    suppliers,
+    monthlySettings: {
+      teaPricePerKg: 200,
+      deductionPercent: 2,
+      ownTransportAdditionPerKg: 5,
+      factoryTransportDeductionPerKg: 3
+    },
+    entries: [{ supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 100 }],
+    supplierMonthOverrides: [{ supplierId: "sup_1", month: "2026-05", teaPricePerKg: 250 }],
+    advances: [{ supplierId: "sup_1", date: "2026-05-05", effectiveMonth: "2026-05", amount: 1000 }],
+    fertilizerInstallments: [{ supplierId: "sup_1", effectiveMonth: "2026-05", amount: 500 }],
+    teaPackets: [{ supplierId: "sup_1", effectiveMonth: "2026-05", totalAmount: 200 }],
+    arrears: [{ supplierId: "sup_1", effectiveMonth: "2026-05", amount: 300 }]
+  });
+
+  assert.equal(suggestion.leafValue, 24500);
+  assert.equal(suggestion.suggestedAmount, 22990);
+  assert.equal(suggestion.arrearsCarriedForward, 300);
   assert.equal(suggestion.totalAdvances, 1000);
 });
 

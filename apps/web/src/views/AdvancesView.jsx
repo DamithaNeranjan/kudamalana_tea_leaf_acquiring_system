@@ -18,6 +18,18 @@ function money(value) {
   });
 }
 
+function parseAmount(value) {
+  return String(value || "").replace(/,/g, "");
+}
+
+function formatAmountInput(value) {
+  const clean = parseAmount(value).replace(/[^\d.]/g, "");
+  const [integerPart, ...decimalParts] = clean.split(".");
+  const integer = integerPart ? Number(integerPart).toLocaleString("en-US") : "";
+  const decimal = decimalParts.length ? `.${decimalParts.join("").slice(0, 2)}` : "";
+  return `${integer}${decimal}`;
+}
+
 function dateTime(value) {
   if (!value) return "";
   return new Date(value).toLocaleString("en-US", {
@@ -72,7 +84,7 @@ export function AdvancesView({ currentUser, showToast }) {
       `/advance-signals/suggestion?scope=${encodeURIComponent(scope)}&targetId=${encodeURIComponent(selectedTarget.id)}&month=${encodeURIComponent(effectiveMonth)}`
     );
     setSuggestion(payload);
-    if (!amount) setAmount(String(payload.suggestedAmount || ""));
+    if (!amount) setAmount(formatAmountInput(payload.suggestedAmount || ""));
   }
 
   async function submitSignal(event) {
@@ -88,7 +100,7 @@ export function AdvancesView({ currentUser, showToast }) {
         targetId: selectedTarget.id,
         effectiveMonth,
         dateGiven,
-        amount,
+        amount: parseAmount(amount),
         comment
       })
     });
@@ -158,7 +170,13 @@ export function AdvancesView({ currentUser, showToast }) {
             </label>
             <label>
               Amount given
-              <input type="number" step="0.01" min="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                onChange={(event) => setAmount(formatAmountInput(event.target.value))}
+                required
+              />
             </label>
             <label>
               Comment

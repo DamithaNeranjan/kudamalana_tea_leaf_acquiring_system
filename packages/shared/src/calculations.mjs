@@ -226,7 +226,7 @@ export function suggestAdvancePayment(input) {
       totalAdvances: 0
     };
   }
-  const leafValue = money(row.totalKg * row.pricePerKg);
+  const leafValue = row.leafValue;
   if (row.balanceExcluded) {
     return {
       supplierId: input.supplierId,
@@ -238,7 +238,7 @@ export function suggestAdvancePayment(input) {
   }
   return {
     supplierId: input.supplierId,
-    suggestedAmount: Math.max(0, money(leafValue - row.arrearsCarriedForward - row.totalAdvances)),
+    suggestedAmount: Math.max(0, row.balanceToPay),
     leafValue,
     arrearsCarriedForward: row.arrearsCarriedForward,
     totalAdvances: row.totalAdvances

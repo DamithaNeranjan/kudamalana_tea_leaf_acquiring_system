@@ -30,6 +30,18 @@ function money(value) {
   });
 }
 
+function parseAmount(value) {
+  return String(value || "").replace(/,/g, "");
+}
+
+function formatAmountInput(value) {
+  const clean = parseAmount(value).replace(/[^\d.]/g, "");
+  const [integerPart, ...decimalParts] = clean.split(".");
+  const integer = integerPart ? Number(integerPart).toLocaleString("en-US") : "";
+  const decimal = decimalParts.length ? `.${decimalParts.join("").slice(0, 2)}` : "";
+  return `${integer}${decimal}`;
+}
+
 function dateTime(value) {
   if (!value) return "";
   return new Date(value).toLocaleString("en-US", {
@@ -108,7 +120,7 @@ export function BalancesView({ currentUser, showToast }) {
     event.preventDefault();
     await request("/balances/factory-officer-payments", {
       method: "POST",
-      body: JSON.stringify({ month, amount: factoryAmount, comment: factoryComment })
+      body: JSON.stringify({ month, amount: parseAmount(factoryAmount), comment: factoryComment })
     });
     setFactoryAmount("");
     setFactoryComment("");
@@ -240,11 +252,10 @@ export function BalancesView({ currentUser, showToast }) {
         {canManage && (
           <form className="factory-payment-form" onSubmit={addFactoryPayment}>
             <input
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="text"
+              inputMode="decimal"
               value={factoryAmount}
-              onChange={(event) => setFactoryAmount(event.target.value)}
+              onChange={(event) => setFactoryAmount(formatAmountInput(event.target.value))}
               placeholder="Amount paid"
               required
             />

@@ -124,6 +124,20 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
 );
 
+CREATE TABLE IF NOT EXISTS month_closures (
+  id VARCHAR(80) PRIMARY KEY,
+  month CHAR(7) NOT NULL UNIQUE,
+  closed_at DATETIME NOT NULL,
+  closed_by_office_user_id VARCHAR(80),
+  closed_by_office_user_name VARCHAR(160),
+  reopened_at DATETIME,
+  reopened_by_office_user_id VARCHAR(80),
+  reopened_by_office_user_name VARCHAR(160),
+  note VARCHAR(255),
+  updated_at DATETIME,
+  KEY idx_month_closures_month (month)
+);
+
 CREATE TABLE IF NOT EXISTS balance_transfer_signals (
   id VARCHAR(80) PRIMARY KEY,
   month CHAR(7) NOT NULL,

@@ -247,6 +247,23 @@ export class LocalStore {
     this.db.prepare("CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at)").run();
     this.db
       .prepare(
+        `CREATE TABLE IF NOT EXISTS month_closures (
+          id TEXT PRIMARY KEY,
+          month TEXT NOT NULL UNIQUE,
+          closed_at TEXT NOT NULL,
+          closed_by_office_user_id TEXT,
+          closed_by_office_user_name TEXT,
+          reopened_at TEXT,
+          reopened_by_office_user_id TEXT,
+          reopened_by_office_user_name TEXT,
+          note TEXT,
+          updated_at TEXT
+        )`
+      )
+      .run();
+    this.db.prepare("CREATE INDEX IF NOT EXISTS idx_month_closures_month ON month_closures(month)").run();
+    this.db
+      .prepare(
         `CREATE TABLE IF NOT EXISTS cloud_sync_runs (
           id TEXT PRIMARY KEY,
           mode TEXT NOT NULL,
@@ -527,6 +544,7 @@ export class LocalStore {
 
   upsertMonthlySetting(setting) {
     const id = setting.id || `settings_${setting.month}`;
+    this.assertMonthOpen(setting.month);
     this.db
       .prepare(
         `INSERT INTO monthly_settings
@@ -557,6 +575,7 @@ export class LocalStore {
       error.status = 400;
       throw error;
     }
+    this.assertMonthOpen(override.month);
     const id = override.id || `override_${override.supplierId}_${override.month}`;
     this.db
       .prepare(
@@ -589,6 +608,7 @@ export class LocalStore {
       error.status = 400;
       throw error;
     }
+    this.assertMonthOpen(advance.effectiveMonth);
     const amount = Number(advance.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       const error = new Error("Advance amount must be greater than zero");
@@ -619,6 +639,7 @@ export class LocalStore {
     const totalAmount = Number(issue.totalAmount);
     const splitMonths = Number(issue.splitMonths || 1);
     const effectiveMonths = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).slice(0, splitMonths);
+    for (const month of effectiveMonths) this.assertMonthOpen(month);
     if (!Number.isFinite(kgGiven) || kgGiven <= 0) {
       const error = new Error("Fertilizer kg must be greater than zero");
       error.status = 400;
@@ -691,6 +712,7 @@ export class LocalStore {
       error.status = 400;
       throw error;
     }
+    this.assertMonthOpen(packet.effectiveMonth);
     const packetCount = Number(packet.packetCount);
     const perPacketPrice = Number(packet.perPacketPrice);
     const totalAmount = Number(packet.totalAmount ?? packetCount * perPacketPrice);
@@ -773,9 +795,12 @@ export class LocalStore {
   greenLeafBook(month) {
     const exported = this.exportForCloud();
     const book = this.buildGreenLeafBookWithAutoArrears(month, exported);
+    const closure = this.monthClosure(book.month);
     const payments = new Map(this.supplierPayments().filter((payment) => payment.month === book.month).map((payment) => [payment.supplierId, payment]));
     return {
       ...book,
+      closure,
+      closed: Boolean(closure?.closed),
       rows: book.rows.map((row) => ({
         ...row,
         payment: payments.get(row.supplierId) || null
@@ -791,6 +816,15 @@ export class LocalStore {
     });
   }
 
+  assertMonthOpen(month) {
+    const closure = this.monthClosure(month);
+    if (closure?.closed) {
+      const error = new Error(`${month} Green Leaf Book is closed. Reopen it as admin before making changes.`);
+      error.status = 409;
+      throw error;
+    }
+  }
+
   async recordSupplierPayments(input, officeUser = null) {
     const month = String(input.month || "").trim();
     const scope = String(input.scope || "supplier").trim();
@@ -799,6 +833,7 @@ export class LocalStore {
       error.status = 400;
       throw error;
     }
+    this.assertMonthOpen(month);
     const book = this.greenLeafBook(month);
     const rows =
       scope === "line"
@@ -895,6 +930,101 @@ export class LocalStore {
     }
     this.refreshSnapshot();
     return { month, scope, recordedCount: saved.length, payments: saved };
+  }
+
+  closeGreenLeafBook(month, officeUser = null, note = "") {
+    month = String(month || "").trim();
+    if (!month) {
+      const error = new Error("Month is required");
+      error.status = 400;
+      throw error;
+    }
+    this.assertMonthOpen(month);
+    const book = this.greenLeafBook(month);
+    const unpaidRows = book.rows.filter(
+      (row) => !row.balanceExcluded && Number(row.balanceToPay || 0) > 0 && !row.payment
+    );
+    if (unpaidRows.length) {
+      const error = new Error(`Cannot close ${month}: ${unpaidRows.length} positive supplier balance${unpaidRows.length === 1 ? "" : "s"} are still unpaid.`);
+      error.status = 400;
+      throw error;
+    }
+    const closedAt = now();
+    this.db.exec("BEGIN");
+    try {
+      for (const row of book.rows.filter((item) => !item.balanceExcluded && Number(item.balanceToPay || 0) < 0)) {
+        const arrearId = `arrears_${row.supplierId}_${nextMonthValue(month)}_from_${month}`;
+        this.db
+          .prepare(
+            `INSERT INTO arrears_ledger (id, supplier_id, effective_month, amount, note, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               amount = excluded.amount,
+               note = excluded.note,
+               updated_at = excluded.updated_at`
+          )
+          .run(arrearId, row.supplierId, nextMonthValue(month), Math.abs(money(row.balanceToPay)), `Carried forward from ${month} (closed book)`, closedAt);
+      }
+      this.db
+        .prepare(
+          `INSERT INTO month_closures
+           (id, month, closed_at, closed_by_office_user_id, closed_by_office_user_name,
+            reopened_at, reopened_by_office_user_id, reopened_by_office_user_name, note, updated_at)
+           VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)
+           ON CONFLICT(month) DO UPDATE SET
+             closed_at = excluded.closed_at,
+             closed_by_office_user_id = excluded.closed_by_office_user_id,
+             closed_by_office_user_name = excluded.closed_by_office_user_name,
+             reopened_at = NULL,
+             reopened_by_office_user_id = NULL,
+             reopened_by_office_user_name = NULL,
+             note = excluded.note,
+             updated_at = excluded.updated_at`
+        )
+        .run(
+          `month_close_${month}`,
+          month,
+          closedAt,
+          optional(officeUser?.id),
+          optional(officeUser?.displayName || officeUser?.username),
+          optional(note),
+          closedAt
+        );
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.refreshSnapshot();
+    return this.monthClosure(month);
+  }
+
+  reopenGreenLeafBook(month, officeUser = null, note = "") {
+    month = String(month || "").trim();
+    const existing = this.monthClosure(month);
+    if (!existing?.closed) {
+      const error = new Error(`${month} Green Leaf Book is not closed`);
+      error.status = 400;
+      throw error;
+    }
+    const reopenedAt = now();
+    this.db
+      .prepare(
+        `UPDATE month_closures
+         SET reopened_at = ?, reopened_by_office_user_id = ?, reopened_by_office_user_name = ?,
+             note = ?, updated_at = ?
+         WHERE month = ?`
+      )
+      .run(
+        reopenedAt,
+        optional(officeUser?.id),
+        optional(officeUser?.displayName || officeUser?.username),
+        optional(note),
+        reopenedAt,
+        month
+      );
+    this.refreshSnapshot();
+    return this.monthClosure(month);
   }
 
   recordAudit(entry) {
@@ -1056,6 +1186,10 @@ export class LocalStore {
           skipped.push(record.id);
           continue;
         }
+        if (this.monthClosure(String(record.collectionDate || "").slice(0, 7))?.closed) {
+          skipped.push(record.id);
+          continue;
+        }
         const stagingRecord = {
           id: makeId("stage"),
           mobileRecordId: record.id,
@@ -1100,6 +1234,7 @@ export class LocalStore {
   async updateStaging(id, updates) {
     const record = this.stagingById(id);
     if (!record) throw new Error("Staging record not found");
+    this.assertMonthOpen(String(record.collectionDate || "").slice(0, 7));
     const updated = {
       grossWeightKg: Number(updates.grossWeightKg ?? record.grossWeightKg),
       netWeightKg: Number(updates.netWeightKg ?? record.netWeightKg),
@@ -1119,6 +1254,7 @@ export class LocalStore {
   async postStaging(id, officeUser = null) {
     const staging = this.stagingById(id);
     if (!staging) throw new Error("Staging record not found");
+    this.assertMonthOpen(String(staging.collectionDate || "").slice(0, 7));
     const entry = {
       ...staging,
       id: makeId("entry"),
@@ -1151,7 +1287,8 @@ export class LocalStore {
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
       arrears: this.arrears(),
-      supplierPayments: this.supplierPayments()
+      supplierPayments: this.supplierPayments(),
+      monthClosures: this.monthClosures()
     };
   }
 
@@ -1177,18 +1314,26 @@ export class LocalStore {
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
       supplierPayments: this.supplierPayments(),
-      arrears: this.arrears()
+      arrears: this.arrears(),
+      monthClosures: this.monthClosures()
     };
   }
 
   lastSuccessfulCloudSync() {
-    return this.cloudSyncRuns().find((run) => run.status === "success") || null;
+    return this.cloudSyncRuns().rows.find((run) => run.status === "success") || null;
   }
 
-  cloudSyncStatus() {
+  cloudSyncStatus({ page = 1, pageSize = 10, status = "", mode = "" } = {}) {
+    const runs = this.cloudSyncRuns({ page, pageSize, status, mode });
     return {
       lastSuccessfulSync: this.lastSuccessfulCloudSync(),
-      recentRuns: this.cloudSyncRuns().slice(0, 10)
+      recentRuns: runs.rows,
+      pagination: {
+        page: runs.page,
+        pageSize: runs.pageSize,
+        totalRows: runs.totalRows,
+        totalPages: runs.totalPages
+      }
     };
   }
 
@@ -1230,8 +1375,9 @@ export class LocalStore {
          WHERE id = ?`
       )
       .run(now(), "success", JSON.stringify(received || {}), id);
+    this.pruneCloudSyncRuns();
     this.refreshSnapshot();
-    return this.cloudSyncRuns().find((run) => run.id === id);
+    return this.cloudSyncRuns().rows.find((run) => run.id === id);
   }
 
   failCloudSyncRun(id, error) {
@@ -1242,8 +1388,22 @@ export class LocalStore {
          WHERE id = ?`
       )
       .run(now(), "failed", error?.message || String(error || "Cloud sync failed"), id);
+    this.pruneCloudSyncRuns();
     this.refreshSnapshot();
-    return this.cloudSyncRuns().find((run) => run.id === id);
+    return this.cloudSyncRuns().rows.find((run) => run.id === id);
+  }
+
+  pruneCloudSyncRuns() {
+    const cutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+    this.db
+      .prepare(
+        `DELETE FROM cloud_sync_runs
+         WHERE started_at < ?
+           AND id NOT IN (
+             SELECT id FROM cloud_sync_runs ORDER BY started_at DESC LIMIT 500
+           )`
+      )
+      .run(cutoff);
   }
 
   importSyncedOfficeUsers(users = []) {
@@ -1273,6 +1433,7 @@ export class LocalStore {
       teaPackets: this.teaPackets(),
       arrears: this.arrears(),
       supplierPayments: this.supplierPayments(),
+      monthClosures: this.monthClosures(),
       syncLog: this.syncLog()
     };
   }
@@ -1312,6 +1473,7 @@ export class LocalStore {
   }
 
   insertEntry(record) {
+    this.assertMonthOpen(String(record.collectionDate || "").slice(0, 7));
     this.db
       .prepare(
         `INSERT INTO collection_entries
@@ -1514,6 +1676,32 @@ export class LocalStore {
       .all();
   }
 
+  monthClosure(month) {
+    const row = this.db
+      .prepare(
+        `SELECT id, month, closed_at AS closedAt, closed_by_office_user_id AS closedByOfficeUserId,
+         closed_by_office_user_name AS closedByOfficeUserName, reopened_at AS reopenedAt,
+         reopened_by_office_user_id AS reopenedByOfficeUserId,
+         reopened_by_office_user_name AS reopenedByOfficeUserName, note, updated_at AS updatedAt
+         FROM month_closures WHERE month = ?`
+      )
+      .get(month);
+    return row ? { ...row, closed: !row.reopenedAt } : null;
+  }
+
+  monthClosures() {
+    return this.db
+      .prepare(
+        `SELECT id, month, closed_at AS closedAt, closed_by_office_user_id AS closedByOfficeUserId,
+         closed_by_office_user_name AS closedByOfficeUserName, reopened_at AS reopenedAt,
+         reopened_by_office_user_id AS reopenedByOfficeUserId,
+         reopened_by_office_user_name AS reopenedByOfficeUserName, note, updated_at AS updatedAt
+         FROM month_closures ORDER BY month DESC`
+      )
+      .all()
+      .map((row) => ({ ...row, closed: !row.reopenedAt }));
+  }
+
   syncLog() {
     return this.db
       .prepare(
@@ -1522,21 +1710,44 @@ export class LocalStore {
       .all();
   }
 
-  cloudSyncRuns() {
-    return this.db
+  cloudSyncRuns({ page = 1, pageSize = 500, status = "", mode = "" } = {}) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 10));
+    const clauses = [];
+    const params = [];
+    if (status) {
+      clauses.push("status = ?");
+      params.push(status);
+    }
+    if (mode) {
+      clauses.push("mode = ?");
+      params.push(mode);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const totalRows = this.db.prepare(`SELECT COUNT(*) AS count FROM cloud_sync_runs ${where}`).get(...params).count;
+    const rows = this.db
       .prepare(
         `SELECT id, mode, backend_url AS backendUrl, cursor_from AS cursorFrom,
          cursor_to AS cursorTo, started_at AS startedAt, completed_at AS completedAt,
          status, sent_json AS sentJson, received_json AS receivedJson, error
          FROM cloud_sync_runs
+         ${where}
          ORDER BY started_at DESC`
       )
-      .all()
+      .all(...params)
+      .slice((safePage - 1) * safePageSize, safePage * safePageSize)
       .map((run) => ({
         ...run,
         sent: run.sentJson ? JSON.parse(run.sentJson) : null,
         received: run.receivedJson ? JSON.parse(run.receivedJson) : null
       }));
+    return {
+      rows,
+      page: safePage,
+      pageSize: safePageSize,
+      totalRows,
+      totalPages: Math.max(1, Math.ceil(totalRows / safePageSize))
+    };
   }
 }
 
@@ -1768,6 +1979,19 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   UNIQUE (supplier_id, month)
 );
 
+CREATE TABLE IF NOT EXISTS month_closures (
+  id TEXT PRIMARY KEY,
+  month TEXT NOT NULL UNIQUE,
+  closed_at TEXT NOT NULL,
+  closed_by_office_user_id TEXT,
+  closed_by_office_user_name TEXT,
+  reopened_at TEXT,
+  reopened_by_office_user_id TEXT,
+  reopened_by_office_user_name TEXT,
+  note TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY,
   user_id TEXT,
@@ -1813,6 +2037,7 @@ CREATE INDEX IF NOT EXISTS idx_fertilizer_effective_month ON fertilizer_installm
 CREATE INDEX IF NOT EXISTS idx_tea_packets_effective_month ON tea_packets(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_arrears_effective_month ON arrears_ledger(effective_month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_month_closures_month ON month_closures(month);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_runs_started_at ON cloud_sync_runs(started_at);

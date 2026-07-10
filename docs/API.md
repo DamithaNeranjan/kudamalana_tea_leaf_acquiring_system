@@ -86,6 +86,8 @@ Returns the calculated monthly green leaf book. Posted collection entries for th
 
 Rows include payment state when a month-end payment has been recorded. Factory-owned suppliers return `balanceExcluded: true`; their monthly details remain present but payable balance is not calculated.
 
+When the month has been closed in the desktop app, the response includes `closed: true` and a `closure` object with close user/time metadata. Closed books remain viewable but should be treated as read-only.
+
 ### `GET /office/month-end-summary?month=YYYY-MM`
 
 Office-session protected endpoint that generates month-end supplier bills and line-wise totals from posted Green Leaf Book data.
@@ -139,6 +141,14 @@ Line-wise payload:
 }
 ```
 
+### `POST /office/green-leaf-book/close`
+
+Office-session protected desktop endpoint that closes a Green Leaf Book month after all suppliers with positive payable balances have recorded payments. Closing writes any negative balances into the next month as arrears and blocks further month-specific edits until reopened.
+
+### `POST /office/green-leaf-book/reopen`
+
+Desktop admin-only endpoint that reopens a closed Green Leaf Book month for corrections. Close and reopen actions are written to the audit log.
+
 ### `GET /office/audit-log`
 
 Office-session protected endpoint that returns the append-only audit trail for office mutations in latest-first order. The audit log records creations, updates, checkbox/status changes, staging posts, line price override batches, supplier bill print completion, and supplier payment recording. Viewing-only operations, including supplier bill print-preview viewing, are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
@@ -166,7 +176,7 @@ Response shape:
 
 ### `POST /office/advances`
 
-Office-session protected endpoint that records an advance given to a supplier for an effective month.
+Office-session protected endpoint that records an advance given to a supplier for an effective month. Closed effective months reject new advances until an admin reopens the Green Leaf Book month.
 
 Payload:
 
@@ -181,7 +191,7 @@ Payload:
 
 ### `GET /office/advance-suggestion?month=YYYY-MM&supplierId=supplier-id`
 
-Office-session protected endpoint that suggests an advance amount from the supplier's current month kg multiplied by the effective supplier price, minus pending arrears and advances already given for that supplier/month.
+Office-session protected endpoint that suggests an advance amount using unpaid positive balances from the selected effective month through the current month. Months already paid through `supplier_payments` or closed through `month_closures` are excluded. The calculation uses the same Green Leaf Book payable balance logic, including special prices, 2% deduction, transport additions/deductions, prior advances, fertilizer, made tea packets, and arrears.
 
 ### `POST /office/fertilizer-issues`
 
@@ -397,6 +407,7 @@ Accepts finalized desktop data for cloud sync. The desktop sync payload should i
 - `teaPackets`
 - `supplierPayments`
 - `arrears`
+- `monthClosures`
 
 Office-user records sync with password hashes, not plain-text passwords. The response includes the backend office-user directory as `officeUsers` so the desktop app can import web-created office users locally.
 
@@ -408,7 +419,7 @@ Desktop-session protected endpoint on the local desktop sync server. Posts the d
 
 By default this endpoint runs an incremental sync from the last successful cloud-sync cursor. Send `fullSync: true` to resend all Green Leaf Book source data and office users.
 
-Incremental Green Leaf Book sync still resends display/reference and adjustment data, including tea lines, suppliers, monthly settings, supplier overrides, advances, fertilizer installments, made tea packets, supplier payment state, and arrears. Posted collection entries remain cursor-based. This keeps daily syncs light while ensuring hosted calculations, paid/factory row colors, special prices, arrears, and factory-owned balance exclusion do not become stale.
+Incremental Green Leaf Book sync still resends display/reference and adjustment data, including tea lines, suppliers, monthly settings, supplier overrides, advances, fertilizer installments, made tea packets, supplier payment state, arrears, and month closures. Posted collection entries remain cursor-based. This keeps daily syncs light while ensuring hosted calculations, paid/factory row colors, special prices, arrears, closed-book notes, and factory-owned balance exclusion do not become stale.
 
 In production, the desktop sync server reads these deployment settings from environment variables:
 
@@ -424,11 +435,11 @@ Request body options:
 
 ### `GET /office/cloud-sync/status`
 
-Desktop-session protected endpoint returning the last successful web-app sync and recent sync runs for the desktop status report.
+Desktop-session protected endpoint returning the last successful web-app sync and paginated sync runs for the desktop status report. Optional query parameters: `page`, `pageSize`, `status`, and `mode`.
 
 ### `GET /green-leaf-book?month=YYYY-MM`
 
-Returns a role-protected monthly green leaf book from synced backend data. The backend uses the shared Green Leaf Book calculation, applies supplier and line special prices, and calculates automatic arrears from the previous month using previous-month collection, settings, deduction, payment, and arrears inputs.
+Returns a role-protected monthly green leaf book from synced backend data. The backend uses the shared Green Leaf Book calculation, applies supplier and line special prices, calculates automatic arrears from the previous month using previous-month collection, settings, deduction, payment, and arrears inputs, and returns synced closed-book metadata when available.
 
 ### `GET /balances?month=YYYY-MM`
 

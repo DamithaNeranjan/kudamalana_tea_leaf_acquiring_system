@@ -15,6 +15,7 @@ The current suite covers:
 - selected-month Green Leaf Book rate settings
 - green leaf book fallback rows for posted entries whose supplier master row is unavailable
 - advance recording and advance payment suggestion
+- unpaid-month advance suggestion, paid/closed month exclusion, and closed Green Leaf Book edit blocking
 - fertilizer issue recording and generated monthly fertilizer deductions
 - made tea packet recording and selected-month Green Leaf Book deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
@@ -48,7 +49,7 @@ Manual desktop UI checks:
 - Login with `admin` / `admin123` and confirm the Office Users menu allows creating, editing, activating, and deactivating regular office users.
 - Login with a regular office user and confirm Office Users is visible as a read-only listing, with the Register Office User form and row actions hidden.
 - Confirm the desktop sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports; Office Users appears under Monthly Work in both the sidebar and dashboard; the section title bands are visually distinct from active menu items; the sidebar scroll reaches Audit Reports; the dashboard mirrors the same group order; and the header user button opens Profile Management.
-- In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout stays inside the panel in compact windows.
+- In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout wraps without clipping buttons or fields as the window narrows.
 - Create a tea line, then create a supplier using that registered tea line. Confirm supplier payment mode defaults to Cash and can be changed to Bank transfer.
 - Confirm supplier save rejects unregistered tea-line names.
 - Open Monthly Settings, save the selected month's green leaf price, deduction percentage, transport add, and transport deduction, then load Green Leaf Book for that month.
@@ -64,6 +65,8 @@ Manual desktop UI checks:
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
 - Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.
 - Confirm Post all opens a confirmation modal before posting all staged records.
+- After all positive balances for a month are paid, close the Green Leaf Book month, confirm the in-app warning/confirmation appears, confirm the closed note appears and month-specific edits are blocked, then log in as `admin` and reopen the month for corrections. Confirm close/reopen audit entries appear.
+- Open Sync to Web App and confirm sync run history can be filtered by status/mode and paged through with Previous/Next.
 - Open Audit Reports and confirm create/update/status-checkbox submissions, staging posts, price override batches, successful supplier bill print records, and balance payment records appear latest-first with user/action/entity/date filters. Confirm opening or expanding supplier bill print previews does not create an audit record, and password values are not shown in change details.
 
 Backend:
@@ -107,6 +110,7 @@ Manual web UI checks:
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.
 - Confirm the Green Leaf Book supplier filter narrows rows by supplier name, headers are centered, the color legend is visible, Poya day columns are lightly highlighted and override other row background colors, Total Additions appears before Total Deductions, additions are green, deductions are red, balance values are bold, paid rows are light blue, factory-owned rows are light grey, and the balance footer shows separate positive and negative totals.
 - Confirm the Green Leaf Book shows the selected month's Fertilizer and Made Tea Packets deductions before Transport Deduct.
+- Confirm synced closed months show a compact closed-book note in the web Green Leaf Book without pushing the table far down the page.
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.
 - Confirm first-of-month posted entries, such as `2026-07-01`, appear in the same month on the web Green Leaf Book after cloud sync.
 - Confirm web Balances shows whole-line bank transfer lines, supplier bank transfer rows, and factory officer cash-supplier totals for the selected month. Office users should be view-only; directors/admins should be able to add paid signals without creating desktop payment records.

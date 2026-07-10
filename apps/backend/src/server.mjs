@@ -137,6 +137,8 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         );
         return send(request, response, 200, {
           ...book,
+          closure: (input.monthClosures || []).find((closure) => closure.month === book.month && closure.closed !== false && !closure.reopenedAt) || null,
+          closed: Boolean((input.monthClosures || []).find((closure) => closure.month === book.month && closure.closed !== false && !closure.reopenedAt)),
           rows: book.rows.map((row) => ({ ...row, payment: payments.get(row.supplierId) || null }))
         });
       }

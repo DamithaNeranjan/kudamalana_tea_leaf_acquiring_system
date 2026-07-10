@@ -123,6 +123,11 @@ export function BookView() {
           <span><i className="legend-text deduction">Red values</i>deductions</span>
           <span><i className="legend-text balance">Bold values</i>balance</span>
         </div>
+        {book?.closed && (
+          <div className="book-closed-notice">
+            This month Green Leaf Book is closed. Closed by {book.closure?.closedByOfficeUserName || "office user"}.
+          </div>
+        )}
         <div className="book-wrap book-table-wrap">
           <table>
             {book && (

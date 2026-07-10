@@ -670,8 +670,8 @@ button:active {
 }
 
 .book-panel {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }
@@ -700,6 +700,19 @@ button:active {
   align-items: center;
   display: inline-flex;
   gap: 6px;
+}
+
+.book-closed-notice {
+  align-self: start;
+  background: #fff7df;
+  border: 1px solid #d6a84f;
+  border-radius: 8px;
+  color: #68470d;
+  font-weight: 700;
+  margin-bottom: 10px;
+  max-width: 760px;
+  padding: 10px 12px;
+  width: fit-content;
 }
 
 .legend-swatch {
@@ -740,6 +753,7 @@ button:active {
 }
 
 .book-wrap {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
 }

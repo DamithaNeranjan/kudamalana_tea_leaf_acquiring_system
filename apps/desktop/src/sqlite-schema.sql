@@ -174,6 +174,19 @@ CREATE TABLE supplier_payments (
   UNIQUE (supplier_id, month)
 );
 
+CREATE TABLE month_closures (
+  id TEXT PRIMARY KEY,
+  month TEXT NOT NULL UNIQUE,
+  closed_at TEXT NOT NULL,
+  closed_by_office_user_id TEXT,
+  closed_by_office_user_name TEXT,
+  reopened_at TEXT,
+  reopened_by_office_user_id TEXT,
+  reopened_by_office_user_name TEXT,
+  note TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE audit_log (
   id TEXT PRIMARY KEY,
   user_id TEXT,

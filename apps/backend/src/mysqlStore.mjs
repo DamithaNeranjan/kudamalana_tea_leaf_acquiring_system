@@ -657,6 +657,44 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
     }
   }
 
+  async function upsertMonthClosures(conn, records = []) {
+    for (const record of records) {
+      if (!record.id) {
+        const error = new Error("Synced records must include ids");
+        error.status = 400;
+        throw error;
+      }
+      await conn.execute(
+        `INSERT INTO month_closures (
+          id, month, closed_at, closed_by_office_user_id, closed_by_office_user_name,
+          reopened_at, reopened_by_office_user_id, reopened_by_office_user_name, note, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          closed_at = VALUES(closed_at),
+          closed_by_office_user_id = VALUES(closed_by_office_user_id),
+          closed_by_office_user_name = VALUES(closed_by_office_user_name),
+          reopened_at = VALUES(reopened_at),
+          reopened_by_office_user_id = VALUES(reopened_by_office_user_id),
+          reopened_by_office_user_name = VALUES(reopened_by_office_user_name),
+          note = VALUES(note),
+          updated_at = VALUES(updated_at)`,
+        [
+          record.id,
+          record.month,
+          toMysqlDateTime(record.closedAt || record.closed_at),
+          record.closedByOfficeUserId || record.closed_by_office_user_id || null,
+          record.closedByOfficeUserName || record.closed_by_office_user_name || null,
+          record.reopenedAt || record.reopened_at ? toMysqlDateTime(record.reopenedAt || record.reopened_at) : null,
+          record.reopenedByOfficeUserId || record.reopened_by_office_user_id || null,
+          record.reopenedByOfficeUserName || record.reopened_by_office_user_name || null,
+          record.note || null,
+          record.updatedAt || record.updated_at ? toMysqlDateTime(record.updatedAt || record.updated_at) : toMysqlDateTime()
+        ]
+      );
+    }
+  }
+
   return {
     async close() {
       await pool.end();
@@ -859,6 +897,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           ["effective_month", (item) => item.effectiveMonth || item.effective_month]
         ]);
         await upsertSupplierPayments(conn, payload.supplierPayments);
+        await upsertMonthClosures(conn, payload.monthClosures);
         await upsertMoneyRows(conn, "arrears_ledger", payload.arrears, [
           ["supplier_id", (item) => item.supplierId || item.supplier_id],
           ["effective_month", (item) => item.effectiveMonth || item.effective_month],
@@ -880,7 +919,8 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             teaPackets: payload.teaPackets?.length || 0,
             supplierPayments: payload.supplierPayments?.length || 0,
             supplierMonthOverrides: payload.supplierMonthOverrides?.length || 0,
-            arrears: payload.arrears?.length || 0
+            arrears: payload.arrears?.length || 0,
+            monthClosures: payload.monthClosures?.length || 0
           }
         };
         await conn.execute(
@@ -920,20 +960,15 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         const previousMonth = previousMonthValue(month);
         const [teaLines] = await conn.execute("SELECT * FROM tea_lines WHERE active = TRUE ORDER BY name");
         const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE ORDER BY code");
-        const [entries] = await conn.execute(
-          "SELECT * FROM collection_entries WHERE collection_date >= ? AND collection_date < DATE_ADD(?, INTERVAL 1 MONTH)",
-          [`${previousMonth}-01`, `${month}-01`]
-        );
-        const [settingsRows] = await conn.execute("SELECT * FROM monthly_settings WHERE month IN (?, ?)", [previousMonth, month]);
-        const [overrides] = await conn.execute("SELECT * FROM supplier_month_overrides WHERE month IN (?, ?)", [previousMonth, month]);
-        const [advances] = await conn.execute("SELECT * FROM advances WHERE effective_month IN (?, ?)", [previousMonth, month]);
-        const [fertilizerInstallments] = await conn.execute(
-          "SELECT * FROM fertilizer_installments WHERE effective_month IN (?, ?)",
-          [previousMonth, month]
-        );
-        const [teaPackets] = await conn.execute("SELECT * FROM tea_packets WHERE effective_month IN (?, ?)", [previousMonth, month]);
-        const [supplierPayments] = await conn.execute("SELECT * FROM supplier_payments WHERE month IN (?, ?)", [previousMonth, month]);
-        const [arrears] = await conn.execute("SELECT * FROM arrears_ledger WHERE effective_month IN (?, ?)", [previousMonth, month]);
+        const [entries] = await conn.execute("SELECT * FROM collection_entries WHERE collection_date >= ?", [`${previousMonth}-01`]);
+        const [settingsRows] = await conn.execute("SELECT * FROM monthly_settings");
+        const [overrides] = await conn.execute("SELECT * FROM supplier_month_overrides");
+        const [advances] = await conn.execute("SELECT * FROM advances");
+        const [fertilizerInstallments] = await conn.execute("SELECT * FROM fertilizer_installments");
+        const [teaPackets] = await conn.execute("SELECT * FROM tea_packets");
+        const [supplierPayments] = await conn.execute("SELECT * FROM supplier_payments");
+        const [arrears] = await conn.execute("SELECT * FROM arrears_ledger");
+        const [monthClosures] = await conn.execute("SELECT * FROM month_closures");
 
         return {
           month,
@@ -1022,6 +1057,19 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             effectiveMonth: row.effective_month,
             amount: numberOrDefault(row.amount),
             note: row.note
+          })),
+          monthClosures: monthClosures.map((row) => ({
+            id: row.id,
+            month: row.month,
+            closedAt: row.closed_at,
+            closedByOfficeUserId: row.closed_by_office_user_id,
+            closedByOfficeUserName: row.closed_by_office_user_name,
+            reopenedAt: row.reopened_at || undefined,
+            reopenedByOfficeUserId: row.reopened_by_office_user_id,
+            reopenedByOfficeUserName: row.reopened_by_office_user_name,
+            note: row.note,
+            updatedAt: row.updated_at,
+            closed: !row.reopened_at
           }))
         };
       } finally {

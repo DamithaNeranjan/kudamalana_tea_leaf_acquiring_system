@@ -35,6 +35,7 @@ export function createMemoryStore() {
   const factoryOfficerTransferSignals = new Map();
   const advanceSignals = new Map();
   const arrears = new Map();
+  const monthClosures = new Map();
   const syncLog = [];
 
   const superAdmin = {
@@ -319,6 +320,7 @@ export function createMemoryStore() {
     upsertMany(teaPackets, payload.teaPackets);
     upsertMany(supplierPayments, payload.supplierPayments);
     upsertMany(arrears, payload.arrears);
+    upsertMany(monthClosures, payload.monthClosures);
     upsertMany(supplierMonthOverrides, payload.supplierMonthOverrides);
     for (const setting of payload.monthlySettings || []) {
       monthlySettings.set(setting.month, setting);
@@ -337,7 +339,8 @@ export function createMemoryStore() {
         teaPackets: payload.teaPackets?.length || 0,
         supplierPayments: payload.supplierPayments?.length || 0,
         supplierMonthOverrides: payload.supplierMonthOverrides?.length || 0,
-        arrears: payload.arrears?.length || 0
+        arrears: payload.arrears?.length || 0,
+        monthClosures: payload.monthClosures?.length || 0
       },
       officeUsers: syncedOfficeUsers()
     };
@@ -463,8 +466,9 @@ export function createMemoryStore() {
         advances: [...advances.values()],
         fertilizerInstallments: [...fertilizerInstallments.values()],
         teaPackets: [...teaPackets.values()],
-        supplierPayments: [...supplierPayments.values()].filter((payment) => [previousMonth, normalizedMonth].includes(payment.month)),
-        arrears: [...arrears.values()]
+        supplierPayments: [...supplierPayments.values()],
+        arrears: [...arrears.values()],
+        monthClosures: [...monthClosures.values()]
       };
     },
 

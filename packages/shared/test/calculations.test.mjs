@@ -167,6 +167,35 @@ test("advance suggestion follows the green leaf payable balance", () => {
   assert.equal(suggestion.totalAdvances, 1000);
 });
 
+test("advance suggestion includes unpaid balances since the selected month", () => {
+  const baseInput = {
+    month: "2026-05",
+    asOfMonth: "2026-06",
+    supplierId: "sup_1",
+    suppliers: [{ ...suppliers[0], deductionEnabled: false, ownTransportAdditionEnabled: false }],
+    entries: [
+      { supplierId: "sup_1", collectionDate: "2026-05-01", netWeightKg: 5 },
+      { supplierId: "sup_1", collectionDate: "2026-06-01", netWeightKg: 2.5 }
+    ]
+  };
+
+  assert.equal(suggestAdvancePayment(baseInput).suggestedAmount, 1500);
+  assert.equal(
+    suggestAdvancePayment({
+      ...baseInput,
+      supplierPayments: [{ supplierId: "sup_1", month: "2026-05", amount: 1000 }]
+    }).suggestedAmount,
+    500
+  );
+  assert.equal(
+    suggestAdvancePayment({
+      ...baseInput,
+      monthClosures: [{ id: "close_2026_05", month: "2026-05", closedAt: "2026-06-01T00:00:00.000Z" }]
+    }).suggestedAmount,
+    500
+  );
+});
+
 test("factory-owned suppliers keep details but do not calculate payable balance", () => {
   const book = buildGreenLeafBook({
     month: "2026-05",

@@ -316,7 +316,12 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.data);
         }
         if (request.method === "GET" && url.pathname === "/office/cloud-sync/status") {
-          return send(response, 200, store.cloudSyncStatus());
+          return send(response, 200, store.cloudSyncStatus({
+            page: url.searchParams.get("page"),
+            pageSize: url.searchParams.get("pageSize"),
+            status: url.searchParams.get("status"),
+            mode: url.searchParams.get("mode")
+          }));
         }
         if (request.method === "POST" && url.pathname === "/office/cloud-sync") {
           const payload = await body(request);
@@ -403,6 +408,36 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
           const month = url.searchParams.get("month");
           return send(response, 200, store.greenLeafBook(month));
+        }
+        if (request.method === "POST" && url.pathname === "/office/green-leaf-book/close") {
+          const payload = await body(request);
+          const result = store.closeGreenLeafBook(payload.month, session.user, payload.note);
+          logAudit(session, {
+            action: "close",
+            entityType: "green_leaf_book",
+            entityId: result.month,
+            entityLabel: result.month,
+            summary: `Closed Green Leaf Book for ${result.month}`,
+            before: null,
+            after: result
+          });
+          return send(response, 201, result);
+        }
+        if (request.method === "POST" && url.pathname === "/office/green-leaf-book/reopen") {
+          requireDesktopAdmin(session);
+          const payload = await body(request);
+          const before = store.monthClosure(payload.month);
+          const result = store.reopenGreenLeafBook(payload.month, session.user, payload.note);
+          logAudit(session, {
+            action: "reopen",
+            entityType: "green_leaf_book",
+            entityId: result.month,
+            entityLabel: result.month,
+            summary: `Reopened Green Leaf Book for ${result.month}`,
+            before,
+            after: result
+          });
+          return send(response, 200, result);
         }
         if (request.method === "GET" && url.pathname === "/office/month-end-summary") {
           const month = url.searchParams.get("month");

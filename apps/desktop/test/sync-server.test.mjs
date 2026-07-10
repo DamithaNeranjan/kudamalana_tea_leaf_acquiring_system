@@ -261,6 +261,28 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     const paidBook = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
     assert.equal(paidBook.rows[0].payment.amount, 1800);
 
+    const closeBook = await fetch(`${baseUrl}/office/green-leaf-book/close`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ month: "2026-05", note: "Completed May payments" })
+    });
+    assert.equal(closeBook.status, 201);
+    const closedBook = await (await fetch(`${baseUrl}/office/green-leaf-book?month=2026-05`, { headers: auth })).json();
+    assert.equal(closedBook.closed, true);
+    const blockedClosedAdvance = await fetch(`${baseUrl}/office/advances`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ supplierId: "sup_1", effectiveMonth: "2026-05", date: "2026-05-18", amount: 100 })
+    });
+    assert.equal(blockedClosedAdvance.status, 409);
+    const reopenBook = await fetch(`${baseUrl}/office/green-leaf-book/reopen`, {
+      method: "POST",
+      headers: adminAuth,
+      body: JSON.stringify({ month: "2026-05", note: "Correction needed" })
+    });
+    assert.equal(reopenBook.status, 200);
+    assert.equal((await reopenBook.json()).closed, false);
+
     const extraAdvance = await fetch(`${baseUrl}/office/advances`, {
       method: "POST",
       headers: auth,

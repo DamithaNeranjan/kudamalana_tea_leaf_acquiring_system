@@ -10,6 +10,7 @@ let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
 let paymentSupplierChoices = [];
 let pendingSupplierBillPrintAudit = null;
+let pendingBookAction = null;
 const filters = {
   officeUserName: "",
   teaLineName: "",
@@ -26,6 +27,11 @@ const filters = {
   paymentLine: "",
   paymentMonth: "",
   paymentScope: "",
+  stagingSupplier: "",
+  stagingLine: "",
+  stagingDate: "",
+  cloudSyncStatus: "",
+  cloudSyncMode: "",
   auditUser: "",
   auditAction: "",
   auditEntity: "",
@@ -46,6 +52,7 @@ const listPages = {
   teaPackets: 1,
   staging: 1,
   payments: 1,
+  cloudSync: 1,
   audit: 1
 };
 
@@ -304,6 +311,10 @@ document.addEventListener("click", (event) => {
     renderAuditLogs();
     return;
   }
+  if (pageKey === "cloudSync") {
+    loadCloudSyncStatus().catch((error) => showToast(error.message, "error"));
+    return;
+  }
   if (!latestState) return;
   renderStateTables(latestState);
 });
@@ -320,6 +331,29 @@ for (const [selector, key] of [
     filters[key] = event.target.value.trim().toLowerCase();
     recordsPage = 1;
     if (latestState) renderCollectionRecords(latestState.collectionEntries);
+  });
+}
+
+for (const [selector, key] of [
+  ["#stagingSupplierFilter", "stagingSupplier"],
+  ["#stagingLineFilter", "stagingLine"],
+  ["#stagingDateFilter", "stagingDate"]
+]) {
+  document.querySelector(selector).addEventListener("input", (event) => {
+    filters[key] = event.target.value.trim().toLowerCase();
+    listPages.staging = 1;
+    if (latestState) renderStaging(latestState);
+  });
+}
+
+for (const [selector, key] of [
+  ["#cloudSyncStatusFilter", "cloudSyncStatus"],
+  ["#cloudSyncModeFilter", "cloudSyncMode"]
+]) {
+  document.querySelector(selector).addEventListener("change", (event) => {
+    filters[key] = event.target.value;
+    listPages.cloudSync = 1;
+    loadCloudSyncStatus().catch((error) => showToast(error.message, "error"));
   });
 }
 
@@ -431,9 +465,17 @@ function renderOfficeUsers(state) {
 }
 
 function renderStaging(state) {
+  const supplier = filters.stagingSupplier;
+  const line = filters.stagingLine;
+  const date = filters.stagingDate;
   const pageRows = paginateList(
     "staging",
-    state.collectionStaging.slice().sort((a, b) => compareNewestFirst(a, b, "importedAt")),
+    state.collectionStaging
+      .filter((row) => `${row.supplierName || ""} ${row.supplierCode || ""}`.toLowerCase().includes(supplier))
+      .filter((row) => String(row.lineName || "").toLowerCase().includes(line))
+      .filter((row) => !date || row.collectionDate === date)
+      .slice()
+      .sort((a, b) => compareNewestFirst(a, b, "importedAt")),
     "stagingTable"
   );
   document.querySelector("#stagingTable tbody").innerHTML = pageRows
@@ -855,10 +897,19 @@ function renderCloudSyncStatus(status) {
       </tr>`
     )
     .join("");
+  const pagination = status.pagination || { page: 1, totalPages: 1, totalRows: (status.recentRuns || []).length };
+  document.querySelector("#cloudSyncPageInfo").textContent =
+    pagination.totalRows ? `Page ${pagination.page} of ${pagination.totalPages} (${pagination.totalRows} runs)` : "No sync runs";
 }
 
 async function loadCloudSyncStatus() {
-  const status = await api("/office/cloud-sync/status");
+  const params = new URLSearchParams({
+    page: String(listPages.cloudSync || 1),
+    pageSize: String(listPageSize)
+  });
+  if (filters.cloudSyncStatus) params.set("status", filters.cloudSyncStatus);
+  if (filters.cloudSyncMode) params.set("mode", filters.cloudSyncMode);
+  const status = await api(`/office/cloud-sync/status?${params.toString()}`);
   renderCloudSyncStatus(status);
 }
 
@@ -1433,6 +1484,12 @@ document.querySelector("#confirmPostAll").addEventListener("click", postAllStagi
 document.querySelector("#confirmPostAllModal").addEventListener("click", (event) => {
   if (event.target.id === "confirmPostAllModal") closePostAllModal();
 });
+document.querySelector("#cancelBookAction").addEventListener("click", closeBookActionModal);
+document.querySelector("#cancelBookActionTop").addEventListener("click", closeBookActionModal);
+document.querySelector("#confirmBookAction").addEventListener("click", confirmBookAction);
+document.querySelector("#bookActionModal").addEventListener("click", (event) => {
+  if (event.target.id === "bookActionModal") closeBookActionModal();
+});
 
 document.querySelector("#recordsPrevPage").addEventListener("click", () => {
   recordsPage = Math.max(1, recordsPage - 1);
@@ -1450,6 +1507,8 @@ document.querySelector("#loadBook").addEventListener("click", async () => {
   populateBookPaymentForm();
   renderGreenLeafBook();
 });
+document.querySelector("#closeBook").addEventListener("click", closeLoadedBook);
+document.querySelector("#reopenBook").addEventListener("click", reopenLoadedBook);
 
 document.querySelector("#bookSupplierFilter").addEventListener("input", renderGreenLeafBook);
 document.querySelector("#bookLineFilter").addEventListener("input", renderGreenLeafBook);
@@ -1469,6 +1528,13 @@ window.addEventListener("afterprint", recordSupplierBillPrintAudit);
 function renderGreenLeafBook() {
   const book = latestBook;
   if (!book) return;
+  const notice = document.querySelector("#bookClosedNotice");
+  notice.classList.toggle("hidden", !book.closed);
+  notice.textContent = book.closed
+    ? `This month Green Leaf Book is closed. Closed by ${book.closure?.closedByOfficeUserName || "office user"} on ${formatDateTime(book.closure?.closedAt)}.`
+    : "";
+  document.querySelector("#closeBook").classList.toggle("hidden", book.closed);
+  document.querySelector("#reopenBook").classList.toggle("hidden", !book.closed || !isDesktopAdmin());
   const supplierFilter = document.querySelector("#bookSupplierFilter").value.trim().toLowerCase();
   const lineFilter = document.querySelector("#bookLineFilter").value.trim().toLowerCase();
   const excludeFactoryFromTotals = document.querySelector("#excludeFactorySuppliersFromTotals").checked;
@@ -1573,16 +1639,22 @@ function sumNumbers(values) {
   return values.reduce((total, value) => total + Number(value || 0), 0);
 }
 
-function populateBookPaymentForm() {
+function populateBookPaymentForm({ preservePaymentSelection = true } = {}) {
   const form = document.querySelector("#bookPaymentForm");
   const rows = latestBook?.rows || [];
   const paymentRows = rows.filter((row) => !row.balanceExcluded);
   const payableRows = paymentRows.filter((row) => Number(row.balanceToPay || 0) > 0);
-  const selectedPaymentSupplier = form.elements.supplierId.value;
-  const selectedPaymentSupplierLabel = document.querySelector("#paymentSupplierSearch").value;
-  const selectedPaymentLine = form.elements.lineName.value;
+  const selectedPaymentSupplier = preservePaymentSelection ? form.elements.supplierId.value : "";
+  const selectedPaymentSupplierLabel = preservePaymentSelection ? document.querySelector("#paymentSupplierSearch").value : "";
+  const selectedPaymentLine = preservePaymentSelection ? form.elements.lineName.value : "";
   const selectedSummarySupplier = document.querySelector("#billSummarySupplier").value;
   const selectedSummaryLine = document.querySelector("#billSummaryLine").value;
+  if (!preservePaymentSelection) {
+    form.elements.scope.value = "supplier";
+    form.elements.amount.value = "";
+    form.elements.note.value = "";
+  }
+  document.querySelector("#paymentRecordMonth").value = latestBook?.month || document.querySelector("#paymentRecordMonth").value;
   form.elements.paidAt.value = localDateValue();
   paymentSupplierChoices = paymentRows.map((row) => {
     const balance = Number(row.balanceToPay || 0);
@@ -1619,6 +1691,58 @@ function populateBookPaymentForm() {
   if (lineNames.includes(selectedSummaryLine)) document.querySelector("#billSummaryLine").value = selectedSummaryLine;
   updateBookPaymentScope();
   updateBillSummaryScope();
+  form.querySelectorAll("input, select, button").forEach((control) => {
+    control.disabled = Boolean(latestBook?.closed);
+  });
+}
+
+function openBookActionModal(action) {
+  if (!latestBook) {
+    showToast("Load a Green Leaf Book month first.", "error");
+    return;
+  }
+  pendingBookAction = { action, month: latestBook.month };
+  const isClose = action === "close";
+  document.querySelector("#bookActionTitle").textContent = isClose ? `Close ${latestBook.month} Green Leaf Book?` : `Reopen ${latestBook.month} Green Leaf Book?`;
+  document.querySelector("#bookActionMessage").textContent = isClose
+    ? "Please confirm carefully. After this month is closed, regular office users cannot reopen it; only an admin can reopen it for corrections."
+    : "Reopening allows changes to be made again for this month and will be recorded in the audit report.";
+  document.querySelector("#bookActionNote").value = "";
+  document.querySelector("#confirmBookAction").textContent = isClose ? "Close month" : "Reopen month";
+  document.querySelector("#bookActionModal").classList.remove("hidden");
+}
+
+function closeBookActionModal() {
+  pendingBookAction = null;
+  document.querySelector("#bookActionModal").classList.add("hidden");
+}
+
+async function confirmBookAction() {
+  if (!pendingBookAction) return;
+  const { action, month } = pendingBookAction;
+  const note = document.querySelector("#bookActionNote").value;
+  const endpoint = action === "close" ? "/office/green-leaf-book/close" : "/office/green-leaf-book/reopen";
+  try {
+    await api(endpoint, {
+      method: "POST",
+      body: JSON.stringify({ month, note })
+    });
+    latestBook = await api(`/office/green-leaf-book?month=${month}`);
+    populateBookPaymentForm();
+    renderGreenLeafBook();
+    closeBookActionModal();
+    showToast(action === "close" ? "Green Leaf Book closed." : "Green Leaf Book reopened.");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function closeLoadedBook() {
+  openBookActionModal("close");
+}
+
+function reopenLoadedBook() {
+  openBookActionModal("reopen");
 }
 
 function updateBookPaymentScope() {
@@ -1673,6 +1797,10 @@ async function recordBookPayment(event) {
     showToast("Generate summaries first.", "error");
     return;
   }
+  if (latestBook.closed) {
+    showToast("This Green Leaf Book month is closed.", "error");
+    return;
+  }
   const form = event.currentTarget;
   const payload = formPayload(form);
   payload.month = latestBook.month;
@@ -1688,7 +1816,7 @@ async function recordBookPayment(event) {
   latestBook = await api(`/office/green-leaf-book?month=${latestBook.month}`);
   latestMonthEndSummary = await api(`/office/month-end-summary?month=${latestBook.month}`);
   await refreshState();
-  populateBookPaymentForm();
+  populateBookPaymentForm({ preservePaymentSelection: false });
   renderGreenLeafBook();
   renderMonthEndSummary();
   showToast("Payment recorded.");

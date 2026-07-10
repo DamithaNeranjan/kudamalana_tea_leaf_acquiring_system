@@ -648,6 +648,20 @@
             </div>
           </div>
           <section class="panel">
+            <div class="filter-grid compact-filter-grid">
+              <label>
+                Supplier
+                <input id="stagingSupplierFilter" placeholder="Name or code" />
+              </label>
+              <label>
+                Tea line
+                <input id="stagingLineFilter" placeholder="Line name" />
+              </label>
+              <label>
+                Collection date
+                <input id="stagingDateFilter" type="date" />
+              </label>
+            </div>
             <table id="stagingTable">
               <thead>
                 <tr>
@@ -741,6 +755,8 @@
               <input id="bookLineFilter" placeholder="Filter line name" />
               <label class="switch-row inline-switch"><input id="excludeFactorySuppliersFromTotals" type="checkbox" checked /> Exclude factory suppliers from totals</label>
               <button id="loadBook">Load month</button>
+              <button id="closeBook" type="button">Close month</button>
+              <button id="reopenBook" class="secondary-button hidden" type="button">Reopen month</button>
             </div>
             <div class="book-legend" aria-label="Green Leaf Book color legend">
               <span><i class="legend-swatch poya"></i>Poya day</span>
@@ -750,6 +766,7 @@
               <span><i class="legend-text deduction">Red text</i>Deductions / negative balance total</span>
               <span><i class="legend-text balance">Bold text</i>Balance</span>
             </div>
+            <div id="bookClosedNotice" class="book-closed-notice hidden"></div>
             <div class="book-wrap">
               <table id="bookTable"></table>
             </div>
@@ -782,6 +799,25 @@
               <span id="cloudSyncMessage" class="message"></span>
             </div>
             <div class="table-scroll">
+              <div class="filter-grid compact-filter-grid">
+                <label>
+                  Status
+                  <select id="cloudSyncStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="running">Running</option>
+                  </select>
+                </label>
+                <label>
+                  Mode
+                  <select id="cloudSyncModeFilter">
+                    <option value="">All modes</option>
+                    <option value="full">Full</option>
+                    <option value="incremental">Incremental</option>
+                  </select>
+                </label>
+              </div>
               <table id="cloudSyncRunsTable">
                 <thead>
                   <tr>
@@ -795,6 +831,13 @@
                 </thead>
                 <tbody></tbody>
               </table>
+            </div>
+            <div class="pagination-bar">
+              <span id="cloudSyncPageInfo">No sync runs</span>
+              <div class="pagination-actions">
+                <button class="ghost-button" type="button" data-page-key="cloudSync" data-page-dir="-1">Previous</button>
+                <button class="ghost-button" type="button" data-page-key="cloudSync" data-page-dir="1">Next</button>
+              </div>
             </div>
           </section>
         </section>
@@ -1012,6 +1055,27 @@
         <div class="modal-actions">
           <button id="cancelPostAll" class="ghost-button" type="button">Cancel</button>
           <button id="confirmPostAll" type="button">Post all records</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="bookActionModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="bookActionTitle">
+      <section class="modal confirmation-modal">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow">Green Leaf Book</span>
+            <h2 id="bookActionTitle">Confirm action</h2>
+          </div>
+          <button id="cancelBookActionTop" class="ghost-button" type="button">Close</button>
+        </div>
+        <p id="bookActionMessage"></p>
+        <label>
+          Note
+          <textarea id="bookActionNote" rows="3" placeholder="Optional note"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button id="cancelBookAction" class="ghost-button" type="button">Cancel</button>
+          <button id="confirmBookAction" type="button">Confirm</button>
         </div>
       </section>
     </div>

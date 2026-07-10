@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears, makeId, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
@@ -33,6 +33,7 @@ export function createMemoryStore() {
   const supplierPayments = new Map();
   const balanceTransferSignals = new Map();
   const factoryOfficerTransferSignals = new Map();
+  const advanceSignals = new Map();
   const arrears = new Map();
   const syncLog = [];
 
@@ -245,6 +246,69 @@ export function createMemoryStore() {
     };
   }
 
+  function activeSuppliers() {
+    return [...suppliers.values()]
+      .filter((supplier) => supplier.active !== false)
+      .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")));
+  }
+
+  function activeTeaLines() {
+    return [...teaLines.values()]
+      .filter((line) => line.active !== false)
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }
+
+  function supplierAdvanceBreakdown(input, supplier) {
+    const suggestion = suggestAdvancePayment({ ...input, supplierId: supplier.id });
+    return {
+      supplierId: supplier.id,
+      supplierCode: supplier.code,
+      supplierName: supplier.name,
+      lineId: supplier.lineId,
+      lineName: supplier.lineName,
+      suggestedAmount: suggestion.suggestedAmount,
+      leafValue: suggestion.leafValue,
+      arrearsCarriedForward: suggestion.arrearsCarriedForward,
+      totalAdvances: suggestion.totalAdvances
+    };
+  }
+
+  function advanceSuggestion(input, scope, targetId) {
+    if (scope === "line") {
+      const line = activeTeaLines().find((item) => item.id === targetId || item.name === targetId);
+      if (!line) {
+        const error = new Error("Tea line not found");
+        error.status = 404;
+        throw error;
+      }
+      const breakdown = activeSuppliers()
+        .filter((supplier) => supplier.lineId === line.id || supplier.lineName === line.name)
+        .map((supplier) => supplierAdvanceBreakdown(input, supplier))
+        .filter((item) => item.leafValue > 0 || item.arrearsCarriedForward > 0 || item.totalAdvances > 0 || item.suggestedAmount > 0);
+      return {
+        scope: "line",
+        targetId: line.id,
+        targetLabel: line.name,
+        suggestedAmount: money(breakdown.reduce((total, item) => total + Number(item.suggestedAmount || 0), 0)),
+        breakdown
+      };
+    }
+    const supplier = activeSuppliers().find((item) => item.id === targetId);
+    if (!supplier) {
+      const error = new Error("Supplier not found");
+      error.status = 404;
+      throw error;
+    }
+    const breakdown = [supplierAdvanceBreakdown(input, supplier)];
+    return {
+      scope: "supplier",
+      targetId: supplier.id,
+      targetLabel: `${supplier.code || ""} ${supplier.name || ""}`.trim(),
+      suggestedAmount: breakdown[0].suggestedAmount,
+      breakdown
+    };
+  }
+
   function syncDesktopPayload(actor, payload) {
     upsertOfficeUsers(payload.officeUsers);
     upsertMany(teaLines, payload.teaLines);
@@ -407,6 +471,61 @@ export function createMemoryStore() {
     getBalances(sessionToken, month) {
       const input = this.getGreenLeafInput(sessionToken, month);
       return buildBalances(input, balanceTransferSignals, [...factoryOfficerTransferSignals.values()]);
+    },
+
+    listAdvanceSignals(sessionToken) {
+      requireRole(sessionToken, ["super_admin", "office_user", "director"]);
+      return {
+        suppliers: activeSuppliers().map((supplier) => ({
+          id: supplier.id,
+          code: supplier.code,
+          name: supplier.name,
+          lineId: supplier.lineId,
+          lineName: supplier.lineName
+        })),
+        teaLines: activeTeaLines().map((line) => ({
+          id: line.id,
+          name: line.name
+        })),
+        signals: [...advanceSignals.values()].sort((a, b) => new Date(b.markedAt) - new Date(a.markedAt))
+      };
+    },
+
+    getAdvanceSuggestion(sessionToken, input) {
+      requireRole(sessionToken, ["super_admin", "office_user", "director"]);
+      const month = normalizeMonth(input.month);
+      return advanceSuggestion(this.getGreenLeafInput(sessionToken, month), input.scope === "line" ? "line" : "supplier", input.targetId);
+    },
+
+    createAdvanceSignal(sessionToken, input) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const effectiveMonth = normalizeMonth(input.effectiveMonth);
+      const scope = input.scope === "line" ? "line" : "supplier";
+      const targetId = String(input.targetId || "").trim();
+      const amount = money(input.amount);
+      if (!targetId || !input.dateGiven || amount <= 0) {
+        const error = new Error("scope, target, effectiveMonth, dateGiven, and amount are required");
+        error.status = 400;
+        throw error;
+      }
+      const suggestion = advanceSuggestion(this.getGreenLeafInput(sessionToken, effectiveMonth), scope, targetId);
+      const signal = {
+        id: makeId("advance_signal"),
+        scope,
+        targetId: suggestion.targetId,
+        targetLabel: suggestion.targetLabel,
+        effectiveMonth,
+        dateGiven: String(input.dateGiven).slice(0, 10),
+        suggestedAmount: money(suggestion.suggestedAmount),
+        amount,
+        breakdown: suggestion.breakdown,
+        comment: input.comment || "",
+        markedAt: new Date().toISOString(),
+        markedByUserId: user.id,
+        markedByDisplayName: user.displayName || user.username
+      };
+      advanceSignals.set(signal.id, signal);
+      return signal;
     },
 
     markBalancePaid(sessionToken, input) {

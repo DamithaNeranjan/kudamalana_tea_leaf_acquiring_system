@@ -473,6 +473,33 @@ Payload:
 }
 ```
 
+### `GET /advance-signals`
+
+Returns supplier and tea-line choices plus latest-first web advance signals. Office users, directors, and super admins can view it.
+
+### `GET /advance-signals/suggestion?scope=supplier|line&targetId=id&month=YYYY-MM`
+
+Returns the suggested advance amount for a supplier or tea line. Supplier suggestions use the shared advance-suggestion logic from the desktop app. Line suggestions sum each active supplier's suggestion for that line and include a `breakdown` array with supplier, leaf value, arrears, existing advances, and suggested amount.
+
+### `POST /advance-signals`
+
+Director/super-admin endpoint that records a web-only advance signal. This does not create or update desktop advance records.
+
+Payload:
+
+```json
+{
+  "scope": "supplier",
+  "targetId": "supplier-id",
+  "effectiveMonth": "2026-06",
+  "dateGiven": "2026-06-15",
+  "amount": 5000,
+  "comment": "Requested by director"
+}
+```
+
+Use `"scope": "line"` with a tea-line id for line advance signals.
+
 ## Authentication Notes
 
 - API clients can authenticate with `Authorization: Bearer <token>`.

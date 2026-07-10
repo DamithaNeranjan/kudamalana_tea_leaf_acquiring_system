@@ -949,6 +949,43 @@ button:active {
   flex-wrap: wrap;
 }
 
+.advances-view {
+  align-content: start;
+}
+
+.advance-signal-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.advance-signal-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(170px, 1fr)) auto;
+}
+
+.advance-signal-form label {
+  color: #334231;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advance-signal-form button {
+  min-width: 130px;
+}
+
+.advance-suggestion {
+  display: grid;
+  gap: 10px;
+}
+
+.advance-suggestion strong {
+  color: var(--brand-strong);
+}
+
 .advance-breakdown {
   padding-bottom: 0;
   padding-top: 0;
@@ -1038,7 +1075,8 @@ th:nth-child(2) {
 @media (max-width: 900px) {
   .app-shell,
   .management-layout,
-  .edit-form {
+  .edit-form,
+  .advance-signal-form {
     grid-template-columns: 1fr;
   }
 

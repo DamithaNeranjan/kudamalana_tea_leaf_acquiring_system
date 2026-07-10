@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
-import { buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears, makeId, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -185,6 +185,83 @@ function mapFactoryOfficerSignal(row) {
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
     markedByDisplayName: row.marked_by_display_name
+  };
+}
+
+function parseJsonValue(value, fallback) {
+  if (!value) return fallback;
+  if (typeof value === "string") return JSON.parse(value);
+  return value;
+}
+
+function mapAdvanceSignal(row) {
+  return {
+    id: row.id,
+    scope: row.scope,
+    targetId: row.target_id,
+    targetLabel: row.target_label,
+    effectiveMonth: row.effective_month,
+    dateGiven: toDateOnly(row.date_given),
+    suggestedAmount: numberOrDefault(row.suggested_amount),
+    amount: numberOrDefault(row.amount),
+    breakdown: parseJsonValue(row.breakdown_json, []),
+    comment: row.comment || "",
+    markedAt: row.marked_at,
+    markedByUserId: row.marked_by_user_id,
+    markedByDisplayName: row.marked_by_display_name
+  };
+}
+
+function supplierAdvanceBreakdown(input, supplier) {
+  const suggestion = suggestAdvancePayment({ ...input, supplierId: supplier.id });
+  return {
+    supplierId: supplier.id,
+    supplierCode: supplier.code,
+    supplierName: supplier.name,
+    lineId: supplier.lineId,
+    lineName: supplier.lineName,
+    suggestedAmount: suggestion.suggestedAmount,
+    leafValue: suggestion.leafValue,
+    arrearsCarriedForward: suggestion.arrearsCarriedForward,
+    totalAdvances: suggestion.totalAdvances
+  };
+}
+
+function buildAdvanceSuggestion(input, scope, targetId) {
+  const suppliers = (input.suppliers || []).filter((supplier) => supplier.active !== false);
+  const lines = (input.teaLines || []).filter((line) => line.active !== false);
+  if (scope === "line") {
+    const line = lines.find((item) => item.id === targetId || item.name === targetId);
+    if (!line) {
+      const error = new Error("Tea line not found");
+      error.status = 404;
+      throw error;
+    }
+    const breakdown = suppliers
+      .filter((supplier) => supplier.lineId === line.id || supplier.lineName === line.name)
+      .map((supplier) => supplierAdvanceBreakdown(input, supplier))
+      .filter((item) => item.leafValue > 0 || item.arrearsCarriedForward > 0 || item.totalAdvances > 0 || item.suggestedAmount > 0);
+    return {
+      scope: "line",
+      targetId: line.id,
+      targetLabel: line.name,
+      suggestedAmount: money(breakdown.reduce((total, item) => total + Number(item.suggestedAmount || 0), 0)),
+      breakdown
+    };
+  }
+  const supplier = suppliers.find((item) => item.id === targetId);
+  if (!supplier) {
+    const error = new Error("Supplier not found");
+    error.status = 404;
+    throw error;
+  }
+  const breakdown = [supplierAdvanceBreakdown(input, supplier)];
+  return {
+    scope: "supplier",
+    targetId: supplier.id,
+    targetLabel: `${supplier.code || ""} ${supplier.name || ""}`.trim(),
+    suggestedAmount: breakdown[0].suggestedAmount,
+    breakdown
   };
 }
 
@@ -960,6 +1037,110 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         const [signalRows] = await conn.execute("SELECT * FROM balance_transfer_signals WHERE month = ?", [month]);
         const [factoryRows] = await conn.execute("SELECT * FROM factory_officer_transfer_signals WHERE month = ?", [month]);
         return buildBalances(input, signalRows.map(mapBalanceSignal), factoryRows.map(mapFactoryOfficerSignal));
+      } finally {
+        conn.release();
+      }
+    },
+
+    async listAdvanceSignals(sessionToken) {
+      const conn = await pool.getConnection();
+      try {
+        await requireRole(conn, sessionToken, ["super_admin", "office_user", "director"]);
+        const [suppliers] = await conn.execute(
+          `SELECT id, code, name, line_id, line_name
+           FROM suppliers
+           WHERE active = TRUE
+           ORDER BY code`
+        );
+        const [teaLines] = await conn.execute(
+          `SELECT id, name
+           FROM tea_lines
+           WHERE active = TRUE
+           ORDER BY name`
+        );
+        const [signals] = await conn.execute("SELECT * FROM advance_signals ORDER BY marked_at DESC, id DESC");
+        return {
+          suppliers: suppliers.map((row) => ({
+            id: row.id,
+            code: row.code,
+            name: row.name,
+            lineId: row.line_id,
+            lineName: row.line_name
+          })),
+          teaLines: teaLines.map((row) => ({
+            id: row.id,
+            name: row.name
+          })),
+          signals: signals.map(mapAdvanceSignal)
+        };
+      } finally {
+        conn.release();
+      }
+    },
+
+    async getAdvanceSuggestion(sessionToken, input) {
+      const month = normalizeMonth(input.month);
+      const calculationInput = await this.getGreenLeafInput(sessionToken, month);
+      return buildAdvanceSuggestion(calculationInput, input.scope === "line" ? "line" : "supplier", input.targetId);
+    },
+
+    async createAdvanceSignal(sessionToken, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const effectiveMonth = normalizeMonth(input.effectiveMonth);
+        const scope = input.scope === "line" ? "line" : "supplier";
+        const targetId = String(input.targetId || "").trim();
+        const amount = money(input.amount);
+        if (!targetId || !input.dateGiven || amount <= 0) {
+          const error = new Error("scope, target, effectiveMonth, dateGiven, and amount are required");
+          error.status = 400;
+          throw error;
+        }
+        const calculationInput = await this.getGreenLeafInput(sessionToken, effectiveMonth);
+        const suggestion = buildAdvanceSuggestion(calculationInput, scope, targetId);
+        const signal = {
+          id: makeId("advance_signal"),
+          scope,
+          targetId: suggestion.targetId,
+          targetLabel: suggestion.targetLabel,
+          effectiveMonth,
+          dateGiven: toDateOnly(input.dateGiven),
+          suggestedAmount: money(suggestion.suggestedAmount),
+          amount,
+          breakdown: suggestion.breakdown,
+          comment: input.comment || "",
+          markedAt: toMysqlDateTime(),
+          markedByUserId: user.id,
+          markedByDisplayName: user.display_name || user.username
+        };
+        await conn.execute(
+          `INSERT INTO advance_signals
+           (id, scope, target_id, target_label, effective_month, date_given, suggested_amount,
+            amount, breakdown_json, comment, marked_at, marked_by_user_id, marked_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            signal.id,
+            signal.scope,
+            signal.targetId,
+            signal.targetLabel,
+            signal.effectiveMonth,
+            signal.dateGiven,
+            signal.suggestedAmount,
+            signal.amount,
+            JSON.stringify(signal.breakdown || []),
+            signal.comment,
+            signal.markedAt,
+            signal.markedByUserId,
+            signal.markedByDisplayName
+          ]
+        );
+        await conn.commit();
+        return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
       } finally {
         conn.release();
       }

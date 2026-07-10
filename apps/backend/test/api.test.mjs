@@ -307,6 +307,79 @@ test("super admin can create directors and director can view green leaf book", a
     const signalledBalances = await signalledBalancesResponse.json();
     assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.comment, "Transferred as a whole line");
     assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 150);
+
+    const advanceSignalsListResponse = await fetch(`${baseUrl}/advance-signals`, {
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+    });
+    assert.equal(advanceSignalsListResponse.status, 200);
+    const advanceSignalsList = await advanceSignalsListResponse.json();
+    assert.ok(advanceSignalsList.suppliers.some((supplier) => supplier.id === "sup_3"));
+    assert.ok(advanceSignalsList.teaLines.some((line) => line.id === "line_b"));
+
+    const supplierAdvanceSuggestionResponse = await fetch(
+      `${baseUrl}/advance-signals/suggestion?scope=supplier&targetId=sup_3&month=2026-05`,
+      { headers: { authorization: `Bearer ${directorLogin.token}` } }
+    );
+    assert.equal(supplierAdvanceSuggestionResponse.status, 200);
+    const supplierAdvanceSuggestion = await supplierAdvanceSuggestionResponse.json();
+    assert.equal(supplierAdvanceSuggestion.suggestedAmount, 1200);
+    assert.equal(supplierAdvanceSuggestion.breakdown[0].leafValue, 1200);
+
+    const lineAdvanceSuggestionResponse = await fetch(
+      `${baseUrl}/advance-signals/suggestion?scope=line&targetId=line_b&month=2026-05`,
+      { headers: { authorization: `Bearer ${directorLogin.token}` } }
+    );
+    assert.equal(lineAdvanceSuggestionResponse.status, 200);
+    const lineAdvanceSuggestion = await lineAdvanceSuggestionResponse.json();
+    const cashSupplierBreakdown = lineAdvanceSuggestion.breakdown.find((item) => item.supplierId === "sup_4");
+    assert.equal(cashSupplierBreakdown.leafValue, 600);
+    assert.equal(cashSupplierBreakdown.arrearsCarriedForward, 200);
+    assert.equal(cashSupplierBreakdown.suggestedAmount, 400);
+
+    const officeAdvanceSignalResponse = await fetch(`${baseUrl}/advance-signals`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` },
+      body: JSON.stringify({
+        scope: "supplier",
+        targetId: "sup_3",
+        effectiveMonth: "2026-05",
+        dateGiven: "2026-05-20",
+        amount: 100
+      })
+    });
+    assert.equal(officeAdvanceSignalResponse.status, 403);
+
+    const directorAdvanceSignalResponse = await fetch(`${baseUrl}/advance-signals`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({
+        scope: "line",
+        targetId: "line_b",
+        effectiveMonth: "2026-05",
+        dateGiven: "2026-05-20",
+        amount: 300,
+        comment: "Director requested advance"
+      })
+    });
+    assert.equal(directorAdvanceSignalResponse.status, 201);
+    const directorAdvanceSignal = await directorAdvanceSignalResponse.json();
+    assert.equal(directorAdvanceSignal.scope, "line");
+    assert.equal(directorAdvanceSignal.amount, 300);
+    assert.equal(directorAdvanceSignal.suggestedAmount, lineAdvanceSuggestion.suggestedAmount);
+
+    const afterAdvanceSignalBook = await (
+      await fetch(`${baseUrl}/green-leaf-book?month=2026-05`, {
+        headers: { authorization: `Bearer ${directorLogin.token}` }
+      })
+    ).json();
+    assert.equal(afterAdvanceSignalBook.rows.find((row) => row.supplierId === "sup_4").totalAdvances, 0);
+
+    const advanceSignalsAfterCreate = await (
+      await fetch(`${baseUrl}/advance-signals`, {
+        headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+      })
+    ).json();
+    assert.equal(advanceSignalsAfterCreate.signals[0].comment, "Director requested advance");
   });
 });
 

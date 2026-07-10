@@ -3,7 +3,8 @@ export function Sidebar({ activeView, currentUser, onNavigate }) {
   const canViewOfficeUsers = ["super_admin", "director", "office_user"].includes(currentUser?.role);
   const items = [
     { id: "book", label: "Green Leaf Book" },
-    { id: "balances", label: "Balances" }
+    { id: "balances", label: "Balances" },
+    { id: "advances", label: "Advances" }
   ];
   if (canViewDirectors) items.push({ id: "directors", label: "Directors" });
   if (canViewOfficeUsers) items.push({ id: "officeUsers", label: "Office Users" });

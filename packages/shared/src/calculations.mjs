@@ -215,7 +215,7 @@ export function buildGreenLeafBookWithAutoArrears(input) {
 }
 
 export function suggestAdvancePayment(input) {
-  const book = buildGreenLeafBook(input);
+  const book = buildGreenLeafBookWithAutoArrears(input);
   const row = book.rows.find((item) => item.supplierId === input.supplierId);
   if (!row) {
     return {

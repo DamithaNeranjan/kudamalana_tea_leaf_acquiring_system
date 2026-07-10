@@ -149,6 +149,24 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       if (request.method === "POST" && url.pathname === "/balances/factory-officer-payments") {
         return send(request, response, 201, await store.addFactoryOfficerTransfer(sessionToken(request), await parseBody(request)));
       }
+      if (request.method === "GET" && url.pathname === "/advance-signals") {
+        return send(request, response, 200, await store.listAdvanceSignals(sessionToken(request)));
+      }
+      if (request.method === "GET" && url.pathname === "/advance-signals/suggestion") {
+        return send(
+          request,
+          response,
+          200,
+          await store.getAdvanceSuggestion(sessionToken(request), {
+            month: url.searchParams.get("month"),
+            scope: url.searchParams.get("scope"),
+            targetId: url.searchParams.get("targetId")
+          })
+        );
+      }
+      if (request.method === "POST" && url.pathname === "/advance-signals") {
+        return send(request, response, 201, await store.createAdvanceSignal(sessionToken(request), await parseBody(request)));
+      }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {
       return send(request, response, error.status || 500, { error: error.message || "Internal server error" });

@@ -110,3 +110,4 @@ Manual web UI checks:
 - Confirm posted mobile records visible in Collection Records are also represented in the Green Leaf Book for their collection month.
 - Confirm first-of-month posted entries, such as `2026-07-01`, appear in the same month on the web Green Leaf Book after cloud sync.
 - Confirm web Balances shows whole-line bank transfer lines, supplier bank transfer rows, and factory officer cash-supplier totals for the selected month. Office users should be view-only; directors/admins should be able to add paid signals without creating desktop payment records.
+- Confirm web Advances lets directors/admins select supplier or line scope, choose a filterable supplier/line, see suggested amounts, save an advance signal, and view it latest-first. Office users should be view-only, and saving a web advance signal must not change real desktop/web Green Leaf Book advance totals.

@@ -148,6 +148,23 @@ CREATE TABLE IF NOT EXISTS factory_officer_transfer_signals (
   marked_by_display_name VARCHAR(160)
 );
 
+CREATE TABLE IF NOT EXISTS advance_signals (
+  id VARCHAR(80) PRIMARY KEY,
+  scope VARCHAR(40) NOT NULL,
+  target_id VARCHAR(160) NOT NULL,
+  target_label VARCHAR(180) NOT NULL,
+  effective_month CHAR(7) NOT NULL,
+  date_given DATE NOT NULL,
+  suggested_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  amount DECIMAL(12,2) NOT NULL,
+  breakdown_json JSON,
+  comment VARCHAR(255),
+  marked_at DATETIME NOT NULL,
+  marked_by_user_id VARCHAR(80),
+  marked_by_display_name VARCHAR(160),
+  KEY idx_advance_signals_month (effective_month, marked_at)
+);
+
 CREATE TABLE IF NOT EXISTS arrears_ledger (
   id VARCHAR(80) PRIMARY KEY,
   supplier_id VARCHAR(80) NOT NULL,

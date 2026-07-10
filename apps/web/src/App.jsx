@@ -3,6 +3,7 @@ import { request } from "./api/client.js";
 import { Header } from "./components/Header.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
 import { ToastHost } from "./components/ToastHost.jsx";
+import { AdvancesView } from "./views/AdvancesView.jsx";
 import { BalancesView } from "./views/BalancesView.jsx";
 import { BookView } from "./views/BookView.jsx";
 import { DirectorsView } from "./views/DirectorsView.jsx";
@@ -21,6 +22,7 @@ function AppShell({ activeView, currentUser, onNavigate, showToast }) {
       <section className="content">
         {activeView === "book" && <BookView />}
         {activeView === "balances" && <BalancesView currentUser={currentUser} showToast={showToast} />}
+        {activeView === "advances" && <AdvancesView currentUser={currentUser} showToast={showToast} />}
         {activeView === "directors" && canViewDirectors && (
           <DirectorsView canManage={canManageUsers} showToast={showToast} />
         )}

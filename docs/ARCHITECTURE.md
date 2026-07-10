@@ -16,7 +16,7 @@ The desktop app is the operational source of truth while the factory is offline.
 
 The hosted backend is used for cloud backup/reporting and for the director web app.
 
-The backend stores web users, director accounts, office-user accounts, sessions, synced supplier data, collection entries, monthly settings, Green Leaf Book source data, and web-only balance-transfer signals in MySQL.
+The backend stores web users, director accounts, office-user accounts, sessions, synced supplier data, collection entries, monthly settings, Green Leaf Book source data, and web-only balance/advance signals in MySQL.
 
 The local desktop server and hosted web backend are intentionally separate sources. The desktop server lives in `apps/desktop/src/server.mjs`, runs beside the Electron app, uses SQLite, and includes local office, tablet sync, audit, printing, and desktop-only workflows. The hosted backend lives in `apps/backend/src/server.mjs`, uses MySQL, and should expose the lighter online API needed by the web app and desktop cloud sync. Production should not host the desktop local server as the web API.
 
@@ -30,7 +30,7 @@ The local desktop server and hosted web backend are intentionally separate sourc
 6. Desktop imports records into staging.
 7. Office users review/edit net weights and post permanent entries individually or through a confirmed Post all action.
 8. Desktop syncs the Green Leaf Book source data to the hosted backend and receives backend office-user accounts in the same exchange.
-9. Directors, admins, and office users view monthly green leaf books and balance-transfer signal lists in the web app. Only directors/admins can create balance-transfer signals.
+9. Directors, admins, and office users view monthly green leaf books, balance-transfer signals, and advance signals in the web app. Only directors/admins can create web signals.
 
 ## Sync Principles
 
@@ -86,6 +86,6 @@ The local desktop server and hosted web backend are intentionally separate sourc
 ## Web UI Structure
 
 - Header: Kudamalana Tea Factory branding, current web session, and logout action.
-- Sidebar: Green Leaf Book, Balances, plus Directors for super admins and directors, and Office Users for super admins, directors, and office users.
+- Sidebar: Green Leaf Book, Balances, Advances, plus Directors for super admins and directors, and Office Users for super admins, directors, and office users.
 - Login: desktop-aligned two-column portal login with branded copy and credential form.
-- Content: monthly green leaf book viewing, balance-transfer signal viewing/marking, managed web-user administration, and profile details. Managed user create/edit/activate/deactivate actions are limited to super admins; directors have view-only access to directors and office users, and office users have view-only access to office users. Balance rows are view-only for office users and editable for directors/admins.
+- Content: monthly green leaf book viewing, balance-transfer signal viewing/marking, advance signal viewing/marking, managed web-user administration, and profile details. Managed user create/edit/activate/deactivate actions are limited to super admins; directors have view-only access to directors and office users, and office users have view-only access to office users. Balance and advance signal rows are view-only for office users and editable for directors/admins.

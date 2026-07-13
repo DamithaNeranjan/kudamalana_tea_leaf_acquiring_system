@@ -24,7 +24,8 @@ function now() {
 }
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function isAfter(value, since) {

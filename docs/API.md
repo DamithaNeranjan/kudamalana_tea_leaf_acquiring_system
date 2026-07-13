@@ -63,7 +63,7 @@ Payload shape:
       "collectionDate": "2026-06-05",
       "collectionTime": "08:30",
       "tabletSavedAt": "2026-06-05 08:30:00",
-      "printedAt": "2026-06-05 08:31:10",
+      "printedAt": "2026-06-05T03:01:10.000Z",
       "lineId": "line-id",
       "lineName": "Line A",
       "supplierId": "supplier-id",
@@ -78,7 +78,7 @@ Payload shape:
 }
 ```
 
-The desktop app imports these records into staging and skips duplicates by `id`. `tabletSavedAt` and `printedAt` are preserved for desktop audit views when supplied.
+The desktop app imports these records into staging and skips duplicates by `id`. `tabletSavedAt` and `printedAt` are preserved for desktop audit views when supplied. New Android clients send tablet saved/printed timestamp fields as ISO instants; collection date and collection time remain local collection values for Green Leaf Book grouping.
 
 ### `GET /office/green-leaf-book?month=YYYY-MM`
 

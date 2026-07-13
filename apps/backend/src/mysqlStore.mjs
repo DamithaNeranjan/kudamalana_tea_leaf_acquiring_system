@@ -59,7 +59,8 @@ function paymentMode(value) {
 
 function normalizeMonth(month) {
   if (/^\d{4}-\d{2}$/.test(String(month || ""))) return month;
-  return new Date().toISOString().slice(0, 7);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function previousMonthValue(month) {
@@ -385,7 +386,7 @@ function assertManagedRole(role) {
 
 export async function createMySqlStore(config = dbConfigFromEnv()) {
   await ensureDatabase(config);
-  const pool = mysql.createPool({ timezone: "Z", ...config });
+  const pool = mysql.createPool({ ...config, timezone: "Z" });
   await executeSchema(pool);
   await seedSuperAdmin(pool);
 

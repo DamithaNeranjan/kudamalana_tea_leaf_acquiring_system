@@ -114,6 +114,8 @@ npm.cmd run desktop
 
 When debugging a synced row that exists in MySQL but does not appear in the web Green Leaf Book, first check the selected month and the row's `collection_date`. MySQL `DATE` values must remain calendar-date strings in backend calculation input; UTC conversion can shift first-of-month rows into the previous month.
 
+Timestamp-style fields such as signal marked/read time, sync timestamps, posted times, and tablet saved/printed times should be treated as UTC/ISO instants and rendered in the local/system timezone. Do not use `toISOString().slice(0, 7)` for current month defaults; use local year/month values so Sri Lanka month selection does not drift around midnight.
+
 For normal desktop UI testing, start either `npm.cmd run desktop` or `npm.cmd run desktop:sync`, not both. The Electron desktop app starts its own local server on port `7070`. Running `desktop:sync` separately is useful for API/tablet testing without opening Electron.
 
 For this local production-style run, `.env` must include:

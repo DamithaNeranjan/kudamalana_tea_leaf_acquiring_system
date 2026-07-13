@@ -1,7 +1,9 @@
 package com.teafactory.collector.printing
 
 import com.teafactory.collector.data.CollectionRecordEntity
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 interface ReceiptPrinter {
@@ -14,10 +16,21 @@ data class PrintResult(
 )
 
 class EscPosReceiptFormatter {
-    fun format(record: CollectionRecordEntity, printedAt: String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))): ByteArray {
-        val text = receiptLines(record, printedAt).joinToString("\r\n", postfix = "\r\n\r\n\r\n\r\n")
+    private val receiptDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+
+    fun format(record: CollectionRecordEntity, printedAt: String = Instant.now().toString()): ByteArray {
+        val text = receiptLines(record, formatReceiptDateTime(printedAt)).joinToString("\r\n", postfix = "\r\n\r\n\r\n\r\n")
         return text.toByteArray(Charsets.UTF_8)
     }
+
+    private fun formatReceiptDateTime(value: String): String =
+        runCatching {
+            Instant.parse(value).atZone(ZoneId.systemDefault()).format(receiptDateTimeFormatter)
+        }.getOrElse {
+            runCatching {
+                LocalDateTime.parse(value).format(receiptDateTimeFormatter)
+            }.getOrElse { value }
+        }
 
     private fun receiptLines(record: CollectionRecordEntity, printedAt: String): List<String> {
         val lines = mutableListOf<String>()

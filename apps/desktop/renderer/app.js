@@ -671,14 +671,14 @@ function renderCollectionRecords(records = []) {
     .map(
       (record) => `
       <tr>
-        <td>${escapeHtml(record.tabletSavedAt || `${record.collectionDate} ${record.collectionTime || ""}`)}</td>
+        <td>${escapeHtml(formatDateTime(record.tabletSavedAt || `${record.collectionDate} ${record.collectionTime || ""}`))}</td>
         <td>${escapeHtml(record.supplierName)}</td>
         <td>${escapeHtml(record.lineName || "")}</td>
         <td>${record.bagCount}</td>
         <td>${record.originalGrossWeightKg}</td>
         <td>${record.netWeightKg}</td>
         <td>${escapeHtml(record.printStatus || "-")}</td>
-        <td>${escapeHtml(record.tabletPrintedAt || "-")}</td>
+        <td>${escapeHtml(record.tabletPrintedAt ? formatDateTime(record.tabletPrintedAt) : "-")}</td>
         <td>${escapeHtml(record.lineUserName)}</td>
         <td>${escapeHtml(record.postedByOfficeUserName || "-")}</td>
         <td>${escapeHtml(formatDateTime(record.postedAt))}</td>
@@ -820,7 +820,10 @@ function compactAuditValue(value) {
 
 function formatDateTime(value) {
   if (!value) return "";
-  const date = new Date(value);
+  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+    ? value.replace(" ", "T")
+    : value;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString(undefined, {
     year: "numeric",

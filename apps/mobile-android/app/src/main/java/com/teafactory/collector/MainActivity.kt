@@ -85,6 +85,7 @@ import com.teafactory.collector.sync.SyncClient
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import org.json.JSONObject
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -677,7 +678,9 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
         editingRecordId = null
     }
 
-    fun currentDateTime(): String = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+    val localTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+
+    fun currentInstantText(): String = Instant.now().toString()
 
     fun upsertPreviewRecord(printStatus: String, printedAt: String? = null) {
         val record = previewRecord ?: return
@@ -764,7 +767,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                         }
                         isPrinting = true
                         printerStatus = "Connecting to paired Bluetooth printer..."
-                        val printedAt = currentDateTime()
+                        val printedAt = currentInstantText()
                         thread {
                             val result = printReceiptToBluetoothPrinter(context, record, printedAt)
                             activityRun {
@@ -1015,11 +1018,11 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                 workspaceMessageIsError = true
                                 return@Button
                             }
-                            val tabletSavedAt = currentDateTime()
+                            val collectedAt = LocalDateTime.now()
                             val record = CollectionRecordEntity(
                                 id = editingRecordId ?: "mobile_${UUID.randomUUID()}",
-                                collectionDate = tabletSavedAt.substring(0, 10),
-                                collectionTime = tabletSavedAt.substring(11),
+                                collectionDate = collectedAt.toLocalDate().toString(),
+                                collectionTime = collectedAt.toLocalTime().format(localTimeFormatter),
                                 lineId = supplier.lineId,
                                 lineName = supplier.lineName,
                                 supplierId = supplier.id,
@@ -1029,7 +1032,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                 grossWeightKg = grossWeight,
                                 lineUserName = session.displayName,
                                 printStatus = "preview",
-                                tabletSavedAt = tabletSavedAt,
+                                tabletSavedAt = currentInstantText(),
                                 printedAt = null,
                                 synced = false
                             )

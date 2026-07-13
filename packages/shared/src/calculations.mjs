@@ -31,7 +31,7 @@ function previousMonthValue(month) {
 
 function currentMonthValue() {
   const date = new Date();
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function nextMonthValue(month) {

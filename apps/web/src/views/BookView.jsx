@@ -57,8 +57,13 @@ function greenLeafBookTotals(rows, dayCount) {
   };
 }
 
+function currentMonth() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function BookView() {
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(currentMonth);
   const [book, setBook] = useState(null);
   const [supplierFilter, setSupplierFilter] = useState("");
   const [lineFilter, setLineFilter] = useState("");

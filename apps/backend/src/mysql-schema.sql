@@ -149,6 +149,9 @@ CREATE TABLE IF NOT EXISTS balance_transfer_signals (
   marked_at DATETIME NOT NULL,
   marked_by_user_id VARCHAR(80),
   marked_by_display_name VARCHAR(160),
+  read_at DATETIME,
+  read_by_user_id VARCHAR(80),
+  read_by_display_name VARCHAR(160),
   UNIQUE KEY unique_balance_signal_target (month, section, target_id)
 );
 
@@ -159,7 +162,10 @@ CREATE TABLE IF NOT EXISTS factory_officer_transfer_signals (
   comment VARCHAR(255),
   marked_at DATETIME NOT NULL,
   marked_by_user_id VARCHAR(80),
-  marked_by_display_name VARCHAR(160)
+  marked_by_display_name VARCHAR(160),
+  read_at DATETIME,
+  read_by_user_id VARCHAR(80),
+  read_by_display_name VARCHAR(160)
 );
 
 CREATE TABLE IF NOT EXISTS advance_signals (
@@ -176,6 +182,9 @@ CREATE TABLE IF NOT EXISTS advance_signals (
   marked_at DATETIME NOT NULL,
   marked_by_user_id VARCHAR(80),
   marked_by_display_name VARCHAR(160),
+  read_at DATETIME,
+  read_by_user_id VARCHAR(80),
+  read_by_display_name VARCHAR(160),
   KEY idx_advance_signals_month (effective_month, marked_at)
 );
 

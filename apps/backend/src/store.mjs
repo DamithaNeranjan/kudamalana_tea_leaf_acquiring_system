@@ -159,6 +159,23 @@ export function createMemoryStore() {
     return signal || null;
   }
 
+  function markSignalMapRead(map, signalId, user) {
+    const signal = map.get(signalId);
+    if (!signal) {
+      const error = new Error("Signal not found");
+      error.status = 404;
+      throw error;
+    }
+    const updated = {
+      ...signal,
+      readAt: new Date().toISOString(),
+      readByUserId: user.id,
+      readByDisplayName: user.displayName || user.username
+    };
+    map.set(signalId, updated);
+    return updated;
+  }
+
   function buildBalances(input, signals, factorySignals) {
     const book = buildGreenLeafBookWithAutoArrears(input);
     const teaLineMap = new Map((input.teaLines || []).map((line) => [line.id || line.name, line]));
@@ -526,7 +543,10 @@ export function createMemoryStore() {
         comment: input.comment || "",
         markedAt: new Date().toISOString(),
         markedByUserId: user.id,
-        markedByDisplayName: user.displayName || user.username
+        markedByDisplayName: user.displayName || user.username,
+        readAt: null,
+        readByUserId: null,
+        readByDisplayName: null
       };
       advanceSignals.set(signal.id, signal);
       return signal;
@@ -553,7 +573,10 @@ export function createMemoryStore() {
         comment: input.comment || "",
         markedAt: new Date().toISOString(),
         markedByUserId: user.id,
-        markedByDisplayName: user.displayName || user.username
+        markedByDisplayName: user.displayName || user.username,
+        readAt: null,
+        readByUserId: null,
+        readByDisplayName: null
       };
       balanceTransferSignals.set(id, signal);
       return signal;
@@ -574,10 +597,30 @@ export function createMemoryStore() {
         comment: input.comment || "",
         markedAt: new Date().toISOString(),
         markedByUserId: user.id,
-        markedByDisplayName: user.displayName || user.username
+        markedByDisplayName: user.displayName || user.username,
+        readAt: null,
+        readByUserId: null,
+        readByDisplayName: null
       };
       factoryOfficerTransferSignals.set(signal.id, signal);
       return signal;
+    },
+
+    markSignalRead(sessionToken, input) {
+      const user = requireRole(sessionToken, ["super_admin", "office_user"]);
+      const type = String(input.type || "").trim();
+      const signalId = String(input.id || "").trim();
+      if (!signalId) {
+        const error = new Error("Signal id is required");
+        error.status = 400;
+        throw error;
+      }
+      if (type === "advance") return markSignalMapRead(advanceSignals, signalId, user);
+      if (type === "balance") return markSignalMapRead(balanceTransferSignals, signalId, user);
+      if (type === "factory") return markSignalMapRead(factoryOfficerTransferSignals, signalId, user);
+      const error = new Error("Signal type must be advance, balance, or factory");
+      error.status = 400;
+      throw error;
     },
 
     seedDesktopData(payload) {

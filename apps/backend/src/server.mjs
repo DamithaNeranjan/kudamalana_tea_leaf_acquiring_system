@@ -169,6 +169,9 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       if (request.method === "POST" && url.pathname === "/advance-signals") {
         return send(request, response, 201, await store.createAdvanceSignal(sessionToken(request), await parseBody(request)));
       }
+      if (request.method === "POST" && url.pathname === "/signals/mark-read") {
+        return send(request, response, 200, await store.markSignalRead(sessionToken(request), await parseBody(request)));
+      }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {
       return send(request, response, error.status || 500, { error: error.message || "Internal server error" });

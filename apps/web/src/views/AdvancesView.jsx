@@ -32,18 +32,45 @@ function formatAmountInput(value) {
 
 function dateTime(value) {
   if (!value) return "";
-  return new Date(value).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  const date = parseDateTime(value);
+  return (
+    <span className="date-time-stack">
+      <span>{date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "2-digit"
+      })}</span>
+      <span>{date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit"
+      })}</span>
+    </span>
+  );
+}
+
+function parseDateTime(value) {
+  if (!value) return "";
+  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
+  return new Date(normalized);
 }
 
 function targetLabel(scope, target) {
   if (!target) return "";
   return scope === "line" ? target.name : `${target.code || ""} - ${target.name || ""}`.trim();
+}
+
+const PAGE_SIZE = 10;
+
+function paginate(rows, page) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  return {
+    rows: rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    page: safePage,
+    totalPages
+  };
 }
 
 export function AdvancesView({ currentUser, showToast }) {
@@ -57,7 +84,11 @@ export function AdvancesView({ currentUser, showToast }) {
   const [suggestion, setSuggestion] = useState(null);
   const [supplierFilter, setSupplierFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [showRead, setShowRead] = useState(true);
+  const [signalsPage, setSignalsPage] = useState(1);
   const canManage = ["super_admin", "director"].includes(currentUser?.role);
+  const canMarkRead = ["super_admin", "office_user"].includes(currentUser?.role);
 
   const targets = scope === "line" ? data.teaLines : data.suppliers;
   const selectedTarget = useMemo(
@@ -66,10 +97,23 @@ export function AdvancesView({ currentUser, showToast }) {
   );
   const visibleSignals = useMemo(() => {
     const supplierText = supplierFilter.trim().toLowerCase();
-    return data.signals
+  return data.signals
       .filter((signal) => String(signal.targetLabel || "").toLowerCase().includes(supplierText))
-      .filter((signal) => !monthFilter || signal.effectiveMonth === monthFilter);
-  }, [data.signals, monthFilter, supplierFilter]);
+      .filter((signal) => !monthFilter || signal.effectiveMonth === monthFilter)
+      .filter((signal) => !typeFilter || signal.scope === typeFilter)
+      .filter((signal) => showRead || !signal.readAt)
+      .sort((a, b) => parseDateTime(b.markedAt) - parseDateTime(a.markedAt));
+  }, [data.signals, monthFilter, showRead, supplierFilter, typeFilter]);
+  const pagedSignals = useMemo(() => paginate(visibleSignals, signalsPage), [signalsPage, visibleSignals]);
+
+  async function markRead(signal) {
+    await request("/signals/mark-read", {
+      method: "POST",
+      body: JSON.stringify({ type: "advance", id: signal.id })
+    });
+    showToast("Signal marked as read.");
+    await loadSignals();
+  }
 
   async function loadSignals() {
     setData(await request("/advance-signals"));
@@ -124,6 +168,10 @@ export function AdvancesView({ currentUser, showToast }) {
   useEffect(() => {
     loadSuggestion();
   }, [selectedTarget?.id, effectiveMonth, scope]);
+
+  useEffect(() => {
+    setSignalsPage(1);
+  }, [supplierFilter, monthFilter, typeFilter, showRead]);
 
   return (
     <section className="view active-view advances-view">
@@ -220,6 +268,15 @@ export function AdvancesView({ currentUser, showToast }) {
         <div className="toolbar">
           <input placeholder="Filter supplier or line" value={supplierFilter} onChange={(event) => setSupplierFilter(event.target.value)} />
           <input type="month" value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} />
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            <option value="">All types</option>
+            <option value="supplier">Supplier</option>
+            <option value="line">Line</option>
+          </select>
+          <label className="switch-row compact-switch">
+            <input type="checkbox" checked={showRead} onChange={(event) => setShowRead(event.target.checked)} />
+            Show read signals
+          </label>
           <button type="button" onClick={loadSignals}>Refresh</button>
         </div>
         <div className="table-wrap">
@@ -227,11 +284,11 @@ export function AdvancesView({ currentUser, showToast }) {
             <thead>
               <tr>
                 <th>Type</th><th>Supplier / Line</th><th>Effective month</th><th>Date given</th>
-                <th>Suggested</th><th>Amount</th><th>Comment</th><th>Signalled at</th><th>By</th>
+                <th>Suggested</th><th>Amount</th><th>Comment</th><th>Signalled at</th><th>By</th><th>Read status</th><th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {visibleSignals.map((signal) => (
+              {pagedSignals.rows.map((signal) => (
                 <tr key={signal.id}>
                   <td>{signal.scope === "line" ? "Line" : "Supplier"}</td>
                   <td>{signal.targetLabel}</td>
@@ -239,13 +296,36 @@ export function AdvancesView({ currentUser, showToast }) {
                   <td>{signal.dateGiven}</td>
                   <td>{money(signal.suggestedAmount)}</td>
                   <td>{money(signal.amount)}</td>
-                  <td>{signal.comment || ""}</td>
+                  <td>{signal.comment || "-"}</td>
                   <td>{dateTime(signal.markedAt)}</td>
                   <td>{signal.markedByDisplayName || ""}</td>
+                  <td>
+                    {signal.readAt ? (
+                      <div className="signal-cell">
+                        <span className="status-pill inactive">Read</span>
+                        <small>{dateTime(signal.readAt)}</small>
+                        <small>{signal.readByDisplayName || ""}</small>
+                      </div>
+                    ) : (
+                      <span className="status-pill active">Unread</span>
+                    )}
+                  </td>
+                  <td>
+                    {canMarkRead && !signal.readAt ? (
+                      <button type="button" onClick={() => markRead(signal)}>Mark read</button>
+                    ) : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="pagination-bar">
+          <span>{visibleSignals.length ? `Page ${pagedSignals.page} of ${pagedSignals.totalPages} (${visibleSignals.length} signals)` : "No signals"}</span>
+          <div className="pagination-actions">
+            <button type="button" onClick={() => setSignalsPage(Math.max(1, pagedSignals.page - 1))} disabled={pagedSignals.page <= 1}>Previous</button>
+            <button type="button" onClick={() => setSignalsPage(Math.min(pagedSignals.totalPages, pagedSignals.page + 1))} disabled={pagedSignals.page >= pagedSignals.totalPages}>Next</button>
+          </div>
         </div>
       </section>
     </section>

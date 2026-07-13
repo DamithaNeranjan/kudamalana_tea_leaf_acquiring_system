@@ -534,6 +534,22 @@ p {
   margin-top: 12px;
 }
 
+.pagination-bar {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.pagination-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
 .management-layout {
   align-items: start;
   display: grid;
@@ -918,6 +934,36 @@ button:active {
   gap: 14px;
 }
 
+details.balance-section {
+  display: block;
+}
+
+details.balance-section[open] {
+  display: grid;
+}
+
+.collapsible-heading {
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsible-heading::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-heading::after {
+  color: var(--brand);
+  content: "Show";
+  float: right;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+details[open] > .collapsible-heading::after {
+  content: "Hide";
+}
+
 .balance-totals {
   display: flex;
   flex-wrap: wrap;
@@ -957,6 +1003,18 @@ button:active {
 
 .signal-cell small {
   color: var(--muted);
+}
+
+.date-time-stack {
+  display: grid;
+  gap: 2px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.date-time-stack span + span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .factory-payment-form {

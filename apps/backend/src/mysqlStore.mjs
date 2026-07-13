@@ -159,6 +159,18 @@ async function executeSchema(pool) {
   if (passwordHashColumns[0] && Number(passwordHashColumns[0].Type.match(/\d+/)?.[0] || 0) < 220) {
     await pool.query("ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(220) NOT NULL");
   }
+  for (const table of ["balance_transfer_signals", "factory_officer_transfer_signals", "advance_signals"]) {
+    for (const [column, definition] of [
+      ["read_at", "DATETIME NULL"],
+      ["read_by_user_id", "VARCHAR(80) NULL"],
+      ["read_by_display_name", "VARCHAR(160) NULL"]
+    ]) {
+      const [columns] = await pool.query(`SHOW COLUMNS FROM ${table} LIKE ?`, [column]);
+      if (!columns.length) {
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    }
+  }
 }
 
 function mapBalanceSignal(row) {
@@ -172,7 +184,10 @@ function mapBalanceSignal(row) {
     comment: row.comment || "",
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
-    markedByDisplayName: row.marked_by_display_name
+    markedByDisplayName: row.marked_by_display_name,
+    readAt: row.read_at,
+    readByUserId: row.read_by_user_id,
+    readByDisplayName: row.read_by_display_name
   };
 }
 
@@ -184,7 +199,10 @@ function mapFactoryOfficerSignal(row) {
     comment: row.comment || "",
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
-    markedByDisplayName: row.marked_by_display_name
+    markedByDisplayName: row.marked_by_display_name,
+    readAt: row.read_at,
+    readByUserId: row.read_by_user_id,
+    readByDisplayName: row.read_by_display_name
   };
 }
 
@@ -208,7 +226,10 @@ function mapAdvanceSignal(row) {
     comment: row.comment || "",
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
-    markedByDisplayName: row.marked_by_display_name
+    markedByDisplayName: row.marked_by_display_name,
+    readAt: row.read_at,
+    readByUserId: row.read_by_user_id,
+    readByDisplayName: row.read_by_display_name
   };
 }
 
@@ -364,7 +385,7 @@ function assertManagedRole(role) {
 
 export async function createMySqlStore(config = dbConfigFromEnv()) {
   await ensureDatabase(config);
-  const pool = mysql.createPool(config);
+  const pool = mysql.createPool({ timezone: "Z", ...config });
   await executeSchema(pool);
   await seedSuperAdmin(pool);
 
@@ -1166,8 +1187,9 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         await conn.execute(
           `INSERT INTO advance_signals
            (id, scope, target_id, target_label, effective_month, date_given, suggested_amount,
-            amount, breakdown_json, comment, marked_at, marked_by_user_id, marked_by_display_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            amount, breakdown_json, comment, marked_at, marked_by_user_id, marked_by_display_name,
+            read_at, read_by_user_id, read_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
           [
             signal.id,
             signal.scope,
@@ -1221,15 +1243,19 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         };
         await conn.execute(
           `INSERT INTO balance_transfer_signals
-           (id, month, section, target_id, target_label, amount, comment, marked_at, marked_by_user_id, marked_by_display_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, month, section, target_id, target_label, amount, comment, marked_at, marked_by_user_id, marked_by_display_name,
+            read_at, read_by_user_id, read_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
            ON DUPLICATE KEY UPDATE
-             target_label = VALUES(target_label),
-             amount = VALUES(amount),
-             comment = VALUES(comment),
-             marked_at = VALUES(marked_at),
-             marked_by_user_id = VALUES(marked_by_user_id),
-             marked_by_display_name = VALUES(marked_by_display_name)`,
+              target_label = VALUES(target_label),
+              amount = VALUES(amount),
+              comment = VALUES(comment),
+              marked_at = VALUES(marked_at),
+              marked_by_user_id = VALUES(marked_by_user_id),
+              marked_by_display_name = VALUES(marked_by_display_name),
+              read_at = NULL,
+              read_by_user_id = NULL,
+              read_by_display_name = NULL`,
           [
             signal.id,
             signal.month,
@@ -1275,8 +1301,9 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         };
         await conn.execute(
           `INSERT INTO factory_officer_transfer_signals
-           (id, month, amount, comment, marked_at, marked_by_user_id, marked_by_display_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (id, month, amount, comment, marked_at, marked_by_user_id, marked_by_display_name,
+            read_at, read_by_user_id, read_by_display_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
           [
             signal.id,
             signal.month,
@@ -1289,6 +1316,56 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         );
         await conn.commit();
         return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async markSignalRead(sessionToken, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "office_user"]);
+        const type = String(input.type || "").trim();
+        const id = String(input.id || "").trim();
+        if (!id) {
+          const error = new Error("Signal id is required");
+          error.status = 400;
+          throw error;
+        }
+        const table =
+          type === "advance"
+            ? "advance_signals"
+            : type === "balance"
+              ? "balance_transfer_signals"
+              : type === "factory"
+                ? "factory_officer_transfer_signals"
+                : "";
+        if (!table) {
+          const error = new Error("Signal type must be advance, balance, or factory");
+          error.status = 400;
+          throw error;
+        }
+        const readAt = toMysqlDateTime();
+        const [result] = await conn.execute(
+          `UPDATE ${table}
+           SET read_at = ?, read_by_user_id = ?, read_by_display_name = ?
+           WHERE id = ?`,
+          [readAt, user.id, user.display_name || user.username, id]
+        );
+        if (!result.affectedRows) {
+          const error = new Error("Signal not found");
+          error.status = 404;
+          throw error;
+        }
+        const [rows] = await conn.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+        await conn.commit();
+        if (type === "advance") return mapAdvanceSignal(rows[0]);
+        if (type === "balance") return mapBalanceSignal(rows[0]);
+        return mapFactoryOfficerSignal(rows[0]);
       } catch (error) {
         await conn.rollback();
         throw error;

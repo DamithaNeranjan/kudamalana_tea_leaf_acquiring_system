@@ -451,6 +451,8 @@ The response includes:
 - `supplierWiseBankTransfers`: suppliers whose payment mode is `bank_transfer`, excluding suppliers already included in whole-line bank transfer lines
 - `factoryOfficerTransfers`: remaining cash suppliers, positive and negative totals, director/admin added payment rows, and remaining positive balance
 
+Signal rows include read metadata when an office user or super admin has marked them read: `readAt`, `readByUserId`, and `readByDisplayName`.
+
 ### `POST /balances/mark-paid`
 
 Director/super-admin endpoint that marks a line-wise or supplier-wise bank transfer row as paid for web signalling only. This does not record a desktop supplier payment.
@@ -488,6 +490,8 @@ Payload:
 
 Returns supplier and tea-line choices plus latest-first web advance signals. Office users, directors, and super admins can view it.
 
+Advance signal rows include read metadata when an office user or super admin has marked them read: `readAt`, `readByUserId`, and `readByDisplayName`.
+
 ### `GET /advance-signals/suggestion?scope=supplier|line&targetId=id&month=YYYY-MM`
 
 Returns the suggested advance amount for a supplier or tea line. Supplier suggestions use the shared advance-suggestion logic from the desktop app. Line suggestions sum each active supplier's suggestion for that line and include a `breakdown` array with supplier, leaf value, arrears, existing advances, and suggested amount.
@@ -510,6 +514,21 @@ Payload:
 ```
 
 Use `"scope": "line"` with a tea-line id for line advance signals.
+
+### `POST /signals/mark-read`
+
+Office-user/super-admin endpoint that marks a web signal as read so completed signals can be identified in the Balances and Advances listings, or hidden when the user turns off the show-read checkbox. Directors cannot mark signals as read.
+
+Payload:
+
+```json
+{
+  "type": "advance",
+  "id": "signal-id"
+}
+```
+
+Use `"type": "balance"` for line-wise or supplier-wise balance transfer signals and `"type": "factory"` for factory officer transfer signals.
 
 ## Authentication Notes
 

@@ -308,6 +308,21 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.comment, "Transferred as a whole line");
     assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 150);
 
+    const directorReadBalanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({ type: "balance", id: signalledBalances.lineWiseBankTransfers[0].signal.id })
+    });
+    assert.equal(directorReadBalanceResponse.status, 403);
+
+    const officeReadBalanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` },
+      body: JSON.stringify({ type: "balance", id: signalledBalances.lineWiseBankTransfers[0].signal.id })
+    });
+    assert.equal(officeReadBalanceResponse.status, 200);
+    assert.ok((await officeReadBalanceResponse.json()).readAt);
+
     const advanceSignalsListResponse = await fetch(`${baseUrl}/advance-signals`, {
       headers: { authorization: `Bearer ${officeViewerLogin.token}` }
     });
@@ -367,6 +382,23 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(directorAdvanceSignal.amount, 300);
     assert.equal(directorAdvanceSignal.suggestedAmount, lineAdvanceSuggestion.suggestedAmount);
 
+    const directorReadAdvanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({ type: "advance", id: directorAdvanceSignal.id })
+    });
+    assert.equal(directorReadAdvanceResponse.status, 403);
+
+    const officeReadAdvanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` },
+      body: JSON.stringify({ type: "advance", id: directorAdvanceSignal.id })
+    });
+    assert.equal(officeReadAdvanceResponse.status, 200);
+    const readAdvance = await officeReadAdvanceResponse.json();
+    assert.ok(readAdvance.readAt);
+    assert.equal(readAdvance.readByDisplayName, "Office Viewer");
+
     const afterAdvanceSignalBook = await (
       await fetch(`${baseUrl}/green-leaf-book?month=2026-05`, {
         headers: { authorization: `Bearer ${directorLogin.token}` }
@@ -380,6 +412,7 @@ test("super admin can create directors and director can view green leaf book", a
       })
     ).json();
     assert.equal(advanceSignalsAfterCreate.signals[0].comment, "Director requested advance");
+    assert.ok(advanceSignalsAfterCreate.signals[0].readAt);
   });
 });
 

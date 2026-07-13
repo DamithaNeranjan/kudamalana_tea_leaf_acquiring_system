@@ -550,6 +550,25 @@ p {
   gap: 8px;
 }
 
+.pagination-actions button {
+  background: rgba(31, 95, 54, 0.08);
+  border-color: rgba(31, 95, 54, 0.22);
+  color: var(--brand);
+}
+
+.pagination-actions button:hover:not(:disabled) {
+  background: rgba(31, 95, 54, 0.14);
+  border-color: rgba(31, 95, 54, 0.34);
+  box-shadow: 0 6px 14px rgba(31, 95, 54, 0.08);
+}
+
+.pagination-actions button:disabled {
+  background: rgba(98, 112, 95, 0.08);
+  border-color: rgba(98, 112, 95, 0.18);
+  color: rgba(98, 112, 95, 0.58);
+  cursor: not-allowed;
+}
+
 .management-layout {
   align-items: start;
   display: grid;
@@ -983,6 +1002,7 @@ details[open] > .collapsible-heading::after {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .inline-signal-form input {

@@ -47,6 +47,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -60,13 +61,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -600,12 +604,13 @@ fun WorkspaceNavButton(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     val context = LocalContext.current
     val activity = context as? Activity
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val supplierFocusRequester = remember { FocusRequester() }
     val bagsFocusRequester = remember { FocusRequester() }
     val grossFocusRequester = remember { FocusRequester() }
@@ -627,6 +632,8 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     var selectedSupplier by remember { mutableStateOf<SupplierOption?>(null) }
     var teaLineMenuExpanded by remember { mutableStateOf(false) }
     var supplierMenuExpanded by remember { mutableStateOf(false) }
+    var teaLineShowAllOptions by remember { mutableStateOf(false) }
+    var supplierShowAllOptions by remember { mutableStateOf(false) }
     var unsyncedRecords by remember { mutableStateOf<List<CollectionRecordEntity>>(emptyList()) }
     var editingRecordId by remember { mutableStateOf<String?>(null) }
     var previewRecord by remember { mutableStateOf<CollectionRecordEntity?>(null) }
@@ -651,28 +658,28 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     var syncAction by remember { mutableStateOf<String?>(null) }
     var loadedLocalData by remember { mutableStateOf(false) }
     var activeWorkspaceView by remember { mutableStateOf("collection") }
-    val filteredTeaLines = teaLines
-        .filter { teaLineName.isBlank() || it.name.contains(teaLineName.trim(), ignoreCase = true) }
-        .take(8)
+    val filteredTeaLines = (if (teaLineShowAllOptions) teaLines else teaLines
+        .filter { teaLineName.isBlank() || it.name.contains(teaLineName.trim(), ignoreCase = true) })
     val suppliersForLine = suppliers.filter { supplier ->
         selectedTeaLine == null ||
             supplier.lineId == selectedTeaLine?.id ||
             supplier.lineName.equals(selectedTeaLine?.name.orEmpty(), ignoreCase = true)
     }
-    val filteredSuppliers = suppliersForLine
+    val filteredSuppliers = (if (supplierShowAllOptions) suppliersForLine else suppliersForLine
         .filter {
             val query = supplierName.trim()
             query.isBlank() ||
                 it.code.contains(query, ignoreCase = true) ||
                 it.name.contains(query, ignoreCase = true)
-        }
-        .take(8)
+        })
 
     fun clearEntryForm() {
         teaLineName = ""
         supplierName = ""
         selectedTeaLine = null
         selectedSupplier = null
+        teaLineShowAllOptions = false
+        supplierShowAllOptions = false
         bags = ""
         grossKg = ""
         editingRecordId = null
@@ -681,6 +688,17 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
     val localTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     fun currentInstantText(): String = Instant.now().toString()
+
+    fun openDropdownWithoutKeyboard(open: () -> Unit) {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        open()
+    }
+
+    fun hideKeyboardForDropdownScroll() {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
 
     fun upsertPreviewRecord(printStatus: String, printedAt: String? = null) {
         val record = previewRecord ?: return
@@ -895,12 +913,16 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                     Text("Offline field collection", color = Muted)
                     ExposedDropdownMenuBox(
                         expanded = teaLineMenuExpanded,
-                        onExpandedChange = { teaLineMenuExpanded = !teaLineMenuExpanded }
+                        onExpandedChange = {
+                            teaLineShowAllOptions = false
+                            teaLineMenuExpanded = it
+                        }
                     ) {
                         OutlinedTextField(
                             value = teaLineName,
                             onValueChange = {
                                 teaLineName = it
+                                teaLineShowAllOptions = false
                                 selectedTeaLine = null
                                 selectedSupplier = null
                                 supplierName = ""
@@ -910,14 +932,31 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             keyboardActions = KeyboardActions(onNext = { supplierFocusRequester.requestFocus() }),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = teaLineMenuExpanded) },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    openDropdownWithoutKeyboard {
+                                        teaLineShowAllOptions = true
+                                        teaLineMenuExpanded = true
+                                    }
+                                }) {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = teaLineMenuExpanded)
+                                }
+                            },
                             modifier = Modifier
                                 .menuAnchor()
                                 .fillMaxWidth()
                         )
                         ExposedDropdownMenu(
                             expanded = teaLineMenuExpanded && filteredTeaLines.isNotEmpty(),
-                            onDismissRequest = { teaLineMenuExpanded = false }
+                            onDismissRequest = { teaLineMenuExpanded = false },
+                            modifier = Modifier.pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.any { it.pressed }) hideKeyboardForDropdownScroll()
+                                    }
+                                }
+                            }
                         ) {
                             filteredTeaLines.forEach { line ->
                                 DropdownMenuItem(
@@ -925,8 +964,10 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                     onClick = {
                                         selectedTeaLine = line
                                         teaLineName = line.name
+                                        teaLineShowAllOptions = false
                                         selectedSupplier = null
                                         supplierName = ""
+                                        supplierShowAllOptions = false
                                         teaLineMenuExpanded = false
                                     }
                                 )
@@ -935,12 +976,16 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                     }
                     ExposedDropdownMenuBox(
                         expanded = supplierMenuExpanded,
-                        onExpandedChange = { supplierMenuExpanded = !supplierMenuExpanded }
+                        onExpandedChange = {
+                            supplierShowAllOptions = false
+                            supplierMenuExpanded = it
+                        }
                     ) {
                         OutlinedTextField(
                             value = supplierName,
                             onValueChange = {
                                 supplierName = it
+                                supplierShowAllOptions = false
                                 selectedSupplier = null
                                 supplierMenuExpanded = true
                             },
@@ -948,7 +993,16 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             keyboardActions = KeyboardActions(onNext = { bagsFocusRequester.requestFocus() }),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = supplierMenuExpanded) },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    openDropdownWithoutKeyboard {
+                                        supplierShowAllOptions = true
+                                        supplierMenuExpanded = true
+                                    }
+                                }) {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = supplierMenuExpanded)
+                                }
+                            },
                             modifier = Modifier
                                 .menuAnchor()
                                 .fillMaxWidth()
@@ -956,7 +1010,15 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                         )
                         ExposedDropdownMenu(
                             expanded = supplierMenuExpanded && filteredSuppliers.isNotEmpty(),
-                            onDismissRequest = { supplierMenuExpanded = false }
+                            onDismissRequest = { supplierMenuExpanded = false },
+                            modifier = Modifier.pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.any { it.pressed }) hideKeyboardForDropdownScroll()
+                                    }
+                                }
+                            }
                         ) {
                             filteredSuppliers.forEach { supplier ->
                                 DropdownMenuItem(
@@ -969,6 +1031,7 @@ fun CollectorWorkspace(session: MobileSession, onLogout: () -> Unit) {
                                     onClick = {
                                         selectedSupplier = supplier
                                         supplierName = supplier.name
+                                        supplierShowAllOptions = false
                                         supplierMenuExpanded = false
                                     }
                                 )

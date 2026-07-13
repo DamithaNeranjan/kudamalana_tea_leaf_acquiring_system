@@ -1477,8 +1477,12 @@ th:first-child {
   text-align: left;
 }
 
-.supplier-print-preview-list .sinhala-bill-meta {
+.supplier-print-preview-list .sinhala-bill-meta-values {
   border: 1px solid #404940;
+  display: grid;
+}
+
+.supplier-print-preview-list .sinhala-bill-meta {
   display: grid;
   font-size: 12px;
   grid-template-columns: 0.7fr 1.4fr 0.8fr 0.9fr;
@@ -1494,10 +1498,10 @@ th:first-child {
 }
 
 .supplier-print-preview-list .sinhala-bill-top-values {
-  border: 1px solid #404940;
+  border-top: 1px solid #404940;
   display: grid;
   font-size: 12px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .supplier-print-preview-list .sinhala-bill-top-values span {
@@ -1779,8 +1783,12 @@ th:first-child {
     text-align: left;
   }
 
-  .sinhala-bill-meta {
+  .sinhala-bill-meta-values {
     border: 1px solid #404940;
+    display: grid;
+  }
+
+  .sinhala-bill-meta {
     display: grid;
     font-size: 12px;
     grid-template-columns: 0.7fr 1.4fr 0.8fr 0.9fr;
@@ -1796,10 +1804,10 @@ th:first-child {
   }
 
   .sinhala-bill-top-values {
-    border: 1px solid #404940;
+    border-top: 1px solid #404940;
     display: grid;
     font-size: 10px;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sinhala-bill-top-values span {

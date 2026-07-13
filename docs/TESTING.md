@@ -67,7 +67,7 @@ Manual desktop UI checks:
 - Confirm Post all opens a confirmation modal before posting all staged records.
 - After all positive balances for a month are paid, close the Green Leaf Book month, confirm the in-app warning/confirmation appears, confirm the closed note appears and month-specific edits are blocked, then log in as `admin` and reopen the month for corrections. Confirm close/reopen audit entries appear.
 - Open Sync to Web App and confirm sync run history can be filtered by status/mode and paged through with Previous/Next.
-- Open Audit Reports and confirm create/update/status-checkbox submissions, staging posts, price override batches, successful supplier bill print records, and balance payment records appear latest-first with user/action/entity/date filters. Confirm opening or expanding supplier bill print previews does not create an audit record, and password values are not shown in change details.
+- Open Audit Reports and confirm login/logout, create/update/status-checkbox submissions, staging posts, price override batches, successful supplier bill print records, and balance payment records appear latest-first with user/action/entity/date filters. Confirm opening or expanding supplier bill print previews does not create an audit record, and password values are not shown in change details.
 
 Backend:
 

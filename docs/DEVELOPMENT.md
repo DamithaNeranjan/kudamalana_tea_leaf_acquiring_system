@@ -71,7 +71,7 @@ Use Supplier Bills for month-end supplier/line summary generation. Summaries can
 Use Balance Payment for supplier-wise or line-wise payment recording. Payment amounts are automatically suggested when the supplier or line is selected, but the amount field remains editable. Supplier payment selection is searchable, debt suppliers are shown as inactive options, and completed payments are listed with filters, pagination, and latest payments first.
 Negative Green Leaf Book balances continue into the next month as arrears, even when no payment is recorded for that supplier. Desktop and web should use the shared automatic arrears logic; the backend must load previous-month calculation inputs for the selected month.
 After all positive supplier balances are paid, office users can close a Green Leaf Book month from the desktop book view. Closing requires an in-app confirmation, writes negative balances into next-month arrears, and makes that month read-only until a desktop admin reopens it. The closed-month note is shown in both desktop and web.
-Use Audit Reports in the Reports sidebar group to review mutation history. The audit trail logs create/update/post/payment actions, supplier bill print completion, and checkbox/status submissions, but does not log viewing-only operations, print-preview viewing, or sensitive password/token values.
+Use Audit Reports in the Reports sidebar group to review session and mutation history. The audit trail logs login/logout, create/update/post/payment actions, supplier bill print completion, and checkbox/status submissions, but does not log viewing-only operations, print-preview viewing, or sensitive password/token values.
 
 The visible logo and Electron window icon use:
 

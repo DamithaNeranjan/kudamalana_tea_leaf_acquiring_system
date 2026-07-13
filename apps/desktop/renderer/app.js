@@ -2048,8 +2048,6 @@ function renderSinhalaSupplierBill(bill, index) {
   const fertilizerKg = effectiveFertilizerKg(bill.fertilizer || []);
   const teaPacketCount = effectiveTeaPacketCount(bill.teaPackets || []);
   const topFields = [
-    ["මුළු දළු ප්‍රමාණය", `${formatBookNumber(bill.totalKg)} kg`],
-    ["2% අඩු කිරීම", `${formatBookNumber(bill.deductionKg)} kg`],
     ["ගෙවිය යුතු දළු ප්‍රමාණය", `${formatBookNumber(bill.finalKg)} kg`],
     ["දළු කි.ග්‍රෑ. එකක මිල", `රු. ${formatBillCurrency(bill.pricePerKg)}`],
     ["දළු වටිනාකම", `රු. ${formatBillCurrency(bill.leafValue)}`]
@@ -2085,6 +2083,7 @@ function renderSinhalaSupplierBill(bill, index) {
             <strong>${escapeHtml(localDateValue())}</strong>
           </div>
         </header>
+        <div class="sinhala-bill-meta-values">
         <div class="sinhala-bill-meta">
           <span>අංකය: <strong>${escapeHtml(bill.supplierCode || bill.supplierId || "")}</strong></span>
           <span>නම: <strong>${escapeHtml(bill.supplierName)}</strong></span>
@@ -2098,6 +2097,7 @@ function renderSinhalaSupplierBill(bill, index) {
               <span><em>${label}</em><strong>${value}</strong></span>`
             )
             .join("")}
+        </div>
         </div>
         <table class="sinhala-bill-table">
           <thead>

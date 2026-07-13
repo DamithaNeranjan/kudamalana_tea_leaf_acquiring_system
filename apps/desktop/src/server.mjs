@@ -187,7 +187,15 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         const payload = await body(request);
         const user = store.login(payload.username, payload.password);
         const token = randomBytes(24).toString("hex");
-        sessions.set(token, { user, createdAt: new Date().toISOString() });
+        const session = { user, createdAt: new Date().toISOString() };
+        sessions.set(token, session);
+        logAudit(session, {
+          action: "login",
+          entityType: "office_session",
+          entityId: user.id,
+          entityLabel: user.displayName || user.username,
+          summary: `Logged in: ${user.displayName || user.username}`
+        });
         return send(response, 200, { token, user });
       }
       if (url.pathname.startsWith("/office/")) {
@@ -211,6 +219,13 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, updatedUser);
         }
         if (request.method === "POST" && url.pathname === "/office/logout") {
+          logAudit(session, {
+            action: "logout",
+            entityType: "office_session",
+            entityId: session.user.id,
+            entityLabel: session.user.displayName || session.user.username,
+            summary: `Logged out: ${session.user.displayName || session.user.username}`
+          });
           sessions.delete(bearer(request));
           return send(response, 200, { ok: true });
         }

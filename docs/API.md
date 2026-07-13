@@ -151,7 +151,7 @@ Desktop admin-only endpoint that reopens a closed Green Leaf Book month for corr
 
 ### `GET /office/audit-log`
 
-Office-session protected endpoint that returns the append-only audit trail for office mutations in latest-first order. The audit log records creations, updates, checkbox/status changes, staging posts, line price override batches, supplier bill print completion, and supplier payment recording. Viewing-only operations, including supplier bill print-preview viewing, are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
+Office-session protected endpoint that returns the append-only audit trail in latest-first order. The audit log records office logins/logouts, creations, updates, checkbox/status changes, staging posts, line price override batches, supplier bill print completion, and supplier payment recording. Viewing-only operations, including supplier bill print-preview viewing, are not logged, and sensitive fields such as passwords, hashes, tokens, and authorization values are excluded from before/after snapshots.
 
 Response shape:
 

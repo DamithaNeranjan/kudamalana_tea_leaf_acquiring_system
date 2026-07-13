@@ -1,4 +1,14 @@
-const apiBaseUrl = window.teaDesktop?.apiBaseUrl || "http://127.0.0.1:7070";
+import { createApi } from "./modules/api.js";
+import { checked, escapeAttribute, escapeHtml } from "./modules/html.js";
+import {
+  formatBillCurrency,
+  formatBookNumber,
+  formatDateTime,
+  localDateValue,
+  localMonthValue,
+  sumNumbers
+} from "./modules/format.js";
+
 let officeToken = "";
 let officeUser = null;
 let latestState = null;
@@ -55,19 +65,10 @@ const listPages = {
   cloudSync: 1,
   audit: 1
 };
-
-async function api(path, options = {}) {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: {
-      "content-type": "application/json",
-      ...(officeToken ? { authorization: `Bearer ${officeToken}` } : {})
-    },
-    ...options
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || "Request failed");
-  return payload;
-}
+const api = createApi({
+  baseUrl: window.teaDesktop?.apiBaseUrl || "http://127.0.0.1:7070",
+  getOfficeToken: () => officeToken
+});
 
 function setLoggedInSession(login) {
   officeToken = login.token;
@@ -818,36 +819,6 @@ function compactAuditValue(value) {
   return String(value);
 }
 
-function formatDateTime(value) {
-  if (!value) return "";
-  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
-    ? value.replace(" ", "T")
-    : value;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-}
-
-function localMonthValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-function localDateValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 async function refreshPairingQr() {
   const message = document.querySelector("#pairingMessage");
   const qrImage = document.querySelector("#pairingQr");
@@ -1211,23 +1182,6 @@ function lineOverrideFromForm(payload) {
     month: payload.overrideMonth,
     teaPricePerKg: payload.overrideTeaPricePerKg
   };
-}
-
-function escapeAttribute(value) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function checked(value) {
-  return value ? "checked" : "";
 }
 
 function renderTeaLineEditForm(line) {
@@ -1636,10 +1590,6 @@ function greenLeafBookTotals(rows, dayCount) {
     positiveBalanceToPay: sumNumbers(rows.map((row) => Math.max(0, Number(row.balanceToPay || 0)))),
     negativeBalanceToPay: sumNumbers(rows.map((row) => Math.min(0, Number(row.balanceToPay || 0))))
   };
-}
-
-function sumNumbers(values) {
-  return values.reduce((total, value) => total + Number(value || 0), 0);
 }
 
 function populateBookPaymentForm({ preservePaymentSelection = true } = {}) {
@@ -2152,23 +2102,6 @@ function formatSinhalaMonth(month) {
   if (!year || !monthNumber) return month || "";
   const names = ["ජනවාරි", "පෙබරවාරි", "මාර්තු", "අප්‍රේල්", "මැයි", "ජූනි", "ජූලි", "අගෝස්තු", "සැප්තැම්බර්", "ඔක්තෝබර්", "නොවැම්බර්", "දෙසැම්බර්"];
   return `${names[Number(monthNumber) - 1] || monthNumber} ${year}`;
-}
-
-function formatBookNumber(value, { blankZero = false } = {}) {
-  const number = Number(value || 0);
-  if (blankZero && number === 0) return "";
-  const hasDecimals = !Number.isInteger(number);
-  return number.toLocaleString("en-US", {
-    minimumFractionDigits: hasDecimals ? 2 : 0,
-    maximumFractionDigits: hasDecimals ? 2 : 0
-  });
-}
-
-function formatBillCurrency(value) {
-  return Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
 }
 
 function poyaDaysForMonth(month) {

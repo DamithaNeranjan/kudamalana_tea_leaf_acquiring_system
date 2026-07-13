@@ -5,6 +5,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 
 class SyncClient(
@@ -14,7 +15,10 @@ class SyncClient(
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
     fun login(username: String, password: String): String {
-        val payload = """{"username":"${escapeJson(username)}","password":"${escapeJson(password)}"}"""
+        val payload = JSONObject()
+            .put("username", username)
+            .put("password", password)
+            .toString()
         val request = Request.Builder()
             .url("$baseUrl/sync/login")
             .post(payload.toRequestBody(jsonType))
@@ -44,27 +48,10 @@ class SyncClient(
     }
 
     fun uploadCollections(deviceId: String, records: List<CollectionRecordEntity>): String {
-        val recordsJson = records.joinToString(",") { record ->
-            """
-            {
-              "id":"${record.id}",
-              "collectionDate":"${record.collectionDate}",
-              "collectionTime":"${record.collectionTime}",
-              "tabletSavedAt":"${escapeJson(record.tabletSavedAt)}",
-              "printedAt":${record.printedAt?.let { "\"${escapeJson(it)}\"" } ?: "null"},
-              "lineId":"${record.lineId.orEmpty()}",
-              "lineName":"${record.lineName}",
-              "supplierId":"${record.supplierId}",
-              "supplierCode":"${record.supplierCode}",
-              "supplierName":"${record.supplierName}",
-              "bagCount":${record.bagCount},
-              "grossWeightKg":${record.grossWeightKg},
-              "lineUserName":"${record.lineUserName}",
-              "printStatus":"${record.printStatus}"
-            }
-            """.trimIndent()
-        }
-        val payload = """{"deviceId":"$deviceId","records":[$recordsJson]}"""
+        val payload = JSONObject()
+            .put("deviceId", deviceId)
+            .put("records", JSONArray(records.map(::collectionRecordJson)))
+            .toString()
         val request = Request.Builder()
             .url("$baseUrl/sync/collections")
             .post(payload.toRequestBody(jsonType))
@@ -75,10 +62,20 @@ class SyncClient(
         }
     }
 
-    private fun escapeJson(value: String): String =
-        value
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
+    private fun collectionRecordJson(record: CollectionRecordEntity): JSONObject =
+        JSONObject()
+            .put("id", record.id)
+            .put("collectionDate", record.collectionDate)
+            .put("collectionTime", record.collectionTime)
+            .put("tabletSavedAt", record.tabletSavedAt)
+            .put("printedAt", record.printedAt ?: JSONObject.NULL)
+            .put("lineId", record.lineId.orEmpty())
+            .put("lineName", record.lineName)
+            .put("supplierId", record.supplierId)
+            .put("supplierCode", record.supplierCode)
+            .put("supplierName", record.supplierName)
+            .put("bagCount", record.bagCount)
+            .put("grossWeightKg", record.grossWeightKg)
+            .put("lineUserName", record.lineUserName)
+            .put("printStatus", record.printStatus)
 }

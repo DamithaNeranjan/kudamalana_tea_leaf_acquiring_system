@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { request } from "../api/client.js";
+import {
+  formatAmountInput,
+  formatCurrency,
+  paginateRows,
+  parseAmountInput,
+  parseDateTime
+} from "../../../../packages/shared/src/format.mjs";
 
 function previousMonth() {
   const date = new Date();
@@ -23,25 +30,6 @@ function monthOptions() {
   return options.reverse();
 }
 
-function money(value) {
-  return Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-function parseAmount(value) {
-  return String(value || "").replace(/,/g, "");
-}
-
-function formatAmountInput(value) {
-  const clean = parseAmount(value).replace(/[^\d.]/g, "");
-  const [integerPart, ...decimalParts] = clean.split(".");
-  const integer = integerPart ? Number(integerPart).toLocaleString("en-US") : "";
-  const decimal = decimalParts.length ? `.${decimalParts.join("").slice(0, 2)}` : "";
-  return `${integer}${decimal}`;
-}
-
 function dateTime(value) {
   if (!value) return "";
   const date = parseDateTime(value);
@@ -58,14 +46,6 @@ function dateTime(value) {
       })}</span>
     </span>
   );
-}
-
-function parseDateTime(value) {
-  if (!value) return "";
-  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
-    ? `${value.replace(" ", "T")}Z`
-    : value;
-  return new Date(normalized);
 }
 
 function PaidSignalCell({ signal }) {
@@ -111,13 +91,7 @@ function MarkPaidForm({ row, section, canManage, onSubmit }) {
 const PAGE_SIZE = 10;
 
 function paginate(rows, page) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  return {
-    rows: rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    page: safePage,
-    totalPages
-  };
+  return paginateRows(rows, page, PAGE_SIZE);
 }
 
 function Pager({ page, totalPages, totalRows, label, onPage }) {
@@ -215,7 +189,7 @@ export function BalancesView({ currentUser, showToast }) {
     event.preventDefault();
     await request("/balances/factory-officer-payments", {
       method: "POST",
-      body: JSON.stringify({ month, amount: parseAmount(factoryAmount), comment: factoryComment })
+      body: JSON.stringify({ month, amount: parseAmountInput(factoryAmount), comment: factoryComment })
     });
     setFactoryAmount("");
     setFactoryComment("");
@@ -297,7 +271,7 @@ export function BalancesView({ currentUser, showToast }) {
                 <tr key={row.lineId || row.lineName}>
                   <td>{row.lineName}</td>
                   <td>{row.supplierCount}</td>
-                  <td>{money(row.positiveBalance)}</td>
+                  <td>{formatCurrency(row.positiveBalance)}</td>
                   <td><PaidSignalCell signal={row.signal} /></td>
                   <td>{row.signal?.comment || "-"}</td>
                   <td>{dateTime(row.signal?.markedAt)}</td>
@@ -337,7 +311,7 @@ export function BalancesView({ currentUser, showToast }) {
                   <td>{row.supplierCode}</td>
                   <td>{row.supplierName}</td>
                   <td>{row.lineName}</td>
-                  <td>{money(row.positiveBalance)}</td>
+                  <td>{formatCurrency(row.positiveBalance)}</td>
                   <td><PaidSignalCell signal={row.signal} /></td>
                   <td>{row.signal?.comment || "-"}</td>
                   <td>{dateTime(row.signal?.markedAt)}</td>
@@ -364,9 +338,9 @@ export function BalancesView({ currentUser, showToast }) {
           </div>
         </summary>
         <div className="balance-totals">
-          <strong>Positive: Rs. {money(balances?.factoryOfficerTransfers?.positiveBalance)}</strong>
-          <strong>Negative: Rs. {money(balances?.factoryOfficerTransfers?.negativeBalance)}</strong>
-          <strong>Remaining: Rs. {money(balances?.factoryOfficerTransfers?.remainingPositiveBalance)}</strong>
+          <strong>Positive: Rs. {formatCurrency(balances?.factoryOfficerTransfers?.positiveBalance)}</strong>
+          <strong>Negative: Rs. {formatCurrency(balances?.factoryOfficerTransfers?.negativeBalance)}</strong>
+          <strong>Remaining: Rs. {formatCurrency(balances?.factoryOfficerTransfers?.remainingPositiveBalance)}</strong>
         </div>
         <div className="toolbar">
           <input placeholder="Filter cash supplier, code, or line" value={factorySupplierFilter} onChange={(event) => setFactorySupplierFilter(event.target.value)} />
@@ -382,7 +356,7 @@ export function BalancesView({ currentUser, showToast }) {
                   <td>{row.supplierCode}</td>
                   <td>{row.supplierName}</td>
                   <td>{row.lineName}</td>
-                  <td>{money(row.balanceToPay)}</td>
+                  <td>{formatCurrency(row.balanceToPay)}</td>
                 </tr>
               ))}
             </tbody>
@@ -416,11 +390,11 @@ export function BalancesView({ currentUser, showToast }) {
             <tbody>
               {pagedFactoryPayments.rows.map((payment) => (
                 <tr key={payment.id}>
-                  <td>{money(payment.amount)}</td>
+                  <td>{formatCurrency(payment.amount)}</td>
                   <td>{payment.comment || "-"}</td>
                   <td>{dateTime(payment.markedAt)}</td>
                   <td>{payment.markedByDisplayName || ""}</td>
-                  <td>{money(payment.remainingPositiveBalance)}</td>
+                  <td>{formatCurrency(payment.remainingPositiveBalance)}</td>
                   <td><ReadStatusCell signal={payment} /></td>
                   <td>
                     {canMarkRead && !payment.readAt ? (

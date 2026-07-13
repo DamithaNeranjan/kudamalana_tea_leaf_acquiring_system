@@ -1,34 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { request } from "../api/client.js";
-
-function currentMonth() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function currentDate() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function money(value) {
-  return Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-function parseAmount(value) {
-  return String(value || "").replace(/,/g, "");
-}
-
-function formatAmountInput(value) {
-  const clean = parseAmount(value).replace(/[^\d.]/g, "");
-  const [integerPart, ...decimalParts] = clean.split(".");
-  const integer = integerPart ? Number(integerPart).toLocaleString("en-US") : "";
-  const decimal = decimalParts.length ? `.${decimalParts.join("").slice(0, 2)}` : "";
-  return `${integer}${decimal}`;
-}
+import {
+  formatAmountInput,
+  formatCurrency,
+  localDateValue,
+  localMonthValue,
+  paginateRows,
+  parseAmountInput,
+  parseDateTime
+} from "../../../../packages/shared/src/format.mjs";
 
 function dateTime(value) {
   if (!value) return "";
@@ -48,14 +28,6 @@ function dateTime(value) {
   );
 }
 
-function parseDateTime(value) {
-  if (!value) return "";
-  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
-    ? `${value.replace(" ", "T")}Z`
-    : value;
-  return new Date(normalized);
-}
-
 function targetLabel(scope, target) {
   if (!target) return "";
   return scope === "line" ? target.name : `${target.code || ""} - ${target.name || ""}`.trim();
@@ -64,21 +36,15 @@ function targetLabel(scope, target) {
 const PAGE_SIZE = 10;
 
 function paginate(rows, page) {
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  return {
-    rows: rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    page: safePage,
-    totalPages
-  };
+  return paginateRows(rows, page, PAGE_SIZE);
 }
 
 export function AdvancesView({ currentUser, showToast }) {
   const [data, setData] = useState({ suppliers: [], teaLines: [], signals: [] });
   const [scope, setScope] = useState("supplier");
   const [targetText, setTargetText] = useState("");
-  const [effectiveMonth, setEffectiveMonth] = useState(currentMonth);
-  const [dateGiven, setDateGiven] = useState(currentDate);
+  const [effectiveMonth, setEffectiveMonth] = useState(localMonthValue);
+  const [dateGiven, setDateGiven] = useState(localDateValue);
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [suggestion, setSuggestion] = useState(null);
@@ -144,7 +110,7 @@ export function AdvancesView({ currentUser, showToast }) {
         targetId: selectedTarget.id,
         effectiveMonth,
         dateGiven,
-        amount: parseAmount(amount),
+        amount: parseAmountInput(amount),
         comment
       })
     });
@@ -234,7 +200,7 @@ export function AdvancesView({ currentUser, showToast }) {
           </form>
 
           <div className="advance-suggestion">
-            <strong>Suggested amount: Rs. {money(suggestion?.suggestedAmount)}</strong>
+            <strong>Suggested amount: Rs. {formatCurrency(suggestion?.suggestedAmount)}</strong>
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
@@ -245,10 +211,10 @@ export function AdvancesView({ currentUser, showToast }) {
                     <tr key={item.supplierId}>
                       <td>{item.supplierCode} - {item.supplierName}</td>
                       <td>{item.lineName}</td>
-                      <td>{money(item.leafValue)}</td>
-                      <td>{money(item.arrearsCarriedForward)}</td>
-                      <td>{money(item.totalAdvances)}</td>
-                      <td>{money(item.suggestedAmount)}</td>
+                      <td>{formatCurrency(item.leafValue)}</td>
+                      <td>{formatCurrency(item.arrearsCarriedForward)}</td>
+                      <td>{formatCurrency(item.totalAdvances)}</td>
+                      <td>{formatCurrency(item.suggestedAmount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -294,8 +260,8 @@ export function AdvancesView({ currentUser, showToast }) {
                   <td>{signal.targetLabel}</td>
                   <td>{signal.effectiveMonth}</td>
                   <td>{signal.dateGiven}</td>
-                  <td>{money(signal.suggestedAmount)}</td>
-                  <td>{money(signal.amount)}</td>
+                  <td>{formatCurrency(signal.suggestedAmount)}</td>
+                  <td>{formatCurrency(signal.amount)}</td>
                   <td>{signal.comment || "-"}</td>
                   <td>{dateTime(signal.markedAt)}</td>
                   <td>{signal.markedByDisplayName || ""}</td>

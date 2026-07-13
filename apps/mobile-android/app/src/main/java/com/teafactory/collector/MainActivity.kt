@@ -48,13 +48,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -98,17 +96,6 @@ import kotlinx.coroutines.runBlocking
 
 private val SERIAL_PORT_PROFILE_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
-private val Ink = Color(0xFF172116)
-private val Muted = Color(0xFF62705F)
-private val Line = Color(0xFFDCE3D8)
-private val Panel = Color(0xFFFFFFFF)
-private val Soft = Color(0xFFEEF3EB)
-private val Page = Color(0xFFF6F7F4)
-private val Brand = Color(0xFF1F5F36)
-private val BrandStrong = Color(0xFF17351F)
-private val Accent = Color(0xFFB9862C)
-private val Success = Color(0xFF1F5F36)
-private val Danger = Color(0xFF8A241F)
 private const val DEFAULT_OFFICE_SYNC_URL = "http://192.168.1.125:7070"
 private const val PREFS_NAME = "tea_collector_settings"
 private const val PREF_SYNC_URL = "office_sync_url"
@@ -116,25 +103,6 @@ private const val PREF_CACHED_USERNAME = "cached_username"
 private const val PREF_CACHED_PASSWORD = "cached_password"
 private const val PREF_CACHED_DISPLAY_NAME = "cached_display_name"
 private val RECEIPT_PRINTER_NAME_HINTS = listOf("MTP-2", "GOOJ", "PT-210", "PT210", "PRINTER")
-
-data class MobileSession(
-    val username: String,
-    val displayName: String,
-    val syncUrl: String
-)
-
-data class SupplierOption(
-    val id: String,
-    val code: String,
-    val name: String,
-    val lineId: String?,
-    val lineName: String
-)
-
-data class TeaLineOption(
-    val id: String,
-    val name: String
-)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -155,22 +123,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-
-@Composable
-fun KudamalanaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Brand,
-            onPrimary = Color.White,
-            secondary = Accent,
-            background = Page,
-            surface = Panel,
-            onSurface = Ink,
-            error = Danger
-        ),
-        content = content
-    )
 }
 
 @Composable

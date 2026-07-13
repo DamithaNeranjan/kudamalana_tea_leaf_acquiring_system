@@ -1,4 +1,5 @@
 import { daysInMonth, normalizeMonth } from "./ids.mjs";
+import { localMonthValue, roundToTwo, roundWhole, sumNumbers } from "./format.mjs";
 
 const DEFAULT_SETTINGS = {
   teaPricePerKg: 200,
@@ -8,15 +9,15 @@ const DEFAULT_SETTINGS = {
 };
 
 function money(value) {
-  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  return roundToTwo(value);
 }
 
 function kg(value) {
-  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  return roundToTwo(value);
 }
 
 function wholeKg(value) {
-  return Math.round(Number(value || 0));
+  return roundWhole(value);
 }
 
 function sameMonth(dateValue, month) {
@@ -30,8 +31,7 @@ function previousMonthValue(month) {
 }
 
 function currentMonthValue() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return localMonthValue();
 }
 
 function nextMonthValue(month) {
@@ -68,7 +68,7 @@ function effectiveTeaPrice(settings, override) {
 }
 
 function sumBy(items, selector) {
-  return items.reduce((total, item) => total + Number(selector(item) || 0), 0);
+  return sumNumbers(items.map(selector));
 }
 
 export function buildGreenLeafBook(input) {

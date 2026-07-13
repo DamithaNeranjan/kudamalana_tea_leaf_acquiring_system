@@ -1,19 +1,6 @@
 import { useMemo, useState } from "react";
 import { request } from "../api/client.js";
-
-function sumNumbers(values) {
-  return values.reduce((total, value) => total + Number(value || 0), 0);
-}
-
-function formatBookNumber(value, { blankZero = false } = {}) {
-  const number = Number(value || 0);
-  if (blankZero && number === 0) return "";
-  const hasDecimals = !Number.isInteger(number);
-  return number.toLocaleString("en-US", {
-    minimumFractionDigits: hasDecimals ? 2 : 0,
-    maximumFractionDigits: hasDecimals ? 2 : 0
-  });
-}
+import { formatOptionalDecimal, localMonthValue, sumNumbers } from "../../../../packages/shared/src/format.mjs";
 
 function poyaDaysForMonth(month) {
   const [year, monthNumber] = String(month || "").split("-").map(Number);
@@ -57,13 +44,8 @@ function greenLeafBookTotals(rows, dayCount) {
   };
 }
 
-function currentMonth() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 export function BookView() {
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState(localMonthValue);
   const [book, setBook] = useState(null);
   const [supplierFilter, setSupplierFilter] = useState("");
   const [lineFilter, setLineFilter] = useState("");
@@ -158,28 +140,28 @@ export function BookView() {
                       <td>{row.lineName || ""}</td>
                       {row.dailyKg.map((value, index) => (
                         <td key={index} className={poyaDays.has(index + 1) ? "poya-day" : ""}>
-                          {formatBookNumber(value, { blankZero: true })}
+                          {formatOptionalDecimal(value, { blankZero: true })}
                         </td>
                       ))}
-                      <td>{formatBookNumber(row.totalKg)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.deductionKg)}</td>
-                      <td className="addition-value">{formatBookNumber(row.finalKg)}</td>
-                      <td className="addition-value">{formatBookNumber(row.ownTransportAddition)}</td>
+                      <td>{formatOptionalDecimal(row.totalKg)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.deductionKg)}</td>
+                      <td className="addition-value">{formatOptionalDecimal(row.finalKg)}</td>
+                      <td className="addition-value">{formatOptionalDecimal(row.ownTransportAddition)}</td>
                       <td className="advance-breakdown">
                         {(row.advancePayments || []).map((advance, index) => <span key={`${advance.date}-${index}`}>{advance.date}</span>)}
                       </td>
                       <td className="advance-breakdown deduction-value">
-                        {(row.advancePayments || []).map((advance, index) => <span key={`${advance.date}-${index}`}>{formatBookNumber(advance.amount)}</span>)}
+                        {(row.advancePayments || []).map((advance, index) => <span key={`${advance.date}-${index}`}>{formatOptionalDecimal(advance.amount)}</span>)}
                       </td>
-                      <td className="deduction-value">{formatBookNumber(row.totalAdvances)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.fertilizerDeduction)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.teaPacketDeduction)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.factoryTransportDeduction)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.arrearsCarriedForward)}</td>
-                      <td className="addition-value">{formatBookNumber(row.pricePerKg)}</td>
-                      <td className="addition-value">{formatBookNumber(row.totalAdditions ?? row.ownTransportAddition)}</td>
-                      <td className="deduction-value">{formatBookNumber(row.totalDeductions)}</td>
-                      <td className="balance-value">{row.balanceExcluded ? "" : formatBookNumber(row.balanceToPay)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.totalAdvances)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.fertilizerDeduction)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.teaPacketDeduction)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.factoryTransportDeduction)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.arrearsCarriedForward)}</td>
+                      <td className="addition-value">{formatOptionalDecimal(row.pricePerKg)}</td>
+                      <td className="addition-value">{formatOptionalDecimal(row.totalAdditions ?? row.ownTransportAddition)}</td>
+                      <td className="deduction-value">{formatOptionalDecimal(row.totalDeductions)}</td>
+                      <td className="balance-value">{row.balanceExcluded ? "" : formatOptionalDecimal(row.balanceToPay)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -187,25 +169,25 @@ export function BookView() {
                   <tr>
                     <td></td><td className="book-total-label">Total</td><td></td>
                     {totals.dailyKg.map((value, index) => (
-                      <td key={index} className={poyaDays.has(index + 1) ? "poya-day" : ""}>{formatBookNumber(value)}</td>
+                      <td key={index} className={poyaDays.has(index + 1) ? "poya-day" : ""}>{formatOptionalDecimal(value)}</td>
                     ))}
-                    <td>{formatBookNumber(totals.totalKg)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.deductionKg)}</td>
-                    <td className="addition-value">{formatBookNumber(totals.finalKg)}</td>
-                    <td className="addition-value">{formatBookNumber(totals.ownTransportAddition)}</td>
+                    <td>{formatOptionalDecimal(totals.totalKg)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.deductionKg)}</td>
+                    <td className="addition-value">{formatOptionalDecimal(totals.finalKg)}</td>
+                    <td className="addition-value">{formatOptionalDecimal(totals.ownTransportAddition)}</td>
                     <td></td>
                     <td></td>
-                    <td className="deduction-value">{formatBookNumber(totals.totalAdvances)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.fertilizerDeduction)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.teaPacketDeduction)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.factoryTransportDeduction)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.arrearsCarriedForward)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.totalAdvances)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.fertilizerDeduction)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.teaPacketDeduction)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.factoryTransportDeduction)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.arrearsCarriedForward)}</td>
                     <td></td>
-                    <td className="addition-value">{formatBookNumber(totals.totalAdditions)}</td>
-                    <td className="deduction-value">{formatBookNumber(totals.totalDeductions)}</td>
+                    <td className="addition-value">{formatOptionalDecimal(totals.totalAdditions)}</td>
+                    <td className="deduction-value">{formatOptionalDecimal(totals.totalDeductions)}</td>
                     <td className="balance-value balance-total-cell">
-                      <span className="positive-balance-total">{formatBookNumber(totals.positiveBalanceToPay)}</span>
-                      <span className="negative-balance-total">{formatBookNumber(totals.negativeBalanceToPay)}</span>
+                      <span className="positive-balance-total">{formatOptionalDecimal(totals.positiveBalanceToPay)}</span>
+                      <span className="negative-balance-total">{formatOptionalDecimal(totals.negativeBalanceToPay)}</span>
                     </td>
                   </tr>
                 </tfoot>

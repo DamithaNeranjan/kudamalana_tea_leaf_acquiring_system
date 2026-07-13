@@ -1,17 +1,11 @@
 import http from "node:http";
 import { pathToFileURL } from "node:url";
 import { buildGreenLeafBookWithAutoArrears } from "../../../packages/shared/src/index.mjs";
+import { bearerToken, cookiesFromHeader, parseJsonBody, sendJson } from "../../../packages/shared/src/http.mjs";
 import { createMemoryStore } from "./store.mjs";
 import { createMySqlStore, loadBackendEnv } from "./mysqlStore.mjs";
 
 export function createBackendServer({ store = createMemoryStore() } = {}) {
-  async function parseBody(request) {
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    if (chunks.length === 0) return {};
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  }
-
   function corsHeaders(request) {
     const origin = request.headers.origin;
     return {
@@ -24,37 +18,19 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
   }
 
   function send(request, response, status, payload, headers = {}) {
-    response.writeHead(status, {
-      "content-type": "application/json; charset=utf-8",
+    sendJson(response, status, payload, {
       ...corsHeaders(request),
       ...headers
     });
-    response.end(JSON.stringify(payload));
-  }
-
-  function bearer(request) {
-    const header = request.headers.authorization || "";
-    return header.startsWith("Bearer ") ? header.slice(7) : "";
   }
 
   function cookieToken(request) {
-    const cookies = Object.fromEntries(
-      String(request.headers.cookie || "")
-        .split(";")
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .map((part) => {
-          const index = part.indexOf("=");
-          return index === -1
-            ? [part, ""]
-            : [decodeURIComponent(part.slice(0, index)), decodeURIComponent(part.slice(index + 1))];
-        })
-    );
+    const cookies = cookiesFromHeader(request.headers.cookie);
     return cookies.tea_session || "";
   }
 
   function sessionToken(request) {
-    return bearer(request) || cookieToken(request);
+    return bearerToken(request) || cookieToken(request);
   }
 
   function validDesktopSyncToken(request) {
@@ -89,7 +65,7 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         return send(request, response, 200, { ok: true, service: "tea-backend" });
       }
       if (request.method === "POST" && url.pathname === "/auth/login") {
-        const payload = await parseBody(request);
+        const payload = await parseJsonBody(request);
         const login = await store.login(payload.username, payload.password);
         return send(request, response, 200, login, { "set-cookie": sessionCookie(login.token) });
       }
@@ -107,20 +83,20 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         });
       }
       if (request.method === "POST" && url.pathname === "/admin/users") {
-        return send(request, response, 201, await store.createUser(sessionToken(request), await parseBody(request)));
+        return send(request, response, 201, await store.createUser(sessionToken(request), await parseJsonBody(request)));
       }
       if (request.method === "PATCH" && url.pathname.startsWith("/admin/users/")) {
         const userId = decodeURIComponent(url.pathname.split("/").pop());
-        return send(request, response, 200, await store.updateUser(sessionToken(request), userId, await parseBody(request)));
+        return send(request, response, 200, await store.updateUser(sessionToken(request), userId, await parseJsonBody(request)));
       }
       if (request.method === "GET" && url.pathname === "/admin/directors") {
         return send(request, response, 200, { directors: await store.listDirectors(sessionToken(request)) });
       }
       if (request.method === "POST" && url.pathname === "/admin/directors") {
-        return send(request, response, 201, await store.createDirector(sessionToken(request), await parseBody(request)));
+        return send(request, response, 201, await store.createDirector(sessionToken(request), await parseJsonBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/sync/desktop") {
-        const payload = await parseBody(request);
+        const payload = await parseJsonBody(request);
         if (validDesktopSyncToken(request) && store.syncFromTrustedDesktop) {
           return send(request, response, 200, await store.syncFromTrustedDesktop(payload));
         }
@@ -146,10 +122,10 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         return send(request, response, 200, await store.getBalances(sessionToken(request), url.searchParams.get("month")));
       }
       if (request.method === "POST" && url.pathname === "/balances/mark-paid") {
-        return send(request, response, 201, await store.markBalancePaid(sessionToken(request), await parseBody(request)));
+        return send(request, response, 201, await store.markBalancePaid(sessionToken(request), await parseJsonBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/balances/factory-officer-payments") {
-        return send(request, response, 201, await store.addFactoryOfficerTransfer(sessionToken(request), await parseBody(request)));
+        return send(request, response, 201, await store.addFactoryOfficerTransfer(sessionToken(request), await parseJsonBody(request)));
       }
       if (request.method === "GET" && url.pathname === "/advance-signals") {
         return send(request, response, 200, await store.listAdvanceSignals(sessionToken(request)));
@@ -167,10 +143,10 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         );
       }
       if (request.method === "POST" && url.pathname === "/advance-signals") {
-        return send(request, response, 201, await store.createAdvanceSignal(sessionToken(request), await parseBody(request)));
+        return send(request, response, 201, await store.createAdvanceSignal(sessionToken(request), await parseJsonBody(request)));
       }
       if (request.method === "POST" && url.pathname === "/signals/mark-read") {
-        return send(request, response, 200, await store.markSignalRead(sessionToken(request), await parseBody(request)));
+        return send(request, response, 200, await store.markSignalRead(sessionToken(request), await parseJsonBody(request)));
       }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {

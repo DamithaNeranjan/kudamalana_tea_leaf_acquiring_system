@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import QRCode from "qrcode";
 import { suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
+import { bearerToken, parseJsonBody, sendJson } from "../../../packages/shared/src/http.mjs";
+import { beginCloudSyncPlan, configuredBackendUrl, resolveBackendToken } from "./cloudSync.mjs";
 import { LocalStore } from "./localStore.mjs";
 
 async function loadDesktopEnv(cwd = process.cwd()) {
@@ -30,29 +32,16 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
   await store.load();
   const sessions = new Map();
 
-  async function body(request) {
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
-  }
-
   function send(response, status, payload) {
-    response.writeHead(status, {
-      "content-type": "application/json; charset=utf-8",
+    sendJson(response, status, payload, {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
       "access-control-allow-methods": "GET,POST,PUT,OPTIONS"
     });
-    response.end(JSON.stringify(payload));
-  }
-
-  function bearer(request) {
-    const header = request.headers.authorization || "";
-    return header.startsWith("Bearer ") ? header.slice(7) : "";
   }
 
   function requireOfficeSession(request) {
-    const token = bearer(request);
+    const token = bearerToken(request);
     if (!sessions.has(token)) {
       const error = new Error("Office login is required");
       error.status = 401;
@@ -174,17 +163,17 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         return send(response, 200, store.getMasterData());
       }
       if (request.method === "POST" && url.pathname === "/sync/login") {
-        return send(response, 200, { user: store.loginLineUser(await body(request)) });
+        return send(response, 200, { user: store.loginLineUser(await parseJsonBody(request)) });
       }
       if (request.method === "POST" && url.pathname === "/sync/collections") {
-        const payload = await body(request);
+        const payload = await parseJsonBody(request);
         return send(response, 200, await store.importCollections(payload.deviceId, payload.records));
       }
       if (request.method === "GET" && url.pathname.startsWith("/sync/status/")) {
         return send(response, 200, { deviceId: url.pathname.split("/").pop(), ready: true });
       }
       if (request.method === "POST" && url.pathname === "/office/login") {
-        const payload = await body(request);
+        const payload = await parseJsonBody(request);
         const user = store.login(payload.username, payload.password);
         const token = randomBytes(24).toString("hex");
         const session = { user, createdAt: new Date().toISOString() };
@@ -205,7 +194,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "PUT" && url.pathname === "/office/profile") {
           const before = store.officeUserById(session.user.id);
-          const updatedUser = await store.updateOfficeProfile(session.user.id, await body(request));
+          const updatedUser = await store.updateOfficeProfile(session.user.id, await parseJsonBody(request));
           session.user = updatedUser;
           logAudit(session, {
             action: "update",
@@ -226,7 +215,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             entityLabel: session.user.displayName || session.user.username,
             summary: `Logged out: ${session.user.displayName || session.user.username}`
           });
-          sessions.delete(bearer(request));
+          sessions.delete(bearerToken(request));
           return send(response, 200, { ok: true });
         }
         if (request.method === "GET" && url.pathname === "/office/pairing-info") {
@@ -253,26 +242,26 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           });
         }
         if (request.method === "POST" && url.pathname === "/office/line-users") {
-          return send(response, 201, await auditedUpsert(session, "lineUsers", await body(request), "line_user"));
+          return send(response, 201, await auditedUpsert(session, "lineUsers", await parseJsonBody(request), "line_user"));
         }
         if (request.method === "POST" && url.pathname === "/office/office-users") {
           requireDesktopAdmin(session);
-          return send(response, 201, await auditedUpsert(session, "officeUsers", await body(request), "office_user"));
+          return send(response, 201, await auditedUpsert(session, "officeUsers", await parseJsonBody(request), "office_user"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-lines") {
-          return send(response, 201, await auditedUpsert(session, "teaLines", await body(request), "line"));
+          return send(response, 201, await auditedUpsert(session, "teaLines", await parseJsonBody(request), "line"));
         }
         if (request.method === "POST" && url.pathname === "/office/suppliers") {
-          return send(response, 201, await auditedUpsert(session, "suppliers", await body(request), "sup"));
+          return send(response, 201, await auditedUpsert(session, "suppliers", await parseJsonBody(request), "sup"));
         }
         if (request.method === "POST" && url.pathname === "/office/monthly-settings") {
-          return send(response, 201, await auditedUpsert(session, "monthlySettings", await body(request), "settings"));
+          return send(response, 201, await auditedUpsert(session, "monthlySettings", await parseJsonBody(request), "settings"));
         }
         if (request.method === "POST" && url.pathname === "/office/supplier-month-overrides") {
-          return send(response, 201, await auditedUpsert(session, "supplierMonthOverrides", await body(request), "override"));
+          return send(response, 201, await auditedUpsert(session, "supplierMonthOverrides", await parseJsonBody(request), "override"));
         }
         if (request.method === "POST" && url.pathname === "/office/line-supplier-price-overrides") {
-          const payload = await body(request);
+          const payload = await parseJsonBody(request);
           const result = await store.upsertLineSupplierPriceOverride(payload);
           logAudit(session, {
             action: "bulk_update",
@@ -286,18 +275,18 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 201, result);
         }
         if (request.method === "POST" && url.pathname === "/office/advances") {
-          return send(response, 201, await auditedUpsert(session, "advances", await body(request), "adv"));
+          return send(response, 201, await auditedUpsert(session, "advances", await parseJsonBody(request), "adv"));
         }
         if (request.method === "POST" && url.pathname === "/office/fertilizer-issues") {
-          return send(response, 201, await auditedUpsert(session, "fertilizerIssues", await body(request), "fert"));
+          return send(response, 201, await auditedUpsert(session, "fertilizerIssues", await parseJsonBody(request), "fert"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-packets") {
-          return send(response, 201, await auditedUpsert(session, "teaPackets", await body(request), "tea_packet"));
+          return send(response, 201, await auditedUpsert(session, "teaPackets", await parseJsonBody(request), "tea_packet"));
         }
         if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
           const id = url.pathname.split("/").pop();
           const before = store.stagingById(id);
-          const updated = await store.updateStaging(id, await body(request));
+          const updated = await store.updateStaging(id, await parseJsonBody(request));
           logAudit(session, {
             action: "update",
             entityType: "collection_staging",
@@ -339,54 +328,20 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           }));
         }
         if (request.method === "POST" && url.pathname === "/office/cloud-sync") {
-          const payload = await body(request);
-          const backendUrl = String(payload.backendUrl || process.env.BACKEND_URL || "").replace(/\/$/, "");
+          const payload = await parseJsonBody(request);
+          const backendUrl = configuredBackendUrl(payload);
           if (!backendUrl) {
             const error = new Error("BACKEND_URL is not configured for web app sync");
             error.status = 400;
             throw error;
           }
-          let backendToken = String(payload.backendToken || process.env.CLOUD_SYNC_TOKEN || process.env.DESKTOP_CLOUD_SYNC_TOKEN || "");
-          if (!backendToken && payload.username && payload.password) {
-            const loginResponse = await fetch(`${backendUrl}/auth/login`, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ username: payload.username, password: payload.password })
-            });
-            const loginPayload = await loginResponse.json();
-            if (!loginResponse.ok) {
-              const error = new Error(loginPayload.error || "Backend login failed");
-              error.status = loginResponse.status;
-              throw error;
-            }
-            backendToken = loginPayload.token;
-          }
+          const backendToken = await resolveBackendToken({ payload, backendUrl });
           if (!backendToken) {
             const error = new Error("CLOUD_SYNC_TOKEN is not configured for web app sync");
             error.status = 400;
             throw error;
           }
-          const lastSuccessfulSync = store.lastSuccessfulCloudSync();
-          const cursorFrom = payload.fullSync ? "" : lastSuccessfulSync?.cursorTo || "";
-          const cursorTo = new Date().toISOString();
-          const syncPayload = store.exportChangedGreenLeafBookSyncData({
-            since: cursorFrom,
-            full: Boolean(payload.fullSync),
-            cursorTo,
-            includeOfficeUsers: payload.syncOfficeUsers === true
-          });
-          const sentCounts = Object.fromEntries(
-            Object.entries(syncPayload)
-              .filter(([, value]) => Array.isArray(value))
-              .map(([key, value]) => [key, value.length])
-          );
-          const syncRun = store.beginCloudSyncRun({
-            mode: syncPayload.sync.mode,
-            backendUrl,
-            cursorFrom,
-            cursorTo,
-            sent: sentCounts
-          });
+          const { syncPayload, sentCounts, syncRun } = beginCloudSyncPlan(store, payload, backendUrl);
           try {
             const syncResponse = await fetch(`${backendUrl}/sync/desktop`, {
               method: "POST",
@@ -425,7 +380,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.greenLeafBook(month));
         }
         if (request.method === "POST" && url.pathname === "/office/green-leaf-book/close") {
-          const payload = await body(request);
+          const payload = await parseJsonBody(request);
           const result = store.closeGreenLeafBook(payload.month, session.user, payload.note);
           logAudit(session, {
             action: "close",
@@ -440,7 +395,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "POST" && url.pathname === "/office/green-leaf-book/reopen") {
           requireDesktopAdmin(session);
-          const payload = await body(request);
+          const payload = await parseJsonBody(request);
           const before = store.monthClosure(payload.month);
           const result = store.reopenGreenLeafBook(payload.month, session.user, payload.note);
           logAudit(session, {
@@ -459,7 +414,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.monthEndSummary(month));
         }
         if (request.method === "POST" && url.pathname === "/office/supplier-bill-print-audit") {
-          const payload = await body(request);
+          const payload = await parseJsonBody(request);
           const printedAt = new Date().toISOString();
           const suppliers = Array.isArray(payload.suppliers) ? payload.suppliers : [];
           const supplierNames = suppliers.map((supplier) => supplier.name || supplier.supplierName || supplier.code || supplier.supplierCode).filter(Boolean);
@@ -483,7 +438,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 201, { ok: true, printedAt, supplierCount: supplierNames.length });
         }
         if (request.method === "POST" && url.pathname === "/office/supplier-payments") {
-          const payload = await body(request);
+          const payload = await parseJsonBody(request);
           const result = await store.recordSupplierPayments(payload, session.user);
           logAudit(session, {
             action: "record_payment",

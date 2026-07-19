@@ -3,10 +3,10 @@ import { request } from "../api/client.js";
 import {
   formatAmountInput,
   formatCurrency,
-  paginateRows,
   parseAmountInput,
   parseDateTime
 } from "../../../../packages/shared/src/format.mjs";
+import { filterBalanceSignalRows, filterFactoryPaymentRows, paginateWebRows } from "../utils/signalLogic.js";
 
 function previousMonth() {
   const date = new Date();
@@ -88,10 +88,8 @@ function MarkPaidForm({ row, section, canManage, onSubmit }) {
   );
 }
 
-const PAGE_SIZE = 10;
-
 function paginate(rows, page) {
-  return paginateRows(rows, page, PAGE_SIZE);
+  return paginateWebRows(rows, page);
 }
 
 function Pager({ page, totalPages, totalRows, label, onPage }) {
@@ -125,22 +123,16 @@ export function BalancesView({ currentUser, showToast }) {
   const canMarkRead = ["super_admin", "office_user"].includes(currentUser?.role);
   const months = useMemo(monthOptions, []);
 
-  const filterSignalRows = (rows, text, fields) => {
-    const needle = text.trim().toLowerCase();
-    return rows
-      .filter((row) => fields.some((field) => String(row[field] || "").toLowerCase().includes(needle)))
-      .filter((row) => {
-        if (canManage) return showRead || !row.signal?.readAt;
-        return row.signal && (showRead || !row.signal.readAt);
-      });
-  };
-
   const lineRows = useMemo(
-    () => filterSignalRows(balances?.lineWiseBankTransfers || [], lineFilter, ["lineName"]),
+    () => filterBalanceSignalRows(balances?.lineWiseBankTransfers || [], lineFilter, ["lineName"], { canManage, showRead }),
     [balances, canManage, lineFilter, showRead]
   );
   const supplierRows = useMemo(
-    () => filterSignalRows(balances?.supplierWiseBankTransfers || [], supplierFilter, ["supplierCode", "supplierName", "lineName"]),
+    () =>
+      filterBalanceSignalRows(balances?.supplierWiseBankTransfers || [], supplierFilter, ["supplierCode", "supplierName", "lineName"], {
+        canManage,
+        showRead
+      }),
     [balances, canManage, showRead, supplierFilter]
   );
   const factorySupplierRows = useMemo(() => {
@@ -151,9 +143,7 @@ export function BalancesView({ currentUser, showToast }) {
   }, [balances, factorySupplierFilter]);
   const factoryPaymentRows = useMemo(() => {
     const needle = factoryPaymentFilter.trim().toLowerCase();
-    return (balances?.factoryOfficerTransfers?.payments || [])
-      .filter((payment) => String(payment.comment || "").toLowerCase().includes(needle) || String(payment.markedByDisplayName || "").toLowerCase().includes(needle))
-      .filter((payment) => showRead || !payment.readAt);
+    return filterFactoryPaymentRows(balances?.factoryOfficerTransfers?.payments || [], needle, showRead);
   }, [balances, factoryPaymentFilter, showRead]);
   const pagedLines = useMemo(() => paginate(lineRows, linePage), [linePage, lineRows]);
   const pagedSuppliers = useMemo(() => paginate(supplierRows, supplierPage), [supplierPage, supplierRows]);

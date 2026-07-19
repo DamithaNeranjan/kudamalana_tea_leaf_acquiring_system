@@ -5,10 +5,10 @@ import {
   formatCurrency,
   localDateValue,
   localMonthValue,
-  paginateRows,
   parseAmountInput,
   parseDateTime
 } from "../../../../packages/shared/src/format.mjs";
+import { paginateWebRows, targetLabel, visibleAdvanceSignals } from "../utils/signalLogic.js";
 
 function dateTime(value) {
   if (!value) return "";
@@ -28,15 +28,8 @@ function dateTime(value) {
   );
 }
 
-function targetLabel(scope, target) {
-  if (!target) return "";
-  return scope === "line" ? target.name : `${target.code || ""} - ${target.name || ""}`.trim();
-}
-
-const PAGE_SIZE = 10;
-
 function paginate(rows, page) {
-  return paginateRows(rows, page, PAGE_SIZE);
+  return paginateWebRows(rows, page);
 }
 
 export function AdvancesView({ currentUser, showToast }) {
@@ -62,13 +55,7 @@ export function AdvancesView({ currentUser, showToast }) {
     [scope, targetText, targets]
   );
   const visibleSignals = useMemo(() => {
-    const supplierText = supplierFilter.trim().toLowerCase();
-  return data.signals
-      .filter((signal) => String(signal.targetLabel || "").toLowerCase().includes(supplierText))
-      .filter((signal) => !monthFilter || signal.effectiveMonth === monthFilter)
-      .filter((signal) => !typeFilter || signal.scope === typeFilter)
-      .filter((signal) => showRead || !signal.readAt)
-      .sort((a, b) => parseDateTime(b.markedAt) - parseDateTime(a.markedAt));
+    return visibleAdvanceSignals(data.signals, { supplierFilter, monthFilter, typeFilter, showRead });
   }, [data.signals, monthFilter, showRead, supplierFilter, typeFilter]);
   const pagedSignals = useMemo(() => paginate(visibleSignals, signalsPage), [signalsPage, visibleSignals]);
 

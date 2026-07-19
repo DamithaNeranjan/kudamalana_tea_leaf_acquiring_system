@@ -6,6 +6,7 @@ import { formatAdvanceAmounts, formatAdvanceDates, greenLeafBookTotals, poyaDays
 import { formatBillCurrency, formatBookNumber, formatDateTime } from "../renderer/modules/format.js";
 import { checked, escapeAttribute, escapeHtml } from "../renderer/modules/html.js";
 import { compareNewestFirst, latestComparableValue, pagedItems } from "../renderer/modules/listing.js";
+import { collectionRecordPage, collectionRecordRows, postAllStagingMessage, stagingRows } from "../renderer/modules/records.js";
 
 test("desktop renderer helpers preserve formatting and escaping behavior", () => {
   assert.equal(formatBookNumber(1234), "1,234");
@@ -122,4 +123,30 @@ test("desktop book helpers preserve totals, poya days, and advance formatting", 
   assert.ok(poyaDaysForMonth("2026-07").size >= 1);
   assert.equal(formatAdvanceDates({ advancePayments: [{ date: "2026-07-01<script>" }] }), "<span>2026-07-01&lt;script&gt;</span>");
   assert.equal(formatAdvanceAmounts({ advancePayments: [{ amount: 1234.5 }] }), "<span>1,234.50</span>");
+});
+
+test("desktop staging and collection record helpers preserve filters and pages", () => {
+  const staging = stagingRows(
+    [
+      { id: "old", supplierName: "Alpha", supplierCode: "A1", lineName: "North", collectionDate: "2026-07-01", importedAt: "2026-07-01" },
+      { id: "new", supplierName: "Beta", supplierCode: "B1", lineName: "North", collectionDate: "2026-07-01", importedAt: "2026-07-02" },
+      { id: "other", supplierName: "Beta", supplierCode: "B1", lineName: "South", collectionDate: "2026-07-03", importedAt: "2026-07-03" }
+    ],
+    { stagingSupplier: "b1", stagingLine: "north", stagingDate: "2026-07-01" }
+  );
+  assert.deepEqual(staging.map((row) => row.id), ["new"]);
+
+  const records = collectionRecordRows(
+    [
+      { id: "a", supplierName: "Alpha", lineName: "North", postedByOfficeUserName: "Manager", lineUserName: "Collector", collectionDate: "2026-07-01", postedAt: "2026-07-01" },
+      { id: "b", supplierName: "Beta", lineName: "South", postedByOfficeUserName: "Manager", lineUserName: "Collector", collectionDate: "2026-07-02", postedAt: "2026-07-03" }
+    ],
+    { recordSupplier: "", recordLine: "", recordPostedBy: "manager", recordCollector: "collector", recordDateFrom: "2026-07-02", recordDateTo: "" }
+  );
+  assert.deepEqual(records.map((record) => record.id), ["b"]);
+  assert.deepEqual(collectionRecordPage([1, 2, 3], 9, 2), { page: 2, pageCount: 2, start: 2, pageRecords: [3], shownEnd: 3 });
+  assert.equal(
+    postAllStagingMessage(2),
+    "This will permanently post 2 staged tablet records using the net weights currently shown in the table."
+  );
 });

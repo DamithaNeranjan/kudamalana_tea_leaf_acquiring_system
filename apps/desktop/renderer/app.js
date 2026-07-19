@@ -3,6 +3,7 @@ import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCoun
 import { formatAdvanceAmounts, formatAdvanceDates, greenLeafBookTotals, poyaDaysForMonth } from "./modules/book.js";
 import { escapeAttribute, escapeHtml } from "./modules/html.js";
 import { compareNewestFirst, pagedItems } from "./modules/listing.js";
+import { collectionRecordPage, collectionRecordRows, postAllStagingMessage, stagingRows } from "./modules/records.js";
 import {
   formatBillCurrency,
   formatBookNumber,
@@ -478,17 +479,9 @@ function renderOfficeUsers(state) {
 }
 
 function renderStaging(state) {
-  const supplier = filters.stagingSupplier;
-  const line = filters.stagingLine;
-  const date = filters.stagingDate;
   const pageRows = paginateList(
     "staging",
-    state.collectionStaging
-      .filter((row) => `${row.supplierName || ""} ${row.supplierCode || ""}`.toLowerCase().includes(supplier))
-      .filter((row) => String(row.lineName || "").toLowerCase().includes(line))
-      .filter((row) => !date || row.collectionDate === date)
-      .slice()
-      .sort((a, b) => compareNewestFirst(a, b, "importedAt")),
+    stagingRows(state.collectionStaging, filters),
     "stagingTable"
   );
   document.querySelector("#stagingTable tbody").innerHTML = pageRows
@@ -639,27 +632,10 @@ function updateTeaPacketTotal() {
 }
 
 function renderCollectionRecords(records = []) {
-  const filtered = records
-    .filter((record) => {
-      const supplier = String(record.supplierName || "").toLowerCase();
-      const line = String(record.lineName || "").toLowerCase();
-      const postedBy = String(record.postedByOfficeUserName || "").toLowerCase();
-      const collector = String(record.lineUserName || "").toLowerCase();
-      return (
-        supplier.includes(filters.recordSupplier) &&
-        line.includes(filters.recordLine) &&
-        postedBy.includes(filters.recordPostedBy) &&
-        collector.includes(filters.recordCollector) &&
-        (!filters.recordDateFrom || record.collectionDate >= filters.recordDateFrom) &&
-        (!filters.recordDateTo || record.collectionDate <= filters.recordDateTo)
-      );
-    })
-    .sort((a, b) => compareNewestFirst(a, b, "postedAt", "tabletSavedAt", "collectionDate"));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / recordsPageSize));
-  recordsPage = Math.min(recordsPage, pageCount);
-  const start = (recordsPage - 1) * recordsPageSize;
-  const pageRecords = filtered.slice(start, start + recordsPageSize);
-  document.querySelector("#recordsTable tbody").innerHTML = pageRecords
+  const filtered = collectionRecordRows(records, filters);
+  const page = collectionRecordPage(filtered, recordsPage, recordsPageSize);
+  recordsPage = page.page;
+  document.querySelector("#recordsTable tbody").innerHTML = page.pageRecords
     .map(
       (record) => `
       <tr>
@@ -677,12 +653,11 @@ function renderCollectionRecords(records = []) {
       </tr>`
     )
     .join("");
-  const shownEnd = Math.min(start + pageRecords.length, filtered.length);
   document.querySelector("#recordsPageInfo").textContent = filtered.length
-    ? `Showing ${start + 1}-${shownEnd} of ${filtered.length}`
+    ? `Showing ${page.start + 1}-${page.shownEnd} of ${filtered.length}`
     : "No records";
   document.querySelector("#recordsPrevPage").disabled = recordsPage <= 1;
-  document.querySelector("#recordsNextPage").disabled = recordsPage >= pageCount;
+  document.querySelector("#recordsNextPage").disabled = recordsPage >= page.pageCount;
 }
 
 function renderPayments(state) {
@@ -1184,8 +1159,7 @@ function openPostAllModal() {
     showToast("There are no staged records to post.", "error");
     return;
   }
-  document.querySelector("#confirmPostAllMessage").textContent =
-    `This will permanently post ${count} staged tablet record${count === 1 ? "" : "s"} using the net weights currently shown in the table.`;
+  document.querySelector("#confirmPostAllMessage").textContent = postAllStagingMessage(count);
   document.querySelector("#confirmPostAllModal").classList.remove("hidden");
 }
 

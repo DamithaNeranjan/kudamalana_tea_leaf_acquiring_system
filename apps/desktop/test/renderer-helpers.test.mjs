@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createApi } from "../renderer/modules/api.js";
 import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCounts, summarizeReceived } from "../renderer/modules/auditCloud.js";
+import { formatAdvanceAmounts, formatAdvanceDates, greenLeafBookTotals, poyaDaysForMonth } from "../renderer/modules/book.js";
 import { formatBillCurrency, formatBookNumber, formatDateTime } from "../renderer/modules/format.js";
 import { checked, escapeAttribute, escapeHtml } from "../renderer/modules/html.js";
 import { compareNewestFirst, latestComparableValue, pagedItems } from "../renderer/modules/listing.js";
@@ -75,4 +76,50 @@ test("desktop listing helpers preserve table sort and pagination behavior", () =
   assert.equal(latestComparableValue({ sequence: "5e2" }, ["sequence"]), 500);
   assert.equal(latestComparableValue({ updatedAt: "" }, ["updatedAt"]), 0);
   assert.deepEqual(pagedItems([1, 2, 3, 4], 99, 3), { page: 2, pageCount: 2, start: 3, rows: [4] });
+});
+
+test("desktop book helpers preserve totals, poya days, and advance formatting", () => {
+  const totals = greenLeafBookTotals(
+    [
+      {
+        dailyKg: [10, 5],
+        totalKg: 15,
+        deductionKg: 1,
+        finalKg: 14,
+        ownTransportAddition: 20,
+        totalAdvances: 10,
+        fertilizerDeduction: 2,
+        teaPacketDeduction: 3,
+        factoryTransportDeduction: 4,
+        arrearsCarriedForward: 5,
+        totalDeductions: 24,
+        balanceToPay: 100
+      },
+      {
+        dailyKg: [2, 3],
+        totalKg: 5,
+        deductionKg: 0,
+        finalKg: 5,
+        ownTransportAddition: 8,
+        totalAdditions: 18,
+        totalAdvances: 0,
+        fertilizerDeduction: 0,
+        teaPacketDeduction: 1,
+        factoryTransportDeduction: 2,
+        arrearsCarriedForward: 3,
+        totalDeductions: 6,
+        balanceToPay: -25
+      }
+    ],
+    2
+  );
+  assert.deepEqual(totals.dailyKg, [12, 8]);
+  assert.equal(totals.totalAdditions, 38);
+  assert.equal(totals.balanceToPay, 75);
+  assert.equal(totals.positiveBalanceToPay, 100);
+  assert.equal(totals.negativeBalanceToPay, -25);
+
+  assert.ok(poyaDaysForMonth("2026-07").size >= 1);
+  assert.equal(formatAdvanceDates({ advancePayments: [{ date: "2026-07-01<script>" }] }), "<span>2026-07-01&lt;script&gt;</span>");
+  assert.equal(formatAdvanceAmounts({ advancePayments: [{ amount: 1234.5 }] }), "<span>1,234.50</span>");
 });

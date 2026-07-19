@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApi } from "../renderer/modules/api.js";
+import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCounts, summarizeReceived } from "../renderer/modules/auditCloud.js";
 import { formatBillCurrency, formatBookNumber, formatDateTime } from "../renderer/modules/format.js";
 import { checked, escapeAttribute, escapeHtml } from "../renderer/modules/html.js";
 
@@ -15,6 +16,25 @@ test("desktop renderer helpers preserve formatting and escaping behavior", () =>
   assert.equal(escapeHtml(`A&B"C<'`), "A&amp;B&quot;C&lt;&#39;");
   assert.equal(checked(true), "checked");
   assert.equal(checked(false), "");
+});
+
+test("desktop audit and cloud helpers preserve summaries", () => {
+  assert.equal(formatAuditAction("bulk_update"), "Bulk Update");
+  assert.equal(formatAuditEntity({ entityType: "tea_line", entityLabel: "Line A" }), "Tea Line - Line A");
+  assert.equal(
+    formatAuditDetails({
+      before: { id: "ignored", displayName: "Old", active: false },
+      after: { id: "ignored", displayName: "New", active: true }
+    }),
+    "Display Name: Old -> New; Active: No -> Yes"
+  );
+  assert.equal(formatAuditDetails({ after: { username: "office", password: "hidden" } }), "Created Username office, Password hidden");
+  assert.equal(summarizeCounts({ teaLines: 2, suppliers: 0 }), "teaLines: 2");
+  assert.equal(
+    summarizeReceived({ counts: { suppliers: 1 }, importedOfficeUsers: { importedCount: 2 } }),
+    "suppliers: 1, importedOfficeUsers: 2"
+  );
+  assert.equal(summarizeReceived(null), "No changed records");
 });
 
 test("desktop renderer API helper sends auth headers and surfaces JSON errors", async () => {

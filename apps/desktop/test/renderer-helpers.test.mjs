@@ -4,6 +4,7 @@ import { createApi } from "../renderer/modules/api.js";
 import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCounts, summarizeReceived } from "../renderer/modules/auditCloud.js";
 import { formatBillCurrency, formatBookNumber, formatDateTime } from "../renderer/modules/format.js";
 import { checked, escapeAttribute, escapeHtml } from "../renderer/modules/html.js";
+import { compareNewestFirst, latestComparableValue, pagedItems } from "../renderer/modules/listing.js";
 
 test("desktop renderer helpers preserve formatting and escaping behavior", () => {
   assert.equal(formatBookNumber(1234), "1,234");
@@ -56,4 +57,22 @@ test("desktop renderer API helper sends auth headers and surfaces JSON errors", 
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("desktop listing helpers preserve table sort and pagination behavior", () => {
+  const rows = [
+    { id: "old", updatedAt: "2026-05-01T00:00:00.000Z" },
+    { id: "new", updatedAt: "2026-05-02T00:00:00.000Z" },
+    { id: "fallback_b" },
+    { id: "fallback_a" }
+  ];
+  assert.deepEqual(rows.toSorted((a, b) => compareNewestFirst(a, b, "updatedAt")).map((row) => row.id), [
+    "new",
+    "old",
+    "fallback_b",
+    "fallback_a"
+  ]);
+  assert.equal(latestComparableValue({ sequence: "5e2" }, ["sequence"]), 500);
+  assert.equal(latestComparableValue({ updatedAt: "" }, ["updatedAt"]), 0);
+  assert.deepEqual(pagedItems([1, 2, 3, 4], 99, 3), { page: 2, pageCount: 2, start: 3, rows: [4] });
 });

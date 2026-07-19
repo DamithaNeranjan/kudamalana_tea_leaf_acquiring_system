@@ -1,6 +1,7 @@
 import { createApi } from "./modules/api.js";
 import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCounts, summarizeReceived } from "./modules/auditCloud.js";
 import { escapeAttribute, escapeHtml } from "./modules/html.js";
+import { compareNewestFirst, pagedItems } from "./modules/listing.js";
 import {
   formatBillCurrency,
   formatBookNumber,
@@ -505,32 +506,11 @@ function renderStaging(state) {
     .join("");
 }
 
-function compareNewestFirst(a, b, ...fields) {
-  const aValue = latestComparableValue(a, fields);
-  const bValue = latestComparableValue(b, fields);
-  if (aValue !== bValue) return bValue - aValue;
-  return String(b.id || "").localeCompare(String(a.id || ""));
-}
-
-function latestComparableValue(item, fields) {
-  for (const field of fields) {
-    const value = item?.[field];
-    if (!value) continue;
-    const time = Date.parse(value);
-    if (!Number.isNaN(time)) return time;
-    const number = Number(value);
-    if (Number.isFinite(number)) return number;
-  }
-  return 0;
-}
-
 function paginateList(pageKey, items, tableId) {
-  const pageCount = Math.max(1, Math.ceil(items.length / listPageSize));
-  listPages[pageKey] = Math.min(Math.max(1, listPages[pageKey] || 1), pageCount);
-  const start = (listPages[pageKey] - 1) * listPageSize;
-  const pageItems = items.slice(start, start + listPageSize);
-  renderListPagination(pageKey, tableId, items.length, start, pageItems.length, pageCount);
-  return pageItems;
+  const page = pagedItems(items, listPages[pageKey], listPageSize);
+  listPages[pageKey] = page.page;
+  renderListPagination(pageKey, tableId, items.length, page.start, page.rows.length, page.pageCount);
+  return page.rows;
 }
 
 function renderListPagination(pageKey, tableId, total, start, shownCount, pageCount) {

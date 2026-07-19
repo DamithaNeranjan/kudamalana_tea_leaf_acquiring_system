@@ -8,6 +8,19 @@ Run all available tests:
 npm.cmd test
 ```
 
+Run Android JVM tests and debug build from the repository root:
+
+```powershell
+npm.cmd run mobile:verify
+```
+
+Or from the Android app directory:
+
+```powershell
+cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System\apps\mobile-android"
+.\gradlew.bat testDebugUnitTest assembleDebug
+```
+
 The current suite covers:
 
 - monthly green leaf book calculations
@@ -20,6 +33,7 @@ The current suite covers:
 - made tea packet recording and selected-month Green Leaf Book deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
 - desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by tracking, audit-log mutation tracking, and monthly book impact
+- web Green Leaf Book totals, signal filtering, pagination, target labels, and desktop renderer helper behavior
 
 ## Manual Checks
 

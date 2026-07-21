@@ -38,26 +38,22 @@ export function createMemoryStore() {
   const monthClosures = new Map();
   const syncLog = [];
 
-  const superAdmin = {
-    id: "user_superadmin",
-    username: "superadmin",
-    displayName: "Super Admin",
-    role: "super_admin",
-    passwordHash: hashPassword("admin123"),
-    active: true,
-    createdAt: new Date().toISOString()
-  };
-  users.set(superAdmin.id, superAdmin);
-  const admin = {
-    id: "user_admin",
-    username: "admin",
-    displayName: "Admin",
-    role: "super_admin",
-    passwordHash: hashPassword("admin123"),
-    active: true,
-    createdAt: new Date().toISOString()
-  };
-  users.set(admin.id, admin);
+  for (const user of [
+    { id: "user_superadmin", username: "superadmin", displayName: "Super Admin", role: "super_admin", password: "admin123" },
+    { id: "user_admin", username: "admin", displayName: "Admin", role: "super_admin", password: "admin123" },
+    { id: "user_default_director", username: "director", displayName: "Default Director", role: "director", password: "director123" },
+    { id: "user_default_office", username: "office", displayName: "Default Office User", role: "office_user", password: "office123" }
+  ]) {
+    users.set(user.id, {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      passwordHash: hashPassword(user.password),
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+  }
 
   function publicUser(user) {
     const { passwordHash, ...safeUser } = user;

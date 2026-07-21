@@ -3,7 +3,14 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import mysql from "mysql2/promise";
-import { buildGreenLeafBookWithAutoArrears, makeId, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
+import {
+  DEFAULT_MASTER_DATA_UPDATED_AT,
+  DEFAULT_SUPPLIERS,
+  DEFAULT_TEA_LINES,
+  buildGreenLeafBookWithAutoArrears,
+  makeId,
+  suggestAdvancePayment
+} from "../../../packages/shared/src/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -362,16 +369,62 @@ function buildBalances(input, balanceSignals, factorySignals) {
   };
 }
 
-async function seedSuperAdmin(pool) {
+async function seedDefaultUsers(pool) {
   for (const user of [
-    { id: "user_superadmin", username: "superadmin", displayName: "Super Admin" },
-    { id: "user_admin", username: "admin", displayName: "Admin" }
+    { id: "user_superadmin", username: "superadmin", displayName: "Super Admin", role: "super_admin", password: "admin123" },
+    { id: "user_admin", username: "admin", displayName: "Admin", role: "super_admin", password: "admin123" },
+    { id: "user_default_director", username: "director", displayName: "Default Director", role: "director", password: "director123" },
+    { id: "user_default_office", username: "office", displayName: "Default Office User", role: "office_user", password: "office123" }
   ]) {
     await pool.execute(
       `INSERT INTO users (id, username, display_name, role, password_hash, active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE username = username`,
-      [user.id, user.username, user.displayName, "super_admin", hashPassword("admin123"), 1, toMysqlDateTime(), toMysqlDateTime()]
+      [user.id, user.username, user.displayName, user.role, hashPassword(user.password), 1, toMysqlDateTime(), toMysqlDateTime()]
+    );
+  }
+}
+
+async function seedDefaultMasterData(pool) {
+  for (const line of DEFAULT_TEA_LINES) {
+    await pool.execute(
+      `INSERT INTO tea_lines (id, name, whole_line_bank_transfer, active)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = id`,
+      [line.id, line.name, toBool(line.wholeLineBankTransfer), line.active === false ? 0 : 1]
+    );
+  }
+
+  const lineNames = DEFAULT_TEA_LINES.map((line) => line.name);
+  const placeholders = lineNames.map(() => "?").join(", ");
+  const [lineRows] = await pool.query(`SELECT id, name FROM tea_lines WHERE name IN (${placeholders})`, lineNames);
+  const lineIdsByName = new Map(lineRows.map((line) => [line.name, line.id]));
+
+  for (const supplier of DEFAULT_SUPPLIERS) {
+    const lineId = lineIdsByName.get(supplier.lineName);
+    if (!lineId) continue;
+    await pool.execute(
+      `INSERT INTO suppliers (
+        id, code, name, line_id, line_name, payment_mode, deduction_enabled,
+        own_transport_addition_enabled, factory_transport_deduction_enabled,
+        exclude_from_balance, active, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE id = id`,
+      [
+        supplier.id,
+        supplier.code,
+        supplier.name,
+        lineId,
+        supplier.lineName,
+        paymentMode(supplier.paymentMode),
+        toBool(supplier.deductionEnabled),
+        toBool(supplier.ownTransportAdditionEnabled),
+        toBool(supplier.factoryTransportDeductionEnabled),
+        toBool(supplier.excludeFromBalance),
+        supplier.active === false ? 0 : 1,
+        toMysqlDateTime(DEFAULT_MASTER_DATA_UPDATED_AT)
+      ]
     );
   }
 }
@@ -388,7 +441,8 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
   await ensureDatabase(config);
   const pool = mysql.createPool({ ...config, timezone: "Z" });
   await executeSchema(pool);
-  await seedSuperAdmin(pool);
+  await seedDefaultUsers(pool);
+  await seedDefaultMasterData(pool);
 
   async function upsertTeaLines(conn, records = []) {
     for (const record of records) {

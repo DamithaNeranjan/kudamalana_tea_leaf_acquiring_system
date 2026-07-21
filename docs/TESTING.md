@@ -61,6 +61,7 @@ Manual desktop UI checks:
 
 - Login with `office` / `office123`.
 - Login with `admin` / `admin123` and confirm the Office Users menu allows creating, editing, activating, and deactivating regular office users.
+- From a paired tablet or `/sync/login`, log in with `lineuser` / `lineuser123` and confirm the default line-user account is active.
 - Login with a regular office user and confirm Office Users is visible as a read-only listing, with the Register Office User form and row actions hidden.
 - Confirm the desktop sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports; Office Users appears under Monthly Work in both the sidebar and dashboard; the section title bands are visually distinct from active menu items; the sidebar scroll reaches Audit Reports; the dashboard mirrors the same group order; and the header user button opens Profile Management.
 - In Profile Management, confirm username, display name, and optional password can be updated, the password show/hide button works, and the layout wraps without clipping buttons or fields as the window narrows.
@@ -113,12 +114,14 @@ Manual web UI checks:
 
 - Login with `superadmin` / `admin123`.
 - Login with `admin` / `admin123` and confirm it has the same super-admin access.
+- Login with `director` / `director123` and confirm Directors and Office Users are visible as read-only listing pages.
+- Login with `office` / `office123` and confirm Office Users is visible as a read-only listing page and Directors is not visible.
 - Confirm the session name and role appear in the top-right header beside Logout.
 - Refresh the page and confirm the web session is restored from the HttpOnly cookie.
 - Confirm Logout returns to the login screen and hides protected panels.
 - As super admin, confirm Directors and Office Users allow create, edit, activate, and deactivate actions.
-- As a director, confirm Directors and Office Users are visible as read-only listing pages.
-- As an office user, confirm Office Users is visible as a read-only listing page and Directors is not visible.
+- As another manually created director, confirm Directors and Office Users are visible as read-only listing pages.
+- As another manually created office user, confirm Office Users is visible as a read-only listing page and Directors is not visible.
 - Confirm inactive users cannot log in.
 - Load the Green Leaf Book and confirm the table scrolls inside the content panel without creating a full-page scrollbar.
 - Confirm the Green Leaf Book splits advances into Advance Date, Advance Amount, and Total Advance columns.

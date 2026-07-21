@@ -43,7 +43,7 @@ MYSQL_USER=root
 MYSQL_PASSWORD=damitha1234
 ```
 
-The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds the default `admin` super admin plus the older development `superadmin` account at startup when the MySQL user has permission.
+The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds default web users for the `super_admin`, `director`, and `office_user` roles at startup when the MySQL user has permission. It also keeps the older development `superadmin` account.
 
 ## Current Persistence Notes
 
@@ -51,7 +51,9 @@ The backend creates the configured database, creates missing tables from `apps/b
 - Electron does not load SQLite directly; it starts the sync server as a normal Node process.
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
-- Desktop seeds `admin` / `admin123` for both office admin login and tablet line-user login, plus `office` / `office123` for local office-user development.
+- Web/backend seeds `admin` / `admin123` as super admin, `director` / `director123` as director, and `office` / `office123` as office user. It also keeps `superadmin` / `admin123` for older development access.
+- Desktop seeds `admin` / `admin123` for office admin login, `office` / `office123` for office-user login, and `lineuser` / `lineuser123` for tablet line-user login. It also keeps the older tablet `admin` / `admin123` line-user login for compatibility.
+- Desktop and hosted backend deployment startup seed the shared supplier master data: 14 tea lines and 496 suppliers from `packages/shared/src/defaultData.mjs`. Supplier and line seed inserts are insert-only so later operational edits are not overwritten on restart.
 - Existing legacy plain-text desktop passwords are transparently upgraded after a successful login.
 - Desktop posted collection entries store original gross weight, reviewed gross/net weight, print status, tablet saved time, tablet printed time, posted time, and the office user who posted the record. The Collection Records desktop table shows original gross and net weights, while reviewed gross remains stored for audit/sync data.
 - Backend web users, including super admins, directors, office users, and sessions, are stored in MySQL.

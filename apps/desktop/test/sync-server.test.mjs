@@ -79,6 +79,19 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     });
     assert.equal(tabletAdminLogin.status, 200);
 
+    const tabletLineUserLogin = await fetch(`${baseUrl}/sync/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "lineuser", password: "lineuser123" })
+    });
+    assert.equal(tabletLineUserLogin.status, 200);
+    assert.equal((await tabletLineUserLogin.json()).user.displayName, "Default Line User");
+
+    const seededMasterData = await (await fetch(`${baseUrl}/sync/master-data`)).json();
+    assert.equal(seededMasterData.suppliers.length, 496);
+    assert.ok(seededMasterData.teaLines.some((line) => line.name === "Aruna Pathma"));
+    assert.equal(seededMasterData.suppliers.find((supplier) => supplier.code === "116").name, "K P Wasantha");
+    assert.equal(seededMasterData.suppliers.find((supplier) => supplier.code === "29").lineName, "Factory");
+
     const login = await fetch(`${baseUrl}/office/login`, {
       method: "POST",
       body: JSON.stringify({ username: "office", password: "office123" })

@@ -42,18 +42,22 @@ Health check:
 Invoke-RestMethod -Uri http://127.0.0.1:7070/health
 ```
 
-Default desktop office login:
+Default deployment logins:
 
 ```text
-username: office
-password: office123
+Web/backend super admin: admin / admin123
+Web/backend director: director / director123
+Web/backend office user: office / office123
+Desktop admin: admin / admin123
+Desktop office user: office / office123
+Android tablet line user: lineuser / lineuser123
 ```
 
-Default admin login for the desktop app, tablet app, and web/backend:
+Compatibility development logins:
 
 ```text
-username: admin
-password: admin123
+Web/backend superadmin: superadmin / admin123
+Tablet line user admin: admin / admin123
 ```
 
 The desktop app starts at the login screen. After login, the sidebar is grouped as Home, Monthly Work, Sync & Records, and Reports, and the dashboard mirrors those groups with shortcut cards. Profile opens from the user button in the header.
@@ -152,7 +156,7 @@ For Android 12 and newer, allow Nearby Devices/Bluetooth permission when checkin
 
 ## Run Backend API
 
-Configure MySQL values in `.env` first. The backend reads `.env`, creates the configured database and missing tables when the MySQL user has permission, seeds the default `admin` super admin plus the older development `superadmin` account, and stores web/director data in MySQL.
+Configure MySQL values in `.env` first. The backend reads `.env`, creates the configured database and missing tables when the MySQL user has permission, seeds default `super_admin`, `director`, and `office_user` web accounts, and stores web/director data in MySQL.
 
 ```powershell
 cd "C:\Users\Damitha\Documents\Tea Leaf Acquiring System"
@@ -165,13 +169,13 @@ Backend health check:
 http://127.0.0.1:8080/health
 ```
 
-Development super admin:
+Default web/backend logins:
 
 ```text
-username: superadmin
-password: admin123
+super admin: admin / admin123
+director: director / director123
+office user: office / office123
+development superadmin: superadmin / admin123
 ```
-
-The backend also seeds `admin` / `admin123` as a super admin so the same default admin login works in the web app.
 
 Change this before production use.

@@ -37,6 +37,20 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(defaultAdminLoginResponse.status, 200);
     assert.equal((await defaultAdminLoginResponse.json()).user.role, "super_admin");
 
+    const defaultDirectorLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "director", password: "director123" })
+    });
+    assert.equal(defaultDirectorLoginResponse.status, 200);
+    assert.equal((await defaultDirectorLoginResponse.json()).user.role, "director");
+
+    const defaultOfficeLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "office", password: "office123" })
+    });
+    assert.equal(defaultOfficeLoginResponse.status, 200);
+    assert.equal((await defaultOfficeLoginResponse.json()).user.role, "office_user");
+
     const directorResponse = await fetch(`${baseUrl}/admin/directors`, {
       method: "POST",
       headers: { authorization: `Bearer ${login.token}` },
@@ -50,8 +64,8 @@ test("super admin can create directors and director can view green leaf book", a
     });
     assert.equal(directorsResponse.status, 200);
     const directors = await directorsResponse.json();
-    assert.equal(directors.directors.length, 1);
-    assert.equal(directors.directors[0].username, "director1");
+    assert.ok(directors.directors.some((director) => director.username === "director"));
+    assert.ok(directors.directors.some((director) => director.username === "director1"));
 
     const officeUserResponse = await fetch(`${baseUrl}/admin/users`, {
       method: "POST",
@@ -183,7 +197,8 @@ test("super admin can create directors and director can view green leaf book", a
     });
     assert.equal(directorDirectoryResponse.status, 200);
     const directorDirectory = await directorDirectoryResponse.json();
-    assert.equal(directorDirectory.users[0].username, "director1");
+    assert.ok(directorDirectory.users.some((user) => user.username === "director"));
+    assert.ok(directorDirectory.users.some((user) => user.username === "director1"));
 
     const directorOfficeUsersResponse = await fetch(`${baseUrl}/admin/users?role=office_user`, {
       headers: { authorization: `Bearer ${directorLogin.token}` }

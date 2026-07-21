@@ -3,7 +3,14 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { buildGreenLeafBook, buildGreenLeafBookWithAutoArrears, makeId } from "../../../packages/shared/src/index.mjs";
+import {
+  DEFAULT_MASTER_DATA_UPDATED_AT,
+  DEFAULT_SUPPLIERS,
+  DEFAULT_TEA_LINES,
+  buildGreenLeafBook,
+  buildGreenLeafBookWithAutoArrears,
+  makeId
+} from "../../../packages/shared/src/index.mjs";
 
 const DEFAULT_DB_PATH = join(process.cwd(), "desktop-data", "tea-local-db.sqlite");
 
@@ -156,6 +163,13 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run("line_admin", "admin", "Admin", hashPassword("admin123"), 1, now());
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO line_users
+         (id, username, display_name, password_hash, active, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .run("line_default_user", "lineuser", "Default Line User", hashPassword("lineuser123"), 1, now());
 
     this.db
       .prepare(
@@ -164,6 +178,51 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(`settings_${currentMonth()}`, currentMonth(), 200, 2, 5, 3, now());
+
+    this.seedDefaultMasterData();
+  }
+
+  seedDefaultMasterData() {
+    const insertLine = this.db.prepare(
+      `INSERT OR IGNORE INTO tea_lines
+       (id, name, whole_line_bank_transfer, active, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    );
+    for (const line of DEFAULT_TEA_LINES) {
+      insertLine.run(
+        line.id,
+        line.name,
+        bool(line.wholeLineBankTransfer),
+        bool(line.active !== false),
+        DEFAULT_MASTER_DATA_UPDATED_AT
+      );
+    }
+
+    const findLine = this.db.prepare("SELECT id, name FROM tea_lines WHERE lower(name) = lower(?) AND active = 1 LIMIT 1");
+    const insertSupplier = this.db.prepare(
+      `INSERT OR IGNORE INTO suppliers
+       (id, code, name, line_id, line_name, payment_mode, deduction_enabled,
+        own_transport_addition_enabled, factory_transport_deduction_enabled, exclude_from_balance, active, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const supplier of DEFAULT_SUPPLIERS) {
+      const line = findLine.get(supplier.lineName);
+      if (!line) continue;
+      insertSupplier.run(
+        supplier.id,
+        supplier.code,
+        supplier.name,
+        line.id,
+        line.name,
+        paymentMode(supplier.paymentMode),
+        bool(supplier.deductionEnabled),
+        bool(supplier.ownTransportAdditionEnabled),
+        bool(supplier.factoryTransportDeductionEnabled),
+        bool(supplier.excludeFromBalance),
+        bool(supplier.active !== false),
+        DEFAULT_MASTER_DATA_UPDATED_AT
+      );
+    }
   }
 
   migrateSchema() {

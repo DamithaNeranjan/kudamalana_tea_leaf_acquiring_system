@@ -28,24 +28,24 @@ The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, 
 
 ## Default Accounts
 
-All apps seed a default admin account that remains available after deployment setup:
+Deployment startup seeds one active user for each app role:
 
-- Username: `admin`
-- Password: `admin123`
+| App area | Role | Username | Password |
+| --- | --- | --- | --- |
+| Web/backend | Super admin | `admin` | `admin123` |
+| Web/backend | Director | `director` | `director123` |
+| Web/backend | Office user | `office` | `office123` |
+| Desktop | Admin | `admin` | `admin123` |
+| Desktop | Office user | `office` | `office123` |
+| Android tablet | Line user | `lineuser` | `lineuser123` |
 
-Change this before production deployment.
+The backend also keeps the older development super-admin login `superadmin` / `admin123`, and the desktop sync server keeps the older tablet `admin` / `admin123` line-user login for compatibility.
 
-The backend also keeps the older development super admin login:
-
-- Username: `superadmin`
-- Password: `admin123`
-
-The desktop app also seeds a default office user for local development:
-
-- Username: `office`
-- Password: `office123`
+Change these before production deployment.
 
 Desktop passwords are stored as salted `scrypt` hashes. Existing legacy plain-text desktop passwords are upgraded after successful login.
+
+Deployment startup also seeds the shared supplier master data: 14 tea lines and 496 suppliers. The supplier and tea-line inserts are insert-only, so operational edits made after deployment are not overwritten by later restarts.
 
 ## Data Flow
 

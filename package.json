@@ -19,5 +19,8 @@
     "mobile:verify": "cd apps/mobile-android && gradlew.bat testDebugUnitTest assembleDebug",
     "web:dev": "npm --workspace @tea/web run dev",
     "web:build": "npm --workspace @tea/web run build"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.5"
   }
 }

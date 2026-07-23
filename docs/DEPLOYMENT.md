@@ -9,7 +9,7 @@ This system has four deployable/runtime parts, but three user-facing apps:
 
 ## Backend API
 
-Set production environment values before starting `apps/backend/src/server.mjs`:
+Set production environment values before starting the backend:
 
 ```text
 NODE_ENV=production
@@ -25,6 +25,15 @@ CLOUD_SYNC_TOKEN=<same-long-random-secret-used-by-desktop>
 ```
 
 Make sure the MySQL user can create the configured database and tables on first startup, or create them from `apps/backend/src/mysql-schema.sql` before starting the service.
+
+For CloudLinux / cPanel NodeJS Selector, use:
+
+```text
+Application root: /home/<user>/TeaLeaf_Acquiring_Web_Backend
+Application startup file: app.cjs
+```
+
+`app.cjs` is a CommonJS wrapper for hosts that load the startup file with `require()`. It starts the ESM backend server in `apps/backend/src/server.mjs`.
 
 ## Web App
 

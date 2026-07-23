@@ -10,6 +10,7 @@
     "apps/web"
   ],
   "scripts": {
+    "start": "node app.cjs",
     "test": "node test/all.test.mjs",
     "backend": "node apps/backend/src/server.mjs",
     "desktop": "npm --workspace @tea/desktop run start",

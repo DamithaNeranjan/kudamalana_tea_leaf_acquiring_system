@@ -15,6 +15,7 @@ Offline-first tea leaf intake and payment system for a tea factory.
 ```powershell
 npm.cmd install
 npm.cmd test
+npm.cmd start
 npm.cmd run backend
 npm.cmd run desktop
 npm.cmd run web:dev
@@ -22,7 +23,7 @@ npm.cmd run web:dev
 
 PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
 
-The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission.
+The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd start` or `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission. CloudLinux / cPanel deployments should use `app.cjs` as the startup file.
 
 `npm.cmd run desktop` starts the Electron desktop frontend and automatically starts the desktop local backend server on port `7070`. Use `npm.cmd run desktop:sync` only when you want the desktop backend server without opening the Electron frontend.
 

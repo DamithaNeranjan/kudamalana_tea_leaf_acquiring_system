@@ -70,7 +70,7 @@ Deployment startup also seeds the shared supplier master data: 14 tea lines and 
 
 ## Web Login Notes
 
-- The web app uses backend port `8080` on the same host used to open the web page.
+- The web app uses `VITE_API_URL` for production API routing; local development falls back to backend port `8080` on the same host used to open the web page.
 - Successful web login stores the backend session token in an HttpOnly `SameSite=Lax` cookie.
 - Reloading the web app restores the signed-in user through `/auth/me`.
 - Logout revokes the current backend session, clears the session cookie, and returns the browser to the login screen.
@@ -119,6 +119,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Deployment Checklist](docs/DEPLOYMENT.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [Databases](docs/DATABASES.md)
 - [API Reference](docs/API.md)

@@ -464,3 +464,24 @@ test("web login can restore and revoke an http-only cookie session", async () =>
     assert.equal(expiredResponse.status, 401);
   });
 });
+
+test("backend CORS can be restricted to configured web origins", async () => {
+  const previousAllowedOrigins = process.env.ALLOWED_ORIGINS;
+  process.env.ALLOWED_ORIGINS = "https://tea.example.com";
+  try {
+    await withServer(async (baseUrl) => {
+      const allowedResponse = await fetch(`${baseUrl}/health`, {
+        headers: { origin: "https://tea.example.com" }
+      });
+      assert.equal(allowedResponse.headers.get("access-control-allow-origin"), "https://tea.example.com");
+
+      const blockedResponse = await fetch(`${baseUrl}/health`, {
+        headers: { origin: "https://other.example.com" }
+      });
+      assert.equal(blockedResponse.headers.get("access-control-allow-origin"), null);
+    });
+  } finally {
+    if (previousAllowedOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+    else process.env.ALLOWED_ORIGINS = previousAllowedOrigins;
+  }
+});

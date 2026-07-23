@@ -6,15 +6,30 @@ import { createMemoryStore } from "./store.mjs";
 import { createMySqlStore, loadBackendEnv } from "./mysqlStore.mjs";
 
 export function createBackendServer({ store = createMemoryStore() } = {}) {
+  function allowedOrigins() {
+    return String(process.env.ALLOWED_ORIGINS || "")
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/$/, ""))
+      .filter(Boolean);
+  }
+
   function corsHeaders(request) {
-    const origin = request.headers.origin;
-    return {
-      "access-control-allow-origin": origin || "*",
+    const origin = String(request.headers.origin || "").replace(/\/$/, "");
+    const origins = allowedOrigins();
+    const allowOrigin =
+      origin && (!origins.length || origins.includes("*") || origins.includes(origin))
+        ? origin
+        : !origin
+          ? "*"
+          : "";
+    const headers = {
       "access-control-allow-credentials": "true",
       "access-control-allow-headers": "content-type, authorization, x-sync-token",
       "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
       vary: "Origin"
     };
+    if (allowOrigin) headers["access-control-allow-origin"] = allowOrigin;
+    return headers;
   }
 
   function send(request, response, status, payload, headers = {}) {

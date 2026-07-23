@@ -35,12 +35,16 @@ MySQL Workbench is suitable for this hosted backend database.
 Configure the backend with `.env` values at the repository root:
 
 ```text
+NODE_ENV=production
 PORT=8080
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_DATABASE=tea_leaf_system
 MYSQL_USER=root
-MYSQL_PASSWORD=damitha1234
+MYSQL_PASSWORD=<strong-password>
+ALLOWED_ORIGINS=https://<web-app-domain>
+COOKIE_SECURE=true
+CLOUD_SYNC_TOKEN=<same-long-random-secret-used-by-desktop>
 ```
 
 The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds default web users for the `super_admin`, `director`, and `office_user` roles at startup when the MySQL user has permission. It also keeps the older development `superadmin` account.

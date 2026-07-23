@@ -96,7 +96,7 @@ import kotlinx.coroutines.runBlocking
 
 private val SERIAL_PORT_PROFILE_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
-private const val DEFAULT_OFFICE_SYNC_URL = "http://192.168.1.125:7070"
+private val DEFAULT_OFFICE_SYNC_URL = BuildConfig.DEFAULT_OFFICE_SYNC_URL
 private const val PREFS_NAME = "tea_collector_settings"
 private const val PREF_SYNC_URL = "office_sync_url"
 private const val PREF_CACHED_USERNAME = "cached_username"

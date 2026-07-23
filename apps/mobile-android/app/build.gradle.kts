@@ -7,6 +7,14 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val defaultOfficeSyncUrl = providers
+    .gradleProperty("officeSyncUrl")
+    .orElse(providers.environmentVariable("OFFICE_SYNC_URL"))
+    .orElse("http://192.168.1.125:7070")
+    .get()
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.teafactory.collector"
     compileSdk = 35
@@ -17,9 +25,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "DEFAULT_OFFICE_SYNC_URL", "\"$defaultOfficeSyncUrl\"")
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 

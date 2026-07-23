@@ -10,11 +10,20 @@ Start the React dev server from the repository root:
 npm.cmd run web:dev
 ```
 
-The web app uses backend port `8080` on the same host used to open the web page:
+For local development, the web app uses backend port `8080` on the same host used to open the web page:
 
 ```text
 http://<current-web-host>:8080
 ```
+
+For production, set `VITE_API_URL` when the backend is on a different origin:
+
+```powershell
+$env:VITE_API_URL="https://api.example.com"
+npm.cmd run web:build
+```
+
+If the backend and web app are served from the same origin, `VITE_API_URL` can be omitted and the client will use that origin.
 
 Build for production:
 

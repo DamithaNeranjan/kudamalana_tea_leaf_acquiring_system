@@ -37,3 +37,16 @@ The current printer flow checks Bluetooth permission, orders paired devices with
 ## Build note
 
 Android/Java tooling is not installed in this workspace, so this project is not compiled here. Open this folder in Android Studio with a JDK installed to build and run.
+
+The default desktop sync URL can be set at build time. QR pairing in the app can still replace it later on each tablet.
+
+```powershell
+.\gradlew.bat assembleRelease -PofficeSyncUrl=http://<desktop-lan-ip>:7070
+```
+
+or:
+
+```powershell
+$env:OFFICE_SYNC_URL="http://<desktop-lan-ip>:7070"
+.\gradlew.bat assembleRelease
+```

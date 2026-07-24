@@ -2,7 +2,7 @@ const { contextBridge } = require("electron");
 const QRCode = require("qrcode");
 
 contextBridge.exposeInMainWorld("teaDesktop", {
-  apiBaseUrl: "http://127.0.0.1:7070",
+  apiBaseUrl: `http://127.0.0.1:${process.env.DESKTOP_SYNC_PORT || 7070}`,
   createQrDataUrl: (text) =>
     QRCode.toDataURL(text, {
       errorCorrectionLevel: "M",

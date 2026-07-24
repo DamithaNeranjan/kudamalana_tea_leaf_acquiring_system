@@ -11,7 +11,9 @@ apps/desktop/desktop-data/
 
 # Build outputs
 dist/
-build/
+release/
+/build/*
+!/build/icon.ico
 out/
 coverage/
 .cache/
@@ -35,4 +37,3 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-

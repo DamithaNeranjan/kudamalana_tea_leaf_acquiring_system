@@ -12,7 +12,9 @@ import {
   makeId
 } from "../../../packages/shared/src/index.mjs";
 
-const DEFAULT_DB_PATH = join(process.cwd(), "desktop-data", "tea-local-db.sqlite");
+function defaultDbPath() {
+  return join(process.env.DESKTOP_DATA_DIR || join(process.cwd(), "desktop-data"), "tea-local-db.sqlite");
+}
 
 function bool(value) {
   return value === true || value === 1 || value === "1" || value === "on" ? 1 : 0;
@@ -108,7 +110,7 @@ function passwordValue(inputPassword, inputHash, existingHash = "") {
 }
 
 export class LocalStore {
-  constructor(filePath = DEFAULT_DB_PATH) {
+  constructor(filePath = defaultDbPath()) {
     this.filePath = filePath;
     this.db = null;
     this.data = null;

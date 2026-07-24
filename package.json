@@ -1,8 +1,11 @@
 {
   "name": "tea-leaf-acquiring-system",
   "version": "0.1.0",
+  "description": "Offline-first tea leaf intake and payment desktop, web, backend, and tablet system.",
+  "author": "Kudamalana Tea Factory",
   "private": true,
   "type": "module",
+  "main": "apps/desktop/src/main.js",
   "workspaces": [
     "packages/shared",
     "apps/backend",
@@ -15,6 +18,8 @@
     "backend": "node apps/backend/src/server.mjs",
     "desktop": "npm --workspace @tea/desktop run start",
     "desktop:sync": "npm --workspace @tea/desktop run sync-server",
+    "desktop:pack": "electron-builder --dir --win --x64",
+    "desktop:dist": "electron-builder --win --x64",
     "mobile:test": "cd apps/mobile-android && gradlew.bat testDebugUnitTest",
     "mobile:build": "cd apps/mobile-android && gradlew.bat assembleDebug",
     "mobile:verify": "cd apps/mobile-android && gradlew.bat testDebugUnitTest assembleDebug",
@@ -22,6 +27,55 @@
     "web:build": "npm --workspace @tea/web run build"
   },
   "dependencies": {
-    "mysql2": "^3.11.5"
+    "mysql2": "^3.11.5",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^37.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.kudamalana.tea-office",
+    "productName": "Tea Leaf Acquiring System",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "apps/desktop/**/*",
+      "apps/logo/**/*",
+      "packages/shared/**/*",
+      "package.json",
+      "!apps/desktop/test/**",
+      "!apps/desktop/desktop-data/**",
+      "!**/*.sqlite",
+      "!**/*.sqlite-shm",
+      "!**/*.sqlite-wal",
+      "!**/*.log"
+    ],
+    "extraMetadata": {
+      "main": "apps/desktop/src/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tea Leaf Acquiring System",
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

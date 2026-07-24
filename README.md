@@ -18,6 +18,7 @@ npm.cmd test
 npm.cmd start
 npm.cmd run backend
 npm.cmd run desktop
+npm.cmd run desktop:dist
 npm.cmd run web:dev
 ```
 
@@ -26,6 +27,8 @@ PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
 The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd start` or `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission. CloudLinux / cPanel deployments should use `app.cjs` as the startup file.
 
 `npm.cmd run desktop` starts the Electron desktop frontend and automatically starts the desktop local backend server on port `7070`. Use `npm.cmd run desktop:sync` only when you want the desktop backend server without opening the Electron frontend.
+
+`npm.cmd run desktop:dist` builds a Windows x64 installer at `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`.
 
 ## Default Accounts
 
@@ -89,7 +92,7 @@ The desktop app stores offline data in:
 apps/desktop/desktop-data/tea-local-db.sqlite
 ```
 
-Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workbench is for the hosted backend MySQL database, not the desktop offline database.
+When installed from the Windows desktop installer, the same SQLite database is stored in the current Windows user's app data folder under `Tea Leaf Acquiring System/desktop-data/tea-local-db.sqlite`. Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workbench is for the hosted backend MySQL database, not the desktop offline database.
 
 ## Desktop UI Notes
 

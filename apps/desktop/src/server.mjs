@@ -11,7 +11,13 @@ import { beginCloudSyncPlan, configuredBackendUrl, resolveBackendToken } from ".
 import { LocalStore } from "./localStore.mjs";
 
 async function loadDesktopEnv(cwd = process.cwd()) {
-  for (const envPath of [join(cwd, ".env"), join(cwd, "..", ".env"), join(cwd, "..", "..", ".env")]) {
+  for (const envPath of [
+    process.env.DESKTOP_CONFIG_PATH,
+    process.env.DESKTOP_DATA_DIR ? join(process.env.DESKTOP_DATA_DIR, ".env") : "",
+    join(cwd, ".env"),
+    join(cwd, "..", ".env"),
+    join(cwd, "..", "..", ".env")
+  ].filter(Boolean)) {
     try {
       const content = await readFile(envPath, "utf8");
       for (const line of content.split(/\r?\n/)) {

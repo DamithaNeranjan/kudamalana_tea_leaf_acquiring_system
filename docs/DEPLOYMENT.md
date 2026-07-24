@@ -48,13 +48,24 @@ If the web app and backend are served from the same origin, `VITE_API_URL` can b
 
 ## Desktop App
 
-Set the factory desktop environment before launching the desktop app:
+Build the Windows desktop installer from the repository root:
+
+```powershell
+npm.cmd install
+npm.cmd run desktop:dist
+```
+
+The installer is written to `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`. It is a per-user Windows x64 installer with Start Menu and desktop shortcuts, so it does not require Node.js to be installed on the target computer.
+
+Optional cloud-sync configuration can be provided with environment variables before launching the app:
 
 ```text
 DESKTOP_SYNC_PORT=7070
 BACKEND_URL=https://<backend-api-domain>
 CLOUD_SYNC_TOKEN=<same-long-random-secret-used-by-backend>
 ```
+
+For installed desktops, the app also reads `.env` from the per-user desktop data folder, or from the file path in `DESKTOP_CONFIG_PATH`.
 
 The desktop app is the local source of truth for tablet collection workflows. Do not expose the desktop sync server publicly; keep it on the factory local network or hotspot.
 

@@ -55,7 +55,15 @@ npm.cmd install
 npm.cmd run desktop:dist
 ```
 
-The installer is written to `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`. It is a per-user Windows x64 installer with Start Menu and desktop shortcuts, so it does not require Node.js to be installed on the target computer.
+The default installer is written to `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`. It is a per-user Windows 64-bit installer with Start Menu and desktop shortcuts, so it does not require Node.js to be installed on the target computer.
+
+For a separate 32-bit Windows installer, run:
+
+```powershell
+npm.cmd run desktop:dist:ia32
+```
+
+The 32-bit installer is written to `release/Tea Leaf Acquiring System-Setup-<version>-ia32.exe`. Keep the 64-bit installer as the default for modern Windows computers.
 
 Optional cloud-sync configuration can be provided with environment variables before launching the app:
 

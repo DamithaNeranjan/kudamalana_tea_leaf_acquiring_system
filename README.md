@@ -19,6 +19,7 @@ npm.cmd start
 npm.cmd run backend
 npm.cmd run desktop
 npm.cmd run desktop:dist
+npm.cmd run desktop:dist:ia32
 npm.cmd run web:dev
 ```
 
@@ -28,7 +29,7 @@ The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, 
 
 `npm.cmd run desktop` starts the Electron desktop frontend and automatically starts the desktop local backend server on port `7070`. Use `npm.cmd run desktop:sync` only when you want the desktop backend server without opening the Electron frontend.
 
-`npm.cmd run desktop:dist` builds a Windows x64 installer at `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`.
+`npm.cmd run desktop:dist` builds the default Windows 64-bit installer at `release/Tea Leaf Acquiring System-Setup-<version>-x64.exe`. Use `npm.cmd run desktop:dist:ia32` only when you need a separate 32-bit Windows installer at `release/Tea Leaf Acquiring System-Setup-<version>-ia32.exe`.
 
 ## Default Accounts
 
@@ -86,13 +87,19 @@ Deployment startup also seeds the shared supplier master data: 14 tea lines and 
 
 ## Desktop Local Database
 
-The desktop app stores offline data in:
+The Electron desktop app stores offline data in the current Windows user's Electron app data folder. When installed from the Windows desktop installer, this is under:
+
+```text
+Tea Leaf Acquiring System/desktop-data/tea-local-db.sqlite
+```
+
+When the desktop sync server is run standalone with `npm.cmd run desktop:sync`, it stores offline data in:
 
 ```text
 apps/desktop/desktop-data/tea-local-db.sqlite
 ```
 
-When installed from the Windows desktop installer, the same SQLite database is stored in the current Windows user's app data folder under `Tea Leaf Acquiring System/desktop-data/tea-local-db.sqlite`. Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workbench is for the hosted backend MySQL database, not the desktop offline database.
+Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workbench is for the hosted backend MySQL database, not the desktop offline database.
 
 ## Desktop UI Notes
 

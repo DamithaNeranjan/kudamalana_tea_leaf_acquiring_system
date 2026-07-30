@@ -19,7 +19,9 @@
     "desktop": "npm --workspace @tea/desktop run start",
     "desktop:sync": "npm --workspace @tea/desktop run sync-server",
     "desktop:pack": "electron-builder --dir --win --x64",
+    "desktop:pack:ia32": "electron-builder --dir --win --ia32",
     "desktop:dist": "electron-builder --win --x64",
+    "desktop:dist:ia32": "electron-builder --win --ia32",
     "mobile:test": "cd apps/mobile-android && gradlew.bat testDebugUnitTest",
     "mobile:build": "cd apps/mobile-android && gradlew.bat assembleDebug",
     "mobile:verify": "cd apps/mobile-android && gradlew.bat testDebugUnitTest assembleDebug",
@@ -59,10 +61,7 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "target": "nsis"
         }
       ],
       "icon": "build/icon.ico",

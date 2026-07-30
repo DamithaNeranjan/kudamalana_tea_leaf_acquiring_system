@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Node.js 24 or newer for the desktop SQLite sync service.
+- Node.js 24 or newer for local development, tests, and desktop installer builds.
 - npm.
 - Android Studio and a JDK for the Android app.
 - DB Browser for SQLite or another SQLite viewer for desktop local data inspection.
@@ -83,6 +83,28 @@ The visible logo and Electron window icon use:
 apps/logo/KudamalanaLogo1.png
 ```
 
+The Windows installer icon is generated from the same logo and stored at:
+
+```text
+build/icon.ico
+```
+
+## Build Desktop Installers
+
+From the repository root, build the default 64-bit Windows installer with:
+
+```powershell
+npm.cmd run desktop:dist
+```
+
+Build a separate 32-bit Windows installer only when needed:
+
+```powershell
+npm.cmd run desktop:dist:ia32
+```
+
+Both installers are written to `release/`. The default 64-bit installer remains the normal build for modern Windows computers, and installed desktop apps do not require Node.js on the target machine.
+
 ## Run Desktop Sync Server Only
 
 ```powershell
@@ -131,7 +153,7 @@ CLOUD_SYNC_TOKEN=<same secret used by backend and desktop>
 
 The backend and desktop sync server must use the same `CLOUD_SYNC_TOKEN`. In production, `BACKEND_URL` should point to the hosted API domain, for example `https://api.example.com`.
 
-This local run is deliberately split the same way production should be split. `npm.cmd run desktop` starts the Electron desktop frontend from `apps/desktop/src/main.js` and `apps/desktop/renderer/index.html`, and Electron automatically starts the local desktop server source from `apps/desktop/src/server.mjs`. That desktop side uses the development SQLite data folder `apps/desktop/desktop-data` and is the heavier offline office/tablet server that should run at the factory only. `npm.cmd run desktop:sync` starts only that local desktop server and is useful for API/tablet testing without opening Electron. `npm.cmd run backend` starts the hosted web backend source from `apps/backend/src/server.mjs`; it is the lighter online API and is the one to deploy with MySQL for the web app.
+This local run is deliberately split the same way production should be split. `npm.cmd run desktop` starts the Electron desktop frontend from `apps/desktop/src/main.js` and `apps/desktop/renderer/index.html`, and Electron automatically starts the local desktop server source from `apps/desktop/src/server.mjs` inside the Electron main process. That desktop side uses SQLite in the Electron user-data folder by default and is the heavier offline office/tablet server that should run at the factory only. `npm.cmd run desktop:sync` starts only that local desktop server as a standalone Node process, uses `apps/desktop/desktop-data` unless `DESKTOP_DATA_DIR` is set, and is useful for API/tablet testing without opening Electron. `npm.cmd run backend` starts the hosted web backend source from `apps/backend/src/server.mjs`; it is the lighter online API and is the one to deploy with MySQL for the web app.
 
 ## Run Android Tablet App
 

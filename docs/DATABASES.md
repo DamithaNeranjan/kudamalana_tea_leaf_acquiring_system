@@ -4,7 +4,13 @@
 
 The desktop app uses SQLite for offline local storage.
 
-Runtime file:
+Electron desktop app runtime file in the current Windows user's Electron app data folder:
+
+```text
+Tea Leaf Acquiring System/desktop-data/tea-local-db.sqlite
+```
+
+Standalone desktop sync server runtime file when started with `npm.cmd run desktop:sync`:
 
 ```text
 apps/desktop/desktop-data/tea-local-db.sqlite
@@ -51,8 +57,8 @@ The backend creates the configured database, creates missing tables from `apps/b
 
 ## Current Persistence Notes
 
-- Desktop uses SQLite through Node's built-in `node:sqlite` module in the spawned sync server.
-- Electron does not load SQLite directly; it starts the sync server as a normal Node process.
+- Desktop uses SQLite through Node's built-in `node:sqlite` module.
+- In packaged Electron builds, the local sync server runs inside the Electron main process so target Windows computers do not need Node.js installed. `npm.cmd run desktop:sync` still starts the same server source as a standalone Node process for local API/tablet testing.
 - The desktop app can migrate an old `tea-local-db.json` file into SQLite if that JSON file exists beside the new `.sqlite` file.
 - Desktop office-user and line-user passwords are stored as salted `scrypt` hashes.
 - Web/backend seeds `admin` / `admin123` as super admin, `director` / `director123` as director, and `office` / `office123` as office user. It also keeps `superadmin` / `admin123` for older development access.

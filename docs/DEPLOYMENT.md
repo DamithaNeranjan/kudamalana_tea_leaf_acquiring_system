@@ -73,7 +73,7 @@ BACKEND_URL=https://<backend-api-domain>
 CLOUD_SYNC_TOKEN=<same-long-random-secret-used-by-backend>
 ```
 
-For installed desktops, the app also reads `.env` from the per-user desktop data folder, or from the file path in `DESKTOP_CONFIG_PATH`.
+For installed desktops, the app also reads `.env` from the per-user desktop data folder, or from the file path in `DESKTOP_CONFIG_PATH`. Desktop admin users can also save the hosted backend URL directly from the Sync to Web App screen after install; that setting is written into the same per-user desktop data folder. The cloud sync token can still be supplied by environment or updated from that same admin-only setup form when needed. Non-admin office users do not see the hosted sync settings form.
 
 The desktop app is the local source of truth for tablet collection workflows. Do not expose the desktop sync server publicly; keep it on the factory local network or hotspot.
 

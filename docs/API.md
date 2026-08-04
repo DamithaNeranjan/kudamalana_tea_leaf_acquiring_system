@@ -426,7 +426,7 @@ In production, the desktop sync server reads these deployment settings from envi
 - `BACKEND_URL`
 - `CLOUD_SYNC_TOKEN`
 
-The office user does not enter web credentials in the desktop UI. The logged-in desktop office session authorizes pressing the local sync button, while `CLOUD_SYNC_TOKEN` authenticates the desktop server to the hosted backend.
+The office user does not enter web credentials in the desktop UI. The logged-in desktop office session authorizes pressing the local sync button, while `CLOUD_SYNC_TOKEN` authenticates the desktop server to the hosted backend. Desktop admin users can save or update the hosted backend URL from the Sync to Web App screen, and the desktop sync server persists that value in the desktop data folder `.env` file used by deployed installs. Non-admin office users do not see that hosted sync setup UI.
 
 Request body options:
 
@@ -436,6 +436,23 @@ Request body options:
 ### `GET /office/cloud-sync/status`
 
 Desktop-session protected endpoint returning the last successful web-app sync and paginated sync runs for the desktop status report. Optional query parameters: `page`, `pageSize`, `status`, and `mode`.
+
+The response also includes a `config` object for the Sync to Web App screen. Desktop admin sessions receive the current `backendUrl`, `backendUrlConfigured`, `tokenConfigured`, and `canManage` values; non-admin desktop office sessions receive only configuration-status booleans and `canManage: false`.
+
+### `PUT /office/cloud-sync/config`
+
+Desktop admin-only endpoint that saves the hosted backend URL for deployed desktop installs and optionally updates the cloud sync token in the desktop data folder `.env` file.
+
+Payload:
+
+```json
+{
+  "backendUrl": "https://api.example.com",
+  "backendToken": "optional-new-cloud-sync-token"
+}
+```
+
+`backendUrl` is required and must start with `http://` or `https://`. Omit `backendToken` or send an empty string to keep the current token unchanged.
 
 ### `GET /green-leaf-book?month=YYYY-MM`
 

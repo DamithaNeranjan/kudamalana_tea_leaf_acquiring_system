@@ -4,11 +4,13 @@ import {
   beginCloudSyncPlan,
   configuredBackendToken,
   configuredBackendUrl,
+  normalizeBackendUrl,
   resolveBackendToken,
   sentCounts
 } from "../src/cloudSync.mjs";
 
 test("desktop cloud sync helpers resolve config and trusted-token counts", async () => {
+  assert.equal(normalizeBackendUrl(" http://backend/ "), "http://backend");
   assert.equal(configuredBackendUrl({ backendUrl: "http://backend/" }, {}), "http://backend");
   assert.equal(configuredBackendUrl({}, { BACKEND_URL: "http://env-backend/" }), "http://env-backend");
   assert.equal(configuredBackendToken({}, { CLOUD_SYNC_TOKEN: "cloud", DESKTOP_CLOUD_SYNC_TOKEN: "desktop" }), "cloud");

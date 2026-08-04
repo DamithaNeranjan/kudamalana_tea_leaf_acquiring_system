@@ -808,6 +808,43 @@ button {
   gap: 16px;
 }
 
+.cloud-sync-config-card {
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+  padding: 16px;
+}
+
+.cloud-sync-config-card.hidden,
+.status-card.hidden {
+  display: none;
+}
+
+.cloud-sync-config-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.cloud-sync-config-copy p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.cloud-sync-config-form {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.cloud-sync-config-form .form-actions,
+.cloud-sync-config-form .message {
+  grid-column: 1 / -1;
+}
+
 .cloud-sync-form {
   align-items: end;
   background: #fbfcfa;
@@ -1614,6 +1651,8 @@ th:first-child {
 }
 
 @media (max-width: 1280px) {
+  .cloud-sync-config-card,
+  .cloud-sync-config-form,
   .cloud-sync-form,
   .cloud-sync-status {
     grid-template-columns: 1fr;

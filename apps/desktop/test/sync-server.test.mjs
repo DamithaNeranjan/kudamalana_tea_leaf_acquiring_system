@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createDesktopSyncServer } from "../src/server.mjs";
@@ -18,8 +18,9 @@ function webHash(password) {
 async function withDesktopServer(fn, env = {}) {
   const dir = await mkdtemp(join(tmpdir(), "tea-desktop-"));
   const store = new LocalStore(join(dir, "tea-local-db.sqlite"));
+  const envToUse = { DESKTOP_DATA_DIR: dir, ...env };
   const previousEnv = {};
-  for (const [key, value] of Object.entries(env)) {
+  for (const [key, value] of Object.entries(envToUse)) {
     previousEnv[key] = process.env[key];
     process.env[key] = value;
   }
@@ -30,7 +31,7 @@ async function withDesktopServer(fn, env = {}) {
     await fn(`http://127.0.0.1:${port}`);
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    for (const key of Object.keys(env)) {
+    for (const key of Object.keys(envToUse)) {
       if (previousEnv[key] === undefined) delete process.env[key];
       else process.env[key] = previousEnv[key];
     }
@@ -404,6 +405,60 @@ test("desktop can import web-created office users for local login", async () => 
     store.close();
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("desktop admin can save cloud sync config for deployed app use", async () => {
+  await withDesktopServer(async (baseUrl) => {
+    const officeLogin = await fetch(`${baseUrl}/office/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "office", password: "office123" })
+    });
+    assert.equal(officeLogin.status, 200);
+    const { token: officeToken } = await officeLogin.json();
+    const officeAuth = { authorization: `Bearer ${officeToken}` };
+
+    const officeStatus = await (await fetch(`${baseUrl}/office/cloud-sync/status`, { headers: officeAuth })).json();
+    assert.equal(officeStatus.config.canManage, false);
+    assert.equal(officeStatus.config.backendUrl, "");
+
+    const officeUpdate = await fetch(`${baseUrl}/office/cloud-sync/config`, {
+      method: "PUT",
+      headers: officeAuth,
+      body: JSON.stringify({ backendUrl: "https://api.example.com" })
+    });
+    assert.equal(officeUpdate.status, 403);
+
+    const adminLogin = await fetch(`${baseUrl}/office/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "admin", password: "admin123" })
+    });
+    assert.equal(adminLogin.status, 200);
+    const { token: adminToken } = await adminLogin.json();
+    const adminAuth = { authorization: `Bearer ${adminToken}` };
+
+    const saveConfig = await fetch(`${baseUrl}/office/cloud-sync/config`, {
+      method: "PUT",
+      headers: adminAuth,
+      body: JSON.stringify({
+        backendUrl: "https://api.example.com/",
+        backendToken: "desktop-secret-token"
+      })
+    });
+    assert.equal(saveConfig.status, 200);
+    const savedConfig = await saveConfig.json();
+    assert.equal(savedConfig.backendUrl, "https://api.example.com");
+    assert.equal(savedConfig.backendUrlConfigured, true);
+    assert.equal(savedConfig.tokenConfigured, true);
+    assert.equal(savedConfig.canManage, true);
+
+    const adminStatus = await (await fetch(`${baseUrl}/office/cloud-sync/status`, { headers: adminAuth })).json();
+    assert.equal(adminStatus.config.backendUrl, "https://api.example.com");
+    assert.equal(adminStatus.config.tokenConfigured, true);
+
+    const envContent = await readFile(join(process.env.DESKTOP_DATA_DIR, ".env"), "utf8");
+    assert.match(envContent, /BACKEND_URL=https:\/\/api\.example\.com/);
+    assert.match(envContent, /CLOUD_SYNC_TOKEN=desktop-secret-token/);
+  });
 });
 
 test("desktop cloud sync records status and sends only changed data after first sync", async () => {

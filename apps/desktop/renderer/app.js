@@ -121,6 +121,12 @@ function clearSession() {
   document.querySelector("#cloudSyncLastSuccess").textContent = "No successful sync yet";
   document.querySelector("#cloudSyncCursor").textContent = "";
   document.querySelector("#cloudSyncMessage").textContent = "";
+  document.querySelector("#cloudSyncBackendUrl").textContent = "Backend URL not configured";
+  document.querySelector("#cloudSyncTokenStatus").textContent = "Cloud sync token not configured";
+  document.querySelector("#cloudSyncConfigMessage").textContent = "";
+  document.querySelector("#cloudSyncConfigForm").reset();
+  document.querySelector("#cloudSyncConfigCard").classList.add("hidden");
+  document.querySelector("#cloudSyncConfigSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
@@ -757,6 +763,7 @@ async function refreshPairingQr() {
 }
 
 function renderCloudSyncStatus(status) {
+  renderCloudSyncConfig(status.config || {});
   const last = status.lastSuccessfulSync;
   document.querySelector("#cloudSyncLastSuccess").textContent = last
     ? `${formatDateTime(last.completedAt || last.startedAt)} (${last.mode})`
@@ -780,6 +787,25 @@ function renderCloudSyncStatus(status) {
     pagination.totalRows ? `Page ${pagination.page} of ${pagination.totalPages} (${pagination.totalRows} runs)` : "No sync runs";
 }
 
+function renderCloudSyncConfig(config) {
+  const backendUrl = String(config.backendUrl || "");
+  const backendUrlConfigured = config.backendUrlConfigured === true;
+  const tokenConfigured = config.tokenConfigured === true;
+  const canManage = config.canManage === true;
+  const card = document.querySelector("#cloudSyncConfigCard");
+  const summary = document.querySelector("#cloudSyncConfigSummary");
+  const form = document.querySelector("#cloudSyncConfigForm");
+  const message = document.querySelector("#cloudSyncConfigMessage");
+
+  document.querySelector("#cloudSyncBackendUrl").textContent = backendUrlConfigured ? backendUrl || "Backend URL configured" : "Backend URL not configured";
+  document.querySelector("#cloudSyncTokenStatus").textContent = tokenConfigured ? "Cloud sync token configured" : "Cloud sync token not configured";
+  card.classList.toggle("hidden", !canManage);
+  summary.classList.toggle("hidden", !canManage);
+  form.elements.backendUrl.value = backendUrl;
+  form.elements.backendToken.value = "";
+  if (!message.textContent) message.className = "message";
+}
+
 async function loadCloudSyncStatus() {
   const params = new URLSearchParams({
     page: String(listPages.cloudSync || 1),
@@ -789,6 +815,33 @@ async function loadCloudSyncStatus() {
   if (filters.cloudSyncMode) params.set("mode", filters.cloudSyncMode);
   const status = await api(`/office/cloud-sync/status?${params.toString()}`);
   renderCloudSyncStatus(status);
+}
+
+async function saveCloudSyncConfig(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = {
+    backendUrl: form.elements.backendUrl.value,
+    backendToken: form.elements.backendToken.value
+  };
+  const message = document.querySelector("#cloudSyncConfigMessage");
+  const button = form.querySelector('button[type="submit"]');
+  message.className = "message info";
+  message.textContent = "Saving cloud sync settings...";
+  button.disabled = true;
+  try {
+    const result = await api("/office/cloud-sync/config", { method: "PUT", body: JSON.stringify(payload) });
+    renderCloudSyncConfig(result);
+    message.className = "message success";
+    message.textContent = "Cloud sync settings saved.";
+    showToast("Cloud sync settings saved.");
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function runCloudSync(event) {
@@ -1835,6 +1888,7 @@ function formatSinhalaMonth(month) {
 }
 
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
+document.querySelector("#cloudSyncConfigForm").addEventListener("submit", saveCloudSyncConfig);
 document.querySelector("#cloudSyncForm").addEventListener("submit", runCloudSync);
 
 document.querySelector("#bookMonth").value = localMonthValue();

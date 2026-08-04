@@ -1,14 +1,75 @@
 import http from "node:http";
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import QRCode from "qrcode";
 import { suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
 import { bearerToken, parseJsonBody, sendJson } from "../../../packages/shared/src/http.mjs";
-import { beginCloudSyncPlan, configuredBackendUrl, resolveBackendToken } from "./cloudSync.mjs";
+import { beginCloudSyncPlan, configuredBackendToken, configuredBackendUrl, normalizeBackendUrl, resolveBackendToken } from "./cloudSync.mjs";
 import { LocalStore } from "./localStore.mjs";
+
+function desktopDataDir(cwd = process.cwd()) {
+  return process.env.DESKTOP_DATA_DIR || join(cwd, "desktop-data");
+}
+
+function desktopConfigPath(cwd = process.cwd()) {
+  return process.env.DESKTOP_CONFIG_PATH || join(desktopDataDir(cwd), ".env");
+}
+
+function parseEnvContent(content) {
+  const entries = [];
+  const values = {};
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
+      entries.push({ type: "raw", value: line });
+      continue;
+    }
+    const [key, ...rest] = line.split("=");
+    const normalizedKey = key.trim();
+    const value = rest.join("=").trim();
+    entries.push({ type: "entry", key: normalizedKey, value });
+    values[normalizedKey] = value;
+  }
+  return { entries, values };
+}
+
+function formatEnvContent(entries) {
+  return `${entries
+    .map((entry) => (entry.type === "entry" ? `${entry.key}=${entry.value}` : entry.value))
+    .join("\n")
+    .replace(/\n+$/u, "")}\n`;
+}
+
+async function persistDesktopEnv(updates, cwd = process.cwd()) {
+  const envPath = desktopConfigPath(cwd);
+  await mkdir(dirname(envPath), { recursive: true });
+  let parsed = { entries: [], values: {} };
+  try {
+    parsed = parseEnvContent(await readFile(envPath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  for (const [key, rawValue] of Object.entries(updates)) {
+    const value = String(rawValue || "").trim();
+    const entryIndex = parsed.entries.findIndex((entry) => entry.type === "entry" && entry.key === key);
+    if (!value) {
+      if (entryIndex >= 0) parsed.entries.splice(entryIndex, 1);
+      delete parsed.values[key];
+      delete process.env[key];
+      continue;
+    }
+    if (entryIndex >= 0) parsed.entries[entryIndex].value = value;
+    else parsed.entries.push({ type: "entry", key, value });
+    parsed.values[key] = value;
+    process.env[key] = value;
+  }
+
+  await writeFile(envPath, formatEnvContent(parsed.entries), "utf8");
+}
 
 async function loadDesktopEnv(cwd = process.cwd()) {
   for (const envPath of [
@@ -31,6 +92,16 @@ async function loadDesktopEnv(cwd = process.cwd()) {
       if (error.code !== "ENOENT") throw error;
     }
   }
+}
+
+function cloudSyncConfig(session) {
+  const backendUrl = configuredBackendUrl({}, process.env);
+  return {
+    backendUrl: session?.user?.role === "admin" ? backendUrl : "",
+    backendUrlConfigured: Boolean(backendUrl),
+    tokenConfigured: Boolean(configuredBackendToken({}, process.env)),
+    canManage: session?.user?.role === "admin"
+  };
 }
 
 export async function createDesktopSyncServer({ store = new LocalStore() } = {}) {
@@ -326,12 +397,54 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
           return send(response, 200, store.data);
         }
         if (request.method === "GET" && url.pathname === "/office/cloud-sync/status") {
-          return send(response, 200, store.cloudSyncStatus({
-            page: url.searchParams.get("page"),
-            pageSize: url.searchParams.get("pageSize"),
-            status: url.searchParams.get("status"),
-            mode: url.searchParams.get("mode")
-          }));
+          return send(response, 200, {
+            ...store.cloudSyncStatus({
+              page: url.searchParams.get("page"),
+              pageSize: url.searchParams.get("pageSize"),
+              status: url.searchParams.get("status"),
+              mode: url.searchParams.get("mode")
+            }),
+            config: cloudSyncConfig(session)
+          });
+        }
+        if (request.method === "PUT" && url.pathname === "/office/cloud-sync/config") {
+          requireDesktopAdmin(session);
+          const payload = await parseJsonBody(request);
+          const backendUrl = normalizeBackendUrl(payload.backendUrl);
+          if (!backendUrl) {
+            const error = new Error("Backend URL is required");
+            error.status = 400;
+            throw error;
+          }
+          let urlValue;
+          try {
+            urlValue = new URL(backendUrl);
+          } catch {
+            const error = new Error("Backend URL must be a valid http or https URL");
+            error.status = 400;
+            throw error;
+          }
+          if (!["http:", "https:"].includes(urlValue.protocol)) {
+            const error = new Error("Backend URL must start with http:// or https://");
+            error.status = 400;
+            throw error;
+          }
+          const before = cloudSyncConfig(session);
+          const updates = { BACKEND_URL: backendUrl };
+          const backendToken = String(payload.backendToken || "").trim();
+          if (backendToken) updates.CLOUD_SYNC_TOKEN = backendToken;
+          await persistDesktopEnv(updates);
+          const after = cloudSyncConfig(session);
+          logAudit(session, {
+            action: "update",
+            entityType: "cloud_sync_config",
+            entityId: "desktop_cloud_sync",
+            entityLabel: "Desktop cloud sync configuration",
+            summary: "Updated desktop cloud sync configuration",
+            before,
+            after
+          });
+          return send(response, 200, after);
         }
         if (request.method === "POST" && url.pathname === "/office/cloud-sync") {
           const payload = await parseJsonBody(request);

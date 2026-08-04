@@ -779,6 +779,32 @@
             <p>Send Green Leaf Book changes and office-user accounts to the hosted web database.</p>
           </div>
           <section class="panel cloud-sync-panel">
+            <section id="cloudSyncConfigCard" class="cloud-sync-config-card hidden">
+              <div class="cloud-sync-config-copy">
+                <span class="eyebrow">Admin setup</span>
+                <h3>Hosted Web Sync Settings</h3>
+                <p>Save the hosted backend URL here so this desktop app can sync without a manually created environment file.</p>
+              </div>
+              <form id="cloudSyncConfigForm" class="cloud-sync-config-form">
+                <label>
+                  Backend URL
+                  <input name="backendUrl" type="url" placeholder="https://api.example.com" required />
+                </label>
+                <label>
+                  Cloud sync token
+                  <input name="backendToken" type="password" placeholder="Leave blank to keep the current token" />
+                </label>
+                <div class="form-actions">
+                  <button type="submit">Save sync settings</button>
+                </div>
+                <span id="cloudSyncConfigMessage" class="message"></span>
+              </form>
+            </section>
+            <div id="cloudSyncConfigSummary" class="status-card hidden">
+              <span class="eyebrow">Cloud sync setup</span>
+              <strong id="cloudSyncBackendUrl">Backend URL not configured</strong>
+              <span id="cloudSyncTokenStatus" class="muted-text">Cloud sync token not configured</span>
+            </div>
             <form id="cloudSyncForm" class="cloud-sync-form">
               <label class="switch-row cloud-sync-option">
                 <input name="fullSync" type="checkbox" />

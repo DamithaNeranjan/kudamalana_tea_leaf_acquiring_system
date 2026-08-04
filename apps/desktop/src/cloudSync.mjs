@@ -1,5 +1,9 @@
+export function normalizeBackendUrl(value) {
+  return String(value || "").trim().replace(/\/$/, "");
+}
+
 export function configuredBackendUrl(payload, env = process.env) {
-  return String(payload.backendUrl || env.BACKEND_URL || "").replace(/\/$/, "");
+  return normalizeBackendUrl(payload.backendUrl || env.BACKEND_URL || "");
 }
 
 export function configuredBackendToken(payload, env = process.env) {

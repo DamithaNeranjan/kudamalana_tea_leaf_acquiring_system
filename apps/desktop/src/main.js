@@ -45,6 +45,7 @@ async function createWindow() {
     width: 1280,
     height: 820,
     icon: iconPath,
+    backgroundColor: "#17351f",
     webPreferences: {
       preload: join(desktopRoot, "src", "preload.cjs"),
       sandbox: false

@@ -16,11 +16,18 @@
   --danger: #8a241f;
 }
 
+html,
+body {
+  background: var(--brand-strong);
+  margin: 0;
+  padding: 0;
+}
+
 body {
   background:
     linear-gradient(180deg, rgba(31, 95, 54, 0.08), rgba(246, 247, 244, 0) 260px),
     #f6f7f4;
-  margin: 0;
+  min-height: 100vh;
 }
 
 .topbar {

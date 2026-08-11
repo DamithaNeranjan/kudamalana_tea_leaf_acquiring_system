@@ -251,6 +251,8 @@ export class LocalStore {
       ["tea_lines", ["whole_line_bank_transfer", "INTEGER NOT NULL DEFAULT 0"]],
       ["supplier_month_overrides", ["updated_at", "TEXT"]],
       ["advances", ["updated_at", "TEXT"]],
+      ["fertilizer_types", ["updated_at", "TEXT"]],
+      ["fertilizer_stocks", ["updated_at", "TEXT"]],
       ["fertilizer_issues", ["updated_at", "TEXT"]],
       ["fertilizer_installments", ["updated_at", "TEXT"]],
       ["tea_packets", ["updated_at", "TEXT"]],
@@ -265,6 +267,42 @@ export class LocalStore {
     }
     if (!this.hasColumn("suppliers", "payment_mode")) {
       this.db.prepare("ALTER TABLE suppliers ADD COLUMN payment_mode TEXT NOT NULL DEFAULT 'cash'").run();
+    }
+    for (const [table, definition] of [
+      [
+        "fertilizer_types",
+        `CREATE TABLE IF NOT EXISTS fertilizer_types (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL,
+          bag_weight_kg REAL NOT NULL,
+          updated_at TEXT
+        )`
+      ],
+      [
+        "fertilizer_stocks",
+        `CREATE TABLE IF NOT EXISTS fertilizer_stocks (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          fertilizer_type_id TEXT NOT NULL,
+          per_bag_price REAL NOT NULL,
+          bags_received INTEGER NOT NULL,
+          updated_at TEXT
+        )`
+      ]
+    ]) {
+      this.db.prepare(definition).run();
+    }
+    for (const column of [
+      ["fertilizer_stock_id", "TEXT"],
+      ["fertilizer_type_id", "TEXT"],
+      ["bags_issued", "INTEGER"],
+      ["per_bag_price", "REAL"],
+      ["bag_weight_kg", "REAL"]
+    ]) {
+      if (!this.hasColumn("fertilizer_issues", column[0])) {
+        this.db.prepare(`ALTER TABLE fertilizer_issues ADD COLUMN ${column[0]} ${column[1]}`).run();
+      }
     }
     this.db
       .prepare(
@@ -458,6 +496,8 @@ export class LocalStore {
     else if (collection === "monthlySettings") this.upsertMonthlySetting(saved);
     else if (collection === "supplierMonthOverrides") this.upsertSupplierMonthOverride(saved);
     else if (collection === "advances") this.upsertAdvance(saved);
+    else if (collection === "fertilizerTypes") this.upsertFertilizerType(saved);
+    else if (collection === "fertilizerStocks") this.upsertFertilizerStock(saved);
     else if (collection === "fertilizerIssues") this.upsertFertilizerIssue(saved);
     else if (collection === "teaPackets") this.upsertTeaPacket(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
@@ -691,14 +731,120 @@ export class LocalStore {
       .run(advance.id, advance.supplierId, advance.date, amount, advance.effectiveMonth, advance.updatedAt || now());
   }
 
+  upsertFertilizerType(type) {
+    const name = String(type.name || "").trim();
+    const fertilizerType = String(type.type || "").trim();
+    const bagWeightKg = Number(type.bagWeightKg);
+    if (!name || !fertilizerType) {
+      const error = new Error("Fertilizer name and type are required");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isFinite(bagWeightKg) || bagWeightKg <= 0) {
+      const error = new Error("Fertilizer bag weight must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO fertilizer_types (id, name, type, bag_weight_kg, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           type = excluded.type,
+           bag_weight_kg = excluded.bag_weight_kg,
+           updated_at = excluded.updated_at`
+      )
+      .run(type.id, name, fertilizerType, bagWeightKg, type.updatedAt || now());
+  }
+
+  upsertFertilizerStock(stock) {
+    if (!stock.date || !stock.fertilizerTypeId) {
+      const error = new Error("Stock received date and fertilizer type are required");
+      error.status = 400;
+      throw error;
+    }
+    const fertilizerType = this.db.prepare("SELECT id FROM fertilizer_types WHERE id = ? LIMIT 1").get(stock.fertilizerTypeId);
+    if (!fertilizerType) {
+      const error = new Error("Selected fertilizer type was not found");
+      error.status = 400;
+      throw error;
+    }
+    const perBagPrice = Number(stock.perBagPrice);
+    const bagsReceived = Number(stock.bagsReceived);
+    if (!Number.isFinite(perBagPrice) || perBagPrice <= 0) {
+      const error = new Error("Per bag price must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isInteger(bagsReceived) || bagsReceived <= 0) {
+      const error = new Error("Bags received must be a whole number greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO fertilizer_stocks (id, date, fertilizer_type_id, per_bag_price, bags_received, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           date = excluded.date,
+           fertilizer_type_id = excluded.fertilizer_type_id,
+           per_bag_price = excluded.per_bag_price,
+           bags_received = excluded.bags_received,
+           updated_at = excluded.updated_at`
+      )
+      .run(stock.id, stock.date, stock.fertilizerTypeId, perBagPrice, bagsReceived, stock.updatedAt || now());
+  }
+
   upsertFertilizerIssue(issue) {
     if (!issue.supplierId || !issue.date || !issue.effectiveMonth1) {
       const error = new Error("Supplier, date given, and at least one effective month are required");
       error.status = 400;
       throw error;
     }
-    const kgGiven = Number(issue.kgGiven);
-    const totalAmount = Number(issue.totalAmount);
+    let kgGiven = Number(issue.kgGiven);
+    let totalAmount = Number(issue.totalAmount);
+    let fertilizerStockId = issue.fertilizerStockId || null;
+    let fertilizerTypeId = issue.fertilizerTypeId || null;
+    let bagsIssued = issue.bagsIssued === undefined || issue.bagsIssued === "" ? null : Number(issue.bagsIssued);
+    let perBagPrice = issue.perBagPrice === undefined || issue.perBagPrice === "" ? null : Number(issue.perBagPrice);
+    let bagWeightKg = issue.bagWeightKg === undefined || issue.bagWeightKg === "" ? null : Number(issue.bagWeightKg);
+    if (fertilizerStockId) {
+      const stock = this.db
+        .prepare(
+          `SELECT stock.id, stock.fertilizer_type_id AS fertilizerTypeId, stock.per_bag_price AS perBagPrice,
+                  stock.bags_received AS bagsReceived, type.bag_weight_kg AS bagWeightKg
+           FROM fertilizer_stocks stock
+           JOIN fertilizer_types type ON type.id = stock.fertilizer_type_id
+           WHERE stock.id = ?`
+        )
+        .get(fertilizerStockId);
+      if (!stock) {
+        const error = new Error("Selected fertilizer stock was not found");
+        error.status = 400;
+        throw error;
+      }
+      if (!Number.isInteger(bagsIssued) || bagsIssued <= 0) {
+        const error = new Error("Bags issued must be a whole number greater than zero");
+        error.status = 400;
+        throw error;
+      }
+      const issuedByOthers =
+        this.db
+          .prepare("SELECT COALESCE(SUM(bags_issued), 0) AS total FROM fertilizer_issues WHERE fertilizer_stock_id = ? AND id != ?")
+          .get(fertilizerStockId, issue.id)?.total || 0;
+      const availableBags = Number(stock.bagsReceived || 0) - Number(issuedByOthers || 0);
+      if (bagsIssued > availableBags) {
+        const error = new Error(`Only ${availableBags} fertilizer bag${availableBags === 1 ? "" : "s"} remain in the selected stock`);
+        error.status = 400;
+        throw error;
+      }
+      fertilizerTypeId = stock.fertilizerTypeId;
+      perBagPrice = Number(stock.perBagPrice);
+      bagWeightKg = Number(stock.bagWeightKg);
+      kgGiven = money(bagsIssued * bagWeightKg);
+      totalAmount = money(bagsIssued * perBagPrice);
+    }
     const splitMonths = Number(issue.splitMonths || 1);
     const effectiveMonths = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).slice(0, splitMonths);
     for (const month of effectiveMonths) this.assertMonthOpen(month);
@@ -729,11 +875,17 @@ export class LocalStore {
       this.db
         .prepare(
           `INSERT INTO fertilizer_issues
-           (id, supplier_id, date, kg_given, total_amount, split_months, effective_month_1, effective_month_2, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, supplier_id, date, fertilizer_stock_id, fertilizer_type_id, bags_issued, per_bag_price, bag_weight_kg,
+            kg_given, total_amount, split_months, effective_month_1, effective_month_2, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              supplier_id = excluded.supplier_id,
              date = excluded.date,
+             fertilizer_stock_id = excluded.fertilizer_stock_id,
+             fertilizer_type_id = excluded.fertilizer_type_id,
+             bags_issued = excluded.bags_issued,
+             per_bag_price = excluded.per_bag_price,
+             bag_weight_kg = excluded.bag_weight_kg,
              kg_given = excluded.kg_given,
              total_amount = excluded.total_amount,
              split_months = excluded.split_months,
@@ -745,6 +897,11 @@ export class LocalStore {
           issue.id,
           issue.supplierId,
           issue.date,
+          fertilizerStockId,
+          fertilizerTypeId,
+          bagsIssued,
+          perBagPrice,
+          bagWeightKg,
           kgGiven,
           totalAmount,
           splitMonths,
@@ -1490,6 +1647,8 @@ export class LocalStore {
       collectionStaging: this.collectionStaging(),
       collectionEntries: this.collectionEntries(),
       advances: this.advances(),
+      fertilizerTypes: this.fertilizerTypes(),
+      fertilizerStocks: this.fertilizerStocks(),
       fertilizerIssues: this.fertilizerIssues(),
       fertilizerInstallments: this.fertilizerInstallments(),
       teaPackets: this.teaPackets(),
@@ -1693,6 +1852,25 @@ export class LocalStore {
       .all();
   }
 
+  fertilizerTypes() {
+    return this.db
+      .prepare(
+        `SELECT id, name, type, bag_weight_kg AS bagWeightKg, updated_at AS updatedAt
+         FROM fertilizer_types`
+      )
+      .all();
+  }
+
+  fertilizerStocks() {
+    return this.db
+      .prepare(
+        `SELECT id, date, fertilizer_type_id AS fertilizerTypeId, per_bag_price AS perBagPrice,
+         bags_received AS bagsReceived, updated_at AS updatedAt
+         FROM fertilizer_stocks`
+      )
+      .all();
+  }
+
   fertilizerInstallments() {
     return this.db
       .prepare(
@@ -1704,7 +1882,9 @@ export class LocalStore {
   fertilizerIssues() {
     return this.db
       .prepare(
-        `SELECT id, supplier_id AS supplierId, date, kg_given AS kgGiven, total_amount AS totalAmount,
+        `SELECT id, supplier_id AS supplierId, date, fertilizer_stock_id AS fertilizerStockId,
+         fertilizer_type_id AS fertilizerTypeId, bags_issued AS bagsIssued, per_bag_price AS perBagPrice,
+         bag_weight_kg AS bagWeightKg, kg_given AS kgGiven, total_amount AS totalAmount,
          split_months AS splitMonths, effective_month_1 AS effectiveMonth1, effective_month_2 AS effectiveMonth2,
          updated_at AS updatedAt
          FROM fertilizer_issues ORDER BY date DESC, id DESC`
@@ -1985,10 +2165,32 @@ CREATE TABLE IF NOT EXISTS advances (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS fertilizer_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  bag_weight_kg REAL NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS fertilizer_stocks (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  fertilizer_type_id TEXT NOT NULL,
+  per_bag_price REAL NOT NULL,
+  bags_received INTEGER NOT NULL,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS fertilizer_issues (
   id TEXT PRIMARY KEY,
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
+  fertilizer_stock_id TEXT,
+  fertilizer_type_id TEXT,
+  bags_issued INTEGER,
+  per_bag_price REAL,
+  bag_weight_kg REAL,
   kg_given REAL NOT NULL,
   total_amount REAL NOT NULL,
   split_months INTEGER NOT NULL,

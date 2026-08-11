@@ -343,6 +343,57 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     );
     assert.equal(postedState.teaPackets[0].totalAmount, 200);
 
+    const fertilizerType = await fetch(`${baseUrl}/office/fertilizer-types`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ name: "Urea", type: "Granular", bagWeightKg: 50 })
+    });
+    assert.equal(fertilizerType.status, 201);
+    const fertilizerTypeBody = await fertilizerType.json();
+    const fertilizerStock = await fetch(`${baseUrl}/office/fertilizer-stocks`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        date: "2026-07-01",
+        fertilizerTypeId: fertilizerTypeBody.id,
+        perBagPrice: 12000,
+        bagsReceived: 10
+      })
+    });
+    assert.equal(fertilizerStock.status, 201);
+    const fertilizerStockBody = await fertilizerStock.json();
+    const stockIssue = await fetch(`${baseUrl}/office/fertilizer-issues`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        supplierId: "sup_1",
+        date: "2026-07-02",
+        fertilizerStockId: fertilizerStockBody.id,
+        bagsIssued: 2,
+        splitMonths: 1,
+        effectiveMonth1: "2026-07"
+      })
+    });
+    assert.equal(stockIssue.status, 201);
+    const overIssue = await fetch(`${baseUrl}/office/fertilizer-issues`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        supplierId: "sup_1",
+        date: "2026-07-03",
+        fertilizerStockId: fertilizerStockBody.id,
+        bagsIssued: 9,
+        splitMonths: 1,
+        effectiveMonth1: "2026-07"
+      })
+    });
+    assert.equal(overIssue.status, 400);
+    const fertilizerState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    const savedStockIssue = fertilizerState.fertilizerIssues.find((issue) => issue.fertilizerStockId === fertilizerStockBody.id);
+    assert.equal(savedStockIssue.bagsIssued, 2);
+    assert.equal(savedStockIssue.kgGiven, 100);
+    assert.equal(savedStockIssue.totalAmount, 24000);
+
     const auditReport = await (await fetch(`${baseUrl}/office/audit-log`, { headers: auth })).json();
     assert.ok(auditReport.auditLogs.length >= 8);
     assert.ok(

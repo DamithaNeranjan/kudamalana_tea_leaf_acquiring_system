@@ -629,6 +629,8 @@ main {
 }
 
 .advance-form,
+.fertilizer-type-form,
+.fertilizer-stock-form,
 .fertilizer-form,
 .tea-packet-form {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -644,6 +646,63 @@ main {
 .supplier-form .check-list,
 .supplier-form .supplier-actions {
   grid-column: 1 / -1;
+}
+
+.fertilizer-panel {
+  display: grid;
+  gap: 12px;
+  overflow: visible;
+}
+
+.fertilizer-section {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: block;
+  padding: 0;
+}
+
+.fertilizer-section summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 16px 18px;
+}
+
+.fertilizer-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.fertilizer-section summary::after {
+  color: var(--brand-strong);
+  content: "+";
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.fertilizer-section[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.fertilizer-section[open] summary::after {
+  content: "-";
+}
+
+.fertilizer-section > .form-intro,
+.fertilizer-section > .form-card,
+.fertilizer-section > .list-card {
+  margin: 16px;
+}
+
+.fertilizer-form .fertilizer-supplier-field,
+.fertilizer-form .fertilizer-issue-type-field {
+  grid-column: span 2;
+}
+
+.fertilizer-form .fertilizer-issue-type-field select {
+  min-width: 360px;
 }
 
 .form-actions {
@@ -1713,6 +1772,15 @@ th:first-child {
 
   .list-card {
     grid-column: 1;
+  }
+
+  .fertilizer-form .fertilizer-supplier-field,
+  .fertilizer-form .fertilizer-issue-type-field {
+    grid-column: 1;
+  }
+
+  .fertilizer-form .fertilizer-issue-type-field select {
+    min-width: 0;
   }
 
   .login-copy,

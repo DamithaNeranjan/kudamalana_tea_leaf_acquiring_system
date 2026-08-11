@@ -502,18 +502,124 @@
         <section id="fertilizerView" class="view">
           <div class="view-heading">
             <h2>Fertilizer</h2>
-            <p>Record fertilizer lent to suppliers and split the rupee deduction across one or two months.</p>
+            <p>Register fertilizer products, record received stock, issue bags to suppliers, and review balances.</p>
           </div>
-          <section class="panel registration-panel">
-            <div class="registration-section active-registration">
+          <section class="panel registration-panel fertilizer-panel">
+            <details class="registration-section fertilizer-section">
+              <summary>
+                <span>
+                  <span class="eyebrow">Fertilizer products</span>
+                  <strong>Register Fertilizer</strong>
+                </span>
+              </summary>
               <div class="form-intro">
-                <span class="eyebrow">Supplier fertilizer</span>
-                <h3>Give Fertilizer</h3>
+                <h3>Register Fertilizer</h3>
+                <p>Record each fertilizer bag type before receiving stock or issuing bags.</p>
+              </div>
+              <form id="fertilizerTypeForm" class="form-card fertilizer-type-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Name
+                  <input name="name" required />
+                </label>
+                <label>
+                  Type
+                  <input name="type" required />
+                </label>
+                <label>
+                  Bag weight (kg)
+                  <input name="bagWeightKg" type="number" step="0.01" min="0" required />
+                </label>
+                <div class="form-actions fertilizer-actions">
+                  <button type="submit">Save fertilizer type</button>
+                  <button class="ghost-button" type="button" data-clear-form="fertilizerTypeForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header supplier-filter-bar">
+                  <h4>Registered Fertilizer Types</h4>
+                  <input id="fertilizerTypeFilter" class="table-filter" placeholder="Filter fertilizer types" />
+                </div>
+                <table id="fertilizerTypesTable">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Bag Weight</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="registration-section fertilizer-section">
+              <summary>
+                <span>
+                  <span class="eyebrow">Stock intake</span>
+                  <strong>Received Fertilizer</strong>
+                </span>
+              </summary>
+              <div class="form-intro">
+                <h3>Received Fertilizer</h3>
+                <p>Record fertilizer stock received into the office inventory.</p>
+              </div>
+              <form id="fertilizerStockForm" class="form-card fertilizer-stock-form">
+                <input name="id" type="hidden" />
+                <label>
+                  Date stock received
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  Fertilizer bag type
+                  <select name="fertilizerTypeId" required></select>
+                </label>
+                <label>
+                  Per bag price
+                  <input name="perBagPrice" type="number" step="0.01" min="0" required />
+                </label>
+                <label>
+                  Bags received
+                  <input name="bagsReceived" type="number" step="1" min="1" required />
+                </label>
+                <div class="form-actions fertilizer-actions">
+                  <button type="submit">Save received stock</button>
+                  <button class="ghost-button" type="button" data-clear-form="fertilizerStockForm">Clear</button>
+                </div>
+              </form>
+              <div class="list-card wide-list">
+                <div class="list-header supplier-filter-bar">
+                  <h4>Received Fertilizer Records</h4>
+                  <input id="fertilizerReceivedFilter" class="table-filter" placeholder="Filter received stock" />
+                </div>
+                <table id="fertilizerStocksTable">
+                  <thead>
+                    <tr>
+                      <th>Date Received</th>
+                      <th>Fertilizer</th>
+                      <th>Per Bag Price</th>
+                      <th>Bags Received</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="registration-section fertilizer-section">
+              <summary>
+                <span>
+                  <span class="eyebrow">Supplier fertilizer</span>
+                  <strong>Issue Fertilizer</strong>
+                </span>
+              </summary>
+              <div class="form-intro">
+                <h3>Issue Fertilizer</h3>
                 <p>The Green Leaf Book deducts only the installment amount for the selected month.</p>
               </div>
               <form id="fertilizerForm" class="form-card fertilizer-form">
                 <input name="id" type="hidden" />
-                <label>
+                <label class="fertilizer-supplier-field">
                   Supplier
                   <select name="supplierId" required></select>
                 </label>
@@ -521,13 +627,21 @@
                   Date given
                   <input name="date" type="date" required />
                 </label>
-                <label>
-                  Fertilizer kg given
-                  <input name="kgGiven" type="number" step="0.01" min="0" required />
+                <label class="fertilizer-issue-type-field">
+                  Fertilizer type issuing
+                  <select name="fertilizerStockId" required></select>
                 </label>
                 <label>
-                  Total rupee value
-                  <input name="totalAmount" type="number" step="0.01" min="0" required />
+                  Bags given
+                  <input name="bagsIssued" type="number" step="1" min="1" required />
+                </label>
+                <label>
+                  Total kg
+                  <input name="kgGiven" type="number" step="0.01" readonly />
+                </label>
+                <label>
+                  Total price
+                  <input name="totalAmount" type="number" step="0.01" readonly />
                 </label>
                 <label>
                   Split into months
@@ -545,20 +659,23 @@
                   <input name="effectiveMonth2" type="month" />
                 </label>
                 <div class="form-actions fertilizer-actions">
-                  <button type="submit">Save fertilizer</button>
+                  <button type="submit">Save fertilizer issue</button>
                   <button class="ghost-button" type="button" data-clear-form="fertilizerForm">Clear</button>
                 </div>
               </form>
               <div class="list-card wide-list">
-                <div class="list-header">
+                <div class="list-header supplier-filter-bar">
                   <h4>Saved Fertilizer Issues</h4>
+                  <input id="fertilizerIssueFilter" class="table-filter" placeholder="Filter fertilizer issues" />
                 </div>
                 <table id="fertilizerTable">
                   <thead>
                     <tr>
                       <th>Supplier</th>
                       <th>Date Given</th>
-                      <th>Kg Given</th>
+                      <th>Fertilizer</th>
+                      <th>Bags</th>
+                      <th>Total Kg</th>
                       <th>Total Value</th>
                       <th>Split</th>
                       <th>Effective Months</th>
@@ -567,7 +684,40 @@
                   <tbody></tbody>
                 </table>
               </div>
-            </div>
+            </details>
+
+            <details class="registration-section fertilizer-section">
+              <summary>
+                <span>
+                  <span class="eyebrow">Inventory balance</span>
+                  <strong>Fertilizer Stock</strong>
+                </span>
+              </summary>
+              <div class="form-intro">
+                <h3>Fertilizer Stock</h3>
+                <p>Current fertilizer balance by received stock lot.</p>
+              </div>
+              <div class="list-card wide-list">
+                <div class="list-header supplier-filter-bar">
+                  <h4>Current Fertilizer Stock Balances</h4>
+                  <input id="fertilizerStockBalanceFilter" class="table-filter" placeholder="Filter stock balances" />
+                </div>
+                <table id="fertilizerStockBalanceTable">
+                  <thead>
+                    <tr>
+                      <th>Fertilizer</th>
+                      <th>Per Bag Price</th>
+                      <th>Received</th>
+                      <th>Issued</th>
+                      <th>Balance Bags</th>
+                      <th>Balance Kg</th>
+                      <th>Stock Value</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </details>
           </section>
         </section>
 

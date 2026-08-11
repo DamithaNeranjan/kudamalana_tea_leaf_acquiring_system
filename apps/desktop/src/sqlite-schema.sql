@@ -118,10 +118,32 @@ CREATE TABLE advances (
   updated_at TEXT
 );
 
+CREATE TABLE fertilizer_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  bag_weight_kg REAL NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE fertilizer_stocks (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  fertilizer_type_id TEXT NOT NULL,
+  per_bag_price REAL NOT NULL,
+  bags_received INTEGER NOT NULL,
+  updated_at TEXT
+);
+
 CREATE TABLE fertilizer_issues (
   id TEXT PRIMARY KEY,
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
+  fertilizer_stock_id TEXT,
+  fertilizer_type_id TEXT,
+  bags_issued INTEGER,
+  per_bag_price REAL,
+  bag_weight_kg REAL,
   kg_given REAL NOT NULL,
   total_amount REAL NOT NULL,
   split_months INTEGER NOT NULL,

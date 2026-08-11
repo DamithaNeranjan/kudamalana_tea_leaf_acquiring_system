@@ -147,6 +147,8 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
       unique: ["supplierId", "month"]
     },
     advances: { type: "advance", label: (record) => `${record.date || ""} ${record.amount || ""}`.trim() },
+    fertilizerTypes: { type: "fertilizer_type", label: (record) => `${record.name || ""} ${record.type || ""}`.trim() },
+    fertilizerStocks: { type: "fertilizer_stock", label: (record) => `${record.date || ""} ${record.perBagPrice || ""}`.trim() },
     fertilizerIssues: { type: "fertilizer_issue", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() },
     teaPackets: { type: "tea_packet", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() }
   };
@@ -353,6 +355,12 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "POST" && url.pathname === "/office/advances") {
           return send(response, 201, await auditedUpsert(session, "advances", await parseJsonBody(request), "adv"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/fertilizer-types") {
+          return send(response, 201, await auditedUpsert(session, "fertilizerTypes", await parseJsonBody(request), "fert_type"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/fertilizer-stocks") {
+          return send(response, 201, await auditedUpsert(session, "fertilizerStocks", await parseJsonBody(request), "fert_stock"));
         }
         if (request.method === "POST" && url.pathname === "/office/fertilizer-issues") {
           return send(response, 201, await auditedUpsert(session, "fertilizerIssues", await parseJsonBody(request), "fert"));

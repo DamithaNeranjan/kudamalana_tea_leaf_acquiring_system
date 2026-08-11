@@ -40,6 +40,10 @@ const filters = {
   lineUserName: "",
   supplierName: "",
   supplierLine: "",
+  fertilizerType: "",
+  fertilizerReceived: "",
+  fertilizerIssue: "",
+  fertilizerStockBalance: "",
   recordSupplier: "",
   recordLine: "",
   recordDateFrom: "",
@@ -71,7 +75,10 @@ const listPages = {
   suppliers: 1,
   monthlySettings: 1,
   advances: 1,
+  fertilizerTypes: 1,
+  fertilizerStocks: 1,
   fertilizer: 1,
+  fertilizerStockBalances: 1,
   teaPackets: 1,
   staging: 1,
   payments: 1,
@@ -303,6 +310,8 @@ document.addEventListener("click", (event) => {
     if (idInput) idInput.value = "";
     if (clearFormId === "monthlySettingsForm") populateMonthlySettingsForm();
     if (clearFormId === "advanceForm") populateAdvanceForm();
+    if (clearFormId === "fertilizerTypeForm") populateFertilizerTypeForm();
+    if (clearFormId === "fertilizerStockForm") populateFertilizerStockForm();
     if (clearFormId === "fertilizerForm") populateFertilizerForm();
     if (clearFormId === "teaPacketForm") populateTeaPacketForm();
   }
@@ -319,6 +328,19 @@ for (const [selector, key, pageKey] of [
     filters[key] = event.target.value.trim().toLowerCase();
     listPages[pageKey] = 1;
     if (latestState) renderRegistrationTables(latestState);
+  });
+}
+
+for (const [selector, key, pageKey] of [
+  ["#fertilizerTypeFilter", "fertilizerType", "fertilizerTypes"],
+  ["#fertilizerReceivedFilter", "fertilizerReceived", "fertilizerStocks"],
+  ["#fertilizerIssueFilter", "fertilizerIssue", "fertilizer"],
+  ["#fertilizerStockBalanceFilter", "fertilizerStockBalance", "fertilizerStockBalances"]
+]) {
+  document.querySelector(selector).addEventListener("input", (event) => {
+    filters[key] = event.target.value.trim().toLowerCase();
+    listPages[pageKey] = 1;
+    if (latestState) renderFertilizer(latestState);
   });
 }
 
@@ -565,7 +587,68 @@ function renderAdvances(state) {
     .join("");
 }
 
+function fertilizerTypeLabel(type) {
+  if (!type) return "Unknown fertilizer";
+  return `${type.name || ""} - ${type.type || ""} - ${formatBookNumber(type.bagWeightKg)} kg`.replace(/\s+-\s+$/g, "");
+}
+
+function fertilizerStockRows(state) {
+  const typeById = new Map((state.fertilizerTypes || []).map((type) => [type.id, type]));
+  const issuedByStock = new Map();
+  for (const issue of state.fertilizerIssues || []) {
+    if (!issue.fertilizerStockId) continue;
+    issuedByStock.set(issue.fertilizerStockId, (issuedByStock.get(issue.fertilizerStockId) || 0) + Number(issue.bagsIssued || 0));
+  }
+  return (state.fertilizerStocks || []).map((stock) => {
+    const type = typeById.get(stock.fertilizerTypeId);
+    const bagsReceived = Number(stock.bagsReceived || 0);
+    const bagsIssued = issuedByStock.get(stock.id) || 0;
+    const balanceBags = Math.max(0, bagsReceived - bagsIssued);
+    const bagWeightKg = Number(type?.bagWeightKg || stock.bagWeightKg || 0);
+    const perBagPrice = Number(stock.perBagPrice || 0);
+    return {
+      ...stock,
+      type,
+      label: fertilizerTypeLabel(type),
+      bagsReceived,
+      bagsIssued,
+      balanceBags,
+      balanceKg: balanceBags * bagWeightKg,
+      stockValue: balanceBags * perBagPrice
+    };
+  });
+}
+
+function fertilizerIssueSearchText(issue, state) {
+  const supplier = state.suppliers.find((item) => item.id === issue.supplierId);
+  const stock = (state.fertilizerStocks || []).find((item) => item.id === issue.fertilizerStockId);
+  const type = (state.fertilizerTypes || []).find((item) => item.id === (issue.fertilizerTypeId || stock?.fertilizerTypeId));
+  return [
+    supplier?.name,
+    supplier?.code,
+    issue.date,
+    fertilizerTypeLabel(type),
+    issue.bagsIssued,
+    issue.kgGiven,
+    issue.totalAmount,
+    stock?.perBagPrice
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .join(" ")
+    .toLowerCase();
+}
+
 function renderFertilizer(state) {
+  const fertilizerTypeOptions = (state.fertilizerTypes || [])
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    .map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(fertilizerTypeLabel(type))}</option>`)
+    .join("");
+  const stockTypeSelect = document.querySelector('#fertilizerStockForm select[name="fertilizerTypeId"]');
+  const selectedStockType = stockTypeSelect.value;
+  stockTypeSelect.innerHTML = `<option value="">Select fertilizer type</option>${fertilizerTypeOptions}`;
+  stockTypeSelect.value = selectedStockType;
+
   const supplierOptions = state.suppliers
     .filter((supplier) => supplier.active)
     .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
@@ -575,25 +658,109 @@ function renderFertilizer(state) {
   supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
   supplierSelect.value = selectedSupplier;
 
+  const stockRows = fertilizerStockRows(state);
+  const issueStockSelect = document.querySelector('#fertilizerForm select[name="fertilizerStockId"]');
+  const selectedIssueStock = issueStockSelect.value;
+  const issueStockOptions = stockRows
+    .filter((stock) => stock.balanceBags > 0 || stock.id === selectedIssueStock)
+    .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date"))
+    .map((stock) => {
+      const label = `${stock.label} - Rs. ${formatBookNumber(stock.perBagPrice)} - ${formatBookNumber(stock.balanceBags)} bags available`;
+      return `<option value="${escapeAttribute(stock.id)}">${escapeHtml(label)}</option>`;
+    })
+    .join("");
+  issueStockSelect.innerHTML = `<option value="">Select fertilizer stock</option>${issueStockOptions}`;
+  issueStockSelect.value = selectedIssueStock;
+  updateFertilizerIssueTotals();
+
+  const typeRows = paginateList(
+    "fertilizerTypes",
+    (state.fertilizerTypes || [])
+      .filter((type) => fertilizerTypeLabel(type).toLowerCase().includes(filters.fertilizerType))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "name")),
+    "fertilizerTypesTable"
+  );
+  document.querySelector("#fertilizerTypesTable tbody").innerHTML = typeRows
+    .map(
+      (type) => `
+      <tr>
+        <td>${escapeHtml(type.name)}</td>
+        <td>${escapeHtml(type.type)}</td>
+        <td>${formatBookNumber(type.bagWeightKg)} kg</td>
+      </tr>`
+    )
+    .join("");
+
+  const receivedRows = paginateList(
+    "fertilizerStocks",
+    stockRows
+      .filter((stock) => [stock.date, stock.label, stock.perBagPrice, stock.bagsReceived].join(" ").toLowerCase().includes(filters.fertilizerReceived))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date")),
+    "fertilizerStocksTable"
+  );
+  document.querySelector("#fertilizerStocksTable tbody").innerHTML = receivedRows
+    .map(
+      (stock) => `
+      <tr>
+        <td>${escapeHtml(stock.date)}</td>
+        <td>${escapeHtml(stock.label)}</td>
+        <td>${formatBookNumber(stock.perBagPrice)}</td>
+        <td>${formatBookNumber(stock.bagsReceived)}</td>
+      </tr>`
+    )
+    .join("");
+
   const pageRows = paginateList(
     "fertilizer",
-    (state.fertilizerIssues || []).slice().sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date")),
+    (state.fertilizerIssues || [])
+      .filter((issue) => fertilizerIssueSearchText(issue, state).includes(filters.fertilizerIssue))
+      .slice()
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date")),
     "fertilizerTable"
   );
   document.querySelector("#fertilizerTable tbody").innerHTML = pageRows
     .map((issue) => {
       const supplier = state.suppliers.find((item) => item.id === issue.supplierId);
+      const stock = (state.fertilizerStocks || []).find((item) => item.id === issue.fertilizerStockId);
+      const type = (state.fertilizerTypes || []).find((item) => item.id === (issue.fertilizerTypeId || stock?.fertilizerTypeId));
       const months = [issue.effectiveMonth1, issue.effectiveMonth2].filter(Boolean).join(", ");
       return `
       <tr>
         <td>${escapeHtml(supplier?.name || issue.supplierId)}</td>
         <td>${escapeHtml(issue.date)}</td>
-        <td>${issue.kgGiven}</td>
-        <td>${issue.totalAmount}</td>
+        <td>${escapeHtml(type ? fertilizerTypeLabel(type) : "Legacy fertilizer")}</td>
+        <td>${issue.bagsIssued ? formatBookNumber(issue.bagsIssued) : "-"}</td>
+        <td>${formatBookNumber(issue.kgGiven)}</td>
+        <td>${formatBookNumber(issue.totalAmount)}</td>
         <td>${issue.splitMonths} month${Number(issue.splitMonths) === 1 ? "" : "s"}</td>
         <td>${escapeHtml(months)}</td>
       </tr>`;
     })
+    .join("");
+
+  const balanceRows = paginateList(
+    "fertilizerStockBalances",
+    stockRows
+      .filter((stock) => stock.balanceBags > 0)
+      .filter((stock) =>
+        [stock.label, stock.perBagPrice, stock.bagsReceived, stock.bagsIssued, stock.balanceBags].join(" ").toLowerCase().includes(filters.fertilizerStockBalance)
+      )
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)) || Number(a.perBagPrice) - Number(b.perBagPrice)),
+    "fertilizerStockBalanceTable"
+  );
+  document.querySelector("#fertilizerStockBalanceTable tbody").innerHTML = balanceRows
+    .map(
+      (stock) => `
+      <tr>
+        <td>${escapeHtml(stock.label)}</td>
+        <td>${formatBookNumber(stock.perBagPrice)}</td>
+        <td>${formatBookNumber(stock.bagsReceived)}</td>
+        <td>${formatBookNumber(stock.bagsIssued)}</td>
+        <td>${formatBookNumber(stock.balanceBags)}</td>
+        <td>${formatBookNumber(stock.balanceKg)}</td>
+        <td>${formatBookNumber(stock.stockValue)}</td>
+      </tr>`
+    )
     .join("");
 }
 
@@ -1057,6 +1224,8 @@ function resetPageForForm(formId) {
     supplierForm: "suppliers",
     monthlySettingsForm: "monthlySettings",
     advanceForm: "advances",
+    fertilizerTypeForm: "fertilizerTypes",
+    fertilizerStockForm: "fertilizerStocks",
     fertilizerForm: "fertilizer",
     teaPacketForm: "teaPackets"
   };
@@ -1138,8 +1307,21 @@ document.querySelector("#advanceForm").addEventListener("submit", async (event) 
   populateAdvanceForm();
 });
 
+document.querySelector("#fertilizerTypeForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/fertilizer-types");
+  populateFertilizerTypeForm();
+});
+
+document.querySelector("#fertilizerStockForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/fertilizer-stocks");
+  populateFertilizerStockForm();
+});
+
 document.querySelector("#fertilizerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  updateFertilizerIssueTotals();
   await saveForm(event.currentTarget, "/office/fertilizer-issues");
   populateFertilizerForm();
 });
@@ -1152,6 +1334,10 @@ document.querySelector("#teaPacketForm").addEventListener("submit", async (event
 });
 
 document.querySelector('#fertilizerForm select[name="splitMonths"]').addEventListener("change", updateFertilizerMonthRequirement);
+for (const selector of ['#fertilizerForm select[name="fertilizerStockId"]', '#fertilizerForm input[name="bagsIssued"]']) {
+  document.querySelector(selector).addEventListener("input", updateFertilizerIssueTotals);
+  document.querySelector(selector).addEventListener("change", updateFertilizerIssueTotals);
+}
 for (const selector of ['#teaPacketForm input[name="packetCount"]', '#teaPacketForm input[name="perPacketPrice"]']) {
   document.querySelector(selector).addEventListener("input", updateTeaPacketTotal);
 }
@@ -1896,6 +2082,8 @@ document.querySelector("#billMonth").value = localMonthValue();
 document.querySelector("#paymentRecordMonth").value = localMonthValue();
 populateMonthlySettingsForm();
 populateAdvanceForm();
+populateFertilizerTypeForm();
+populateFertilizerStockForm();
 populateFertilizerForm();
 populateTeaPacketForm();
 
@@ -1927,14 +2115,29 @@ function populateAdvanceForm() {
   document.querySelector("#advanceSuggestionMessage").textContent = "";
 }
 
+function populateFertilizerTypeForm() {
+  const form = document.querySelector("#fertilizerTypeForm");
+  form.elements.id.value = "";
+}
+
+function populateFertilizerStockForm() {
+  const form = document.querySelector("#fertilizerStockForm");
+  form.elements.id.value = "";
+  form.elements.date.value = localDateValue();
+}
+
 function populateFertilizerForm() {
   const form = document.querySelector("#fertilizerForm");
   form.elements.id.value = "";
   form.elements.date.value = localDateValue();
+  form.elements.bagsIssued.value = "";
+  form.elements.kgGiven.value = "";
+  form.elements.totalAmount.value = "";
   form.elements.splitMonths.value = "1";
   form.elements.effectiveMonth1.value = localMonthValue();
   form.elements.effectiveMonth2.value = "";
   updateFertilizerMonthRequirement();
+  updateFertilizerIssueTotals();
 }
 
 function updateFertilizerMonthRequirement() {
@@ -1943,6 +2146,18 @@ function updateFertilizerMonthRequirement() {
   form.elements.effectiveMonth2.required = needsSecondMonth;
   form.elements.effectiveMonth2.disabled = !needsSecondMonth;
   if (!needsSecondMonth) form.elements.effectiveMonth2.value = "";
+}
+
+function updateFertilizerIssueTotals() {
+  const form = document.querySelector("#fertilizerForm");
+  if (!form || !latestState) return;
+  const stock = (latestState.fertilizerStocks || []).find((item) => item.id === form.elements.fertilizerStockId.value);
+  const type = (latestState.fertilizerTypes || []).find((item) => item.id === stock?.fertilizerTypeId);
+  const bagsIssued = Number(form.elements.bagsIssued.value || 0);
+  const bagWeightKg = Number(type?.bagWeightKg || 0);
+  const perBagPrice = Number(stock?.perBagPrice || 0);
+  form.elements.kgGiven.value = stock && bagsIssued > 0 ? Math.round((bagsIssued * bagWeightKg + Number.EPSILON) * 100) / 100 : "";
+  form.elements.totalAmount.value = stock && bagsIssued > 0 ? Math.round((bagsIssued * perBagPrice + Number.EPSILON) * 100) / 100 : "";
 }
 
 function populateTeaPacketForm() {

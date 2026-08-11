@@ -193,9 +193,38 @@ Payload:
 
 Office-session protected endpoint that suggests an advance amount using unpaid positive balances from the selected effective month through the current month. Months already paid through `supplier_payments` or closed through `month_closures` are excluded. The calculation uses the same Green Leaf Book payable balance logic, including special prices, 2% deduction, transport additions/deductions, prior advances, fertilizer, made tea packets, and arrears.
 
+### `POST /office/fertilizer-types`
+
+Office-session protected endpoint that registers a fertilizer bag type for desktop fertilizer inventory.
+
+Payload:
+
+```json
+{
+  "name": "Urea",
+  "type": "Granular",
+  "bagWeightKg": 50
+}
+```
+
+### `POST /office/fertilizer-stocks`
+
+Office-session protected endpoint that records a received fertilizer stock lot. `fertilizerTypeId` must reference a registered fertilizer type.
+
+Payload:
+
+```json
+{
+  "date": "2026-06-10",
+  "fertilizerTypeId": "fert_type-id",
+  "perBagPrice": 12000,
+  "bagsReceived": 10
+}
+```
+
 ### `POST /office/fertilizer-issues`
 
-Office-session protected endpoint that records fertilizer lent to a supplier and creates one or two monthly deduction installments.
+Office-session protected endpoint that issues fertilizer stock to a supplier and creates one or two monthly deduction installments. When `fertilizerStockId` and `bagsIssued` are supplied, desktop calculates `kgGiven` from the registered bag weight and `totalAmount` from the stock lot per-bag price.
 
 Payload:
 
@@ -203,15 +232,15 @@ Payload:
 {
   "supplierId": "supplier-id",
   "date": "2026-06-15",
-  "kgGiven": 20,
-  "totalAmount": 10000,
+  "fertilizerStockId": "fert_stock-id",
+  "bagsIssued": 2,
   "splitMonths": 2,
   "effectiveMonth1": "2026-06",
   "effectiveMonth2": "2026-07"
 }
 ```
 
-`splitMonths` must be `1` or `2`. The Green Leaf Book only deducts the generated fertilizer installment amount whose effective month matches the selected book month.
+`splitMonths` must be `1` or `2`. The selected stock lot must have enough remaining bags. The Green Leaf Book only deducts the generated fertilizer installment amount whose effective month matches the selected book month. Direct `kgGiven` and `totalAmount` issue payloads remain supported for older records.
 
 ### `POST /office/tea-packets`
 

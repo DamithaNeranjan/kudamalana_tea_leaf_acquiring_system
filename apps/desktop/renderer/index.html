@@ -463,9 +463,10 @@
               </div>
               <form id="advanceForm" class="form-card advance-form">
                 <input name="id" type="hidden" />
-                <label>
+                <label class="advance-supplier-field">
                   Supplier
-                  <select name="supplierId" required></select>
+                  <input id="advanceSupplierSearch" list="advanceSupplierOptions" placeholder="Type supplier name" required />
+                  <input name="supplierId" type="hidden" />
                 </label>
                 <label>
                   Effective month
@@ -572,7 +573,8 @@
                 </label>
                 <label>
                   Fertilizer bag type
-                  <select name="fertilizerTypeId" required></select>
+                  <input id="fertilizerStockTypeSearch" list="fertilizerStockTypeOptions" placeholder="Type fertilizer bag type" required />
+                  <input name="fertilizerTypeId" type="hidden" />
                 </label>
                 <label>
                   Per bag price
@@ -621,7 +623,8 @@
                 <input name="id" type="hidden" />
                 <label class="fertilizer-supplier-field">
                   Supplier
-                  <select name="supplierId" required></select>
+                  <input id="fertilizerSupplierSearch" list="fertilizerSupplierOptions" placeholder="Type supplier name" required />
+                  <input name="supplierId" type="hidden" />
                 </label>
                 <label>
                   Date given
@@ -629,7 +632,8 @@
                 </label>
                 <label class="fertilizer-issue-type-field">
                   Fertilizer type issuing
-                  <select name="fertilizerStockId" required></select>
+                  <input id="fertilizerIssueStockSearch" list="fertilizerIssueStockOptions" placeholder="Type fertilizer stock" required />
+                  <input name="fertilizerStockId" type="hidden" />
                 </label>
                 <label>
                   Bags given
@@ -791,7 +795,8 @@
                 <input name="id" type="hidden" />
                 <label class="tea-packet-supplier-field">
                   Supplier
-                  <select name="supplierId" required></select>
+                  <input id="teaPacketSupplierSearch" list="teaPacketSupplierOptions" placeholder="Type supplier name" required />
+                  <input name="supplierId" type="hidden" />
                 </label>
                 <label>
                   Date given
@@ -799,7 +804,8 @@
                 </label>
                 <label class="tea-packet-type-field">
                   Made tea packet type
-                  <select name="teaPacketTypeId" required></select>
+                  <input id="teaPacketTypeSearch" list="teaPacketTypeOptions" placeholder="Type made tea packet" required />
+                  <input name="teaPacketTypeId" type="hidden" />
                 </label>
                 <label>
                   Number of packets
@@ -1314,6 +1320,12 @@
     </div>
 
     <datalist id="teaLineOptions"></datalist>
+    <datalist id="advanceSupplierOptions"></datalist>
+    <datalist id="fertilizerSupplierOptions"></datalist>
+    <datalist id="fertilizerStockTypeOptions"></datalist>
+    <datalist id="fertilizerIssueStockOptions"></datalist>
+    <datalist id="teaPacketSupplierOptions"></datalist>
+    <datalist id="teaPacketTypeOptions"></datalist>
     <div id="supplierBillPrintArea" class="supplier-bill-print-area" aria-hidden="true"></div>
 
     <script type="module" src="./app.js"></script>

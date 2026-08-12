@@ -31,6 +31,12 @@ let latestAuditLogs = [];
 let activeBillSummaryScope = "all";
 let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
+let advanceSupplierChoices = [];
+let fertilizerSupplierChoices = [];
+let fertilizerStockTypeChoices = [];
+let fertilizerIssueStockChoices = [];
+let teaPacketSupplierChoices = [];
+let teaPacketTypeChoices = [];
 let paymentSupplierChoices = [];
 let pendingSupplierBillPrintAudit = null;
 let pendingBookAction = null;
@@ -567,14 +573,24 @@ function renderListPagination(pageKey, tableId, total, start, shownCount, pageCo
 }
 
 function renderAdvances(state) {
-  const supplierOptions = state.suppliers
+  const form = document.querySelector("#advanceForm");
+  const selectedSupplier = form.elements.supplierId.value;
+  const selectedSupplierLabel = document.querySelector("#advanceSupplierSearch").value;
+  advanceSupplierChoices = state.suppliers
     .filter((supplier) => supplier.active)
-    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .map((supplier) => ({
+      id: supplier.id,
+      label: `${supplier.name} (${supplier.code})`
+    }));
+  document.querySelector("#advanceSupplierOptions").innerHTML = advanceSupplierChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  const supplierSelect = document.querySelector('#advanceForm select[name="supplierId"]');
-  const selectedSupplier = supplierSelect.value;
-  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
-  supplierSelect.value = selectedSupplier;
+  if (advanceSupplierChoices.some((choice) => choice.id === selectedSupplier)) {
+    document.querySelector("#advanceSupplierSearch").value =
+      selectedSupplierLabel || advanceSupplierChoices.find((choice) => choice.id === selectedSupplier)?.label || "";
+  } else {
+    form.elements.supplierId.value = "";
+  }
 
   const pageRows = paginateList(
     "advances",
@@ -648,38 +664,64 @@ function fertilizerIssueSearchText(issue, state) {
 }
 
 function renderFertilizer(state) {
-  const fertilizerTypeOptions = (state.fertilizerTypes || [])
+  const stockForm = document.querySelector("#fertilizerStockForm");
+  const selectedStockType = stockForm.elements.fertilizerTypeId.value;
+  const selectedStockTypeLabel = document.querySelector("#fertilizerStockTypeSearch").value;
+  fertilizerStockTypeChoices = (state.fertilizerTypes || [])
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-    .map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(fertilizerTypeLabel(type))}</option>`)
+    .map((type) => ({
+      id: type.id,
+      label: fertilizerTypeLabel(type)
+    }));
+  document.querySelector("#fertilizerStockTypeOptions").innerHTML = fertilizerStockTypeChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  const stockTypeSelect = document.querySelector('#fertilizerStockForm select[name="fertilizerTypeId"]');
-  const selectedStockType = stockTypeSelect.value;
-  stockTypeSelect.innerHTML = `<option value="">Select fertilizer type</option>${fertilizerTypeOptions}`;
-  stockTypeSelect.value = selectedStockType;
+  if (fertilizerStockTypeChoices.some((choice) => choice.id === selectedStockType)) {
+    document.querySelector("#fertilizerStockTypeSearch").value =
+      selectedStockTypeLabel || fertilizerStockTypeChoices.find((choice) => choice.id === selectedStockType)?.label || "";
+  } else {
+    stockForm.elements.fertilizerTypeId.value = "";
+  }
 
-  const supplierOptions = state.suppliers
+  const fertilizerForm = document.querySelector("#fertilizerForm");
+  const selectedSupplier = fertilizerForm.elements.supplierId.value;
+  const selectedSupplierLabel = document.querySelector("#fertilizerSupplierSearch").value;
+  fertilizerSupplierChoices = state.suppliers
     .filter((supplier) => supplier.active)
-    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .map((supplier) => ({
+      id: supplier.id,
+      label: `${supplier.name} (${supplier.code})`
+    }));
+  document.querySelector("#fertilizerSupplierOptions").innerHTML = fertilizerSupplierChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  const supplierSelect = document.querySelector('#fertilizerForm select[name="supplierId"]');
-  const selectedSupplier = supplierSelect.value;
-  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
-  supplierSelect.value = selectedSupplier;
+  if (fertilizerSupplierChoices.some((choice) => choice.id === selectedSupplier)) {
+    document.querySelector("#fertilizerSupplierSearch").value =
+      selectedSupplierLabel || fertilizerSupplierChoices.find((choice) => choice.id === selectedSupplier)?.label || "";
+  } else {
+    fertilizerForm.elements.supplierId.value = "";
+  }
 
   const stockRows = fertilizerStockRows(state);
-  const issueStockSelect = document.querySelector('#fertilizerForm select[name="fertilizerStockId"]');
-  const selectedIssueStock = issueStockSelect.value;
-  const issueStockOptions = stockRows
+  const selectedIssueStock = fertilizerForm.elements.fertilizerStockId.value;
+  const selectedIssueStockLabel = document.querySelector("#fertilizerIssueStockSearch").value;
+  fertilizerIssueStockChoices = stockRows
     .filter((stock) => stock.balanceBags > 0 || stock.id === selectedIssueStock)
     .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "date"))
     .map((stock) => {
       const label = `${stock.label} - Rs. ${formatBookNumber(stock.perBagPrice)} - ${formatBookNumber(stock.balanceBags)} bags available`;
-      return `<option value="${escapeAttribute(stock.id)}">${escapeHtml(label)}</option>`;
-    })
+      return { id: stock.id, label };
+    });
+  document.querySelector("#fertilizerIssueStockOptions").innerHTML = fertilizerIssueStockChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  issueStockSelect.innerHTML = `<option value="">Select fertilizer stock</option>${issueStockOptions}`;
-  issueStockSelect.value = selectedIssueStock;
+  if (fertilizerIssueStockChoices.some((choice) => choice.id === selectedIssueStock)) {
+    document.querySelector("#fertilizerIssueStockSearch").value =
+      selectedIssueStockLabel || fertilizerIssueStockChoices.find((choice) => choice.id === selectedIssueStock)?.label || "";
+  } else {
+    fertilizerForm.elements.fertilizerStockId.value = "";
+  }
   updateFertilizerIssueTotals();
 
   const typeRows = paginateList(
@@ -809,15 +851,25 @@ function renderTeaPacketTypeEditForm(type) {
 }
 
 function renderTeaPackets(state) {
-  const typeOptions = (state.teaPacketTypes || [])
+  const teaPacketForm = document.querySelector("#teaPacketForm");
+  const selectedType = teaPacketForm.elements.teaPacketTypeId.value;
+  const selectedTypeLabel = document.querySelector("#teaPacketTypeSearch").value;
+  teaPacketTypeChoices = (state.teaPacketTypes || [])
     .slice()
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-    .map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(teaPacketTypeLabel(type))}</option>`)
+    .map((type) => ({
+      id: type.id,
+      label: teaPacketTypeLabel(type)
+    }));
+  document.querySelector("#teaPacketTypeOptions").innerHTML = teaPacketTypeChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  const typeSelect = document.querySelector('#teaPacketForm select[name="teaPacketTypeId"]');
-  const selectedType = typeSelect.value;
-  typeSelect.innerHTML = `<option value="">Select made tea packet</option>${typeOptions}`;
-  typeSelect.value = selectedType;
+  if (teaPacketTypeChoices.some((choice) => choice.id === selectedType)) {
+    document.querySelector("#teaPacketTypeSearch").value =
+      selectedTypeLabel || teaPacketTypeChoices.find((choice) => choice.id === selectedType)?.label || "";
+  } else {
+    teaPacketForm.elements.teaPacketTypeId.value = "";
+  }
   updateTeaPacketTotal();
 
   const typeRows = paginateList(
@@ -839,14 +891,23 @@ function renderTeaPackets(state) {
     )
     .join("");
 
-  const supplierOptions = state.suppliers
+  const selectedSupplier = teaPacketForm.elements.supplierId.value;
+  const selectedSupplierLabel = document.querySelector("#teaPacketSupplierSearch").value;
+  teaPacketSupplierChoices = state.suppliers
     .filter((supplier) => supplier.active)
-    .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
+    .map((supplier) => ({
+      id: supplier.id,
+      label: `${supplier.name} (${supplier.code})`
+    }));
+  document.querySelector("#teaPacketSupplierOptions").innerHTML = teaPacketSupplierChoices
+    .map((choice) => `<option value="${escapeAttribute(choice.label)}"></option>`)
     .join("");
-  const supplierSelect = document.querySelector('#teaPacketForm select[name="supplierId"]');
-  const selectedSupplier = supplierSelect.value;
-  supplierSelect.innerHTML = `<option value="">Select supplier</option>${supplierOptions}`;
-  supplierSelect.value = selectedSupplier;
+  if (teaPacketSupplierChoices.some((choice) => choice.id === selectedSupplier)) {
+    document.querySelector("#teaPacketSupplierSearch").value =
+      selectedSupplierLabel || teaPacketSupplierChoices.find((choice) => choice.id === selectedSupplier)?.label || "";
+  } else {
+    teaPacketForm.elements.supplierId.value = "";
+  }
 
   const pageRows = paginateList(
     "teaPackets",
@@ -1385,6 +1446,10 @@ document.querySelector("#monthlySettingsForm").addEventListener("submit", async 
 
 document.querySelector("#advanceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!updateAdvanceSupplierSelection()) {
+    showToast("Select a supplier from the suggestions.", "error");
+    return;
+  }
   await saveForm(event.currentTarget, "/office/advances");
   populateAdvanceForm();
 });
@@ -1397,12 +1462,24 @@ document.querySelector("#fertilizerTypeForm").addEventListener("submit", async (
 
 document.querySelector("#fertilizerStockForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!updateFertilizerStockTypeSelection()) {
+    showToast("Select a fertilizer bag type from the suggestions.", "error");
+    return;
+  }
   await saveForm(event.currentTarget, "/office/fertilizer-stocks");
   populateFertilizerStockForm();
 });
 
 document.querySelector("#fertilizerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!updateFertilizerSupplierSelection()) {
+    showToast("Select a supplier from the suggestions.", "error");
+    return;
+  }
+  if (!updateFertilizerIssueStockSelection()) {
+    showToast("Select a fertilizer stock from the suggestions.", "error");
+    return;
+  }
   updateFertilizerIssueTotals();
   await saveForm(event.currentTarget, "/office/fertilizer-issues");
   populateFertilizerForm();
@@ -1416,23 +1493,44 @@ document.querySelector("#teaPacketTypeForm").addEventListener("submit", async (e
 
 document.querySelector("#teaPacketForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!updateTeaPacketSupplierSelection()) {
+    showToast("Select a supplier from the suggestions.", "error");
+    return;
+  }
+  if (!updateTeaPacketTypeSelection()) {
+    showToast("Select a made tea packet type from the suggestions.", "error");
+    return;
+  }
   updateTeaPacketTotal();
   await saveForm(event.currentTarget, "/office/tea-packets");
   populateTeaPacketForm();
 });
 
 document.querySelector('#fertilizerForm select[name="splitMonths"]').addEventListener("change", updateFertilizerMonthRequirement);
-for (const selector of ['#fertilizerForm select[name="fertilizerStockId"]', '#fertilizerForm input[name="bagsIssued"]']) {
-  document.querySelector(selector).addEventListener("input", updateFertilizerIssueTotals);
-  document.querySelector(selector).addEventListener("change", updateFertilizerIssueTotals);
+document.querySelector("#advanceSupplierSearch").addEventListener("input", updateAdvanceSupplierSelection);
+document.querySelector("#advanceSupplierSearch").addEventListener("change", updateAdvanceSupplierSelection);
+document.querySelector("#fertilizerSupplierSearch").addEventListener("input", updateFertilizerSupplierSelection);
+document.querySelector("#fertilizerSupplierSearch").addEventListener("change", updateFertilizerSupplierSelection);
+document.querySelector("#teaPacketSupplierSearch").addEventListener("input", updateTeaPacketSupplierSelection);
+document.querySelector("#teaPacketSupplierSearch").addEventListener("change", updateTeaPacketSupplierSelection);
+document.querySelector("#fertilizerStockTypeSearch").addEventListener("input", updateFertilizerStockTypeSelection);
+document.querySelector("#fertilizerStockTypeSearch").addEventListener("change", updateFertilizerStockTypeSelection);
+for (const eventName of ["input", "change"]) {
+  document.querySelector("#fertilizerIssueStockSearch").addEventListener(eventName, () => {
+    updateFertilizerIssueStockSelection();
+    updateFertilizerIssueTotals();
+  });
+  document.querySelector("#teaPacketTypeSearch").addEventListener(eventName, () => {
+    updateTeaPacketTypeSelection();
+    updateTeaPacketTotal();
+  });
 }
-for (const selector of ['#teaPacketForm select[name="teaPacketTypeId"]', '#teaPacketForm input[name="packetCount"]']) {
-  document.querySelector(selector).addEventListener("input", updateTeaPacketTotal);
-  document.querySelector(selector).addEventListener("change", updateTeaPacketTotal);
-}
+document.querySelector('#fertilizerForm input[name="bagsIssued"]').addEventListener("input", updateFertilizerIssueTotals);
+document.querySelector('#teaPacketForm input[name="packetCount"]').addEventListener("input", updateTeaPacketTotal);
 
 document.querySelector("#suggestAdvance").addEventListener("click", async () => {
   const form = document.querySelector("#advanceForm");
+  updateAdvanceSupplierSelection();
   const supplierId = form.elements.supplierId.value;
   const month = form.elements.effectiveMonth.value;
   const message = document.querySelector("#advanceSuggestionMessage");
@@ -2201,9 +2299,59 @@ function populateMonthlySettingsForm(setting = null) {
 function populateAdvanceForm() {
   const form = document.querySelector("#advanceForm");
   form.elements.id.value = "";
+  form.elements.supplierId.value = "";
+  document.querySelector("#advanceSupplierSearch").value = "";
   form.elements.effectiveMonth.value = localMonthValue();
   form.elements.date.value = localDateValue();
   document.querySelector("#advanceSuggestionMessage").textContent = "";
+}
+
+function updateAdvanceSupplierSelection() {
+  const form = document.querySelector("#advanceForm");
+  const searchValue = document.querySelector("#advanceSupplierSearch").value;
+  const choice = advanceSupplierChoices.find((item) => item.label === searchValue);
+  form.elements.supplierId.value = choice?.id || "";
+  return Boolean(choice);
+}
+
+function updateFertilizerSupplierSelection() {
+  const form = document.querySelector("#fertilizerForm");
+  const searchValue = document.querySelector("#fertilizerSupplierSearch").value;
+  const choice = fertilizerSupplierChoices.find((item) => item.label === searchValue);
+  form.elements.supplierId.value = choice?.id || "";
+  return Boolean(choice);
+}
+
+function updateTeaPacketSupplierSelection() {
+  const form = document.querySelector("#teaPacketForm");
+  const searchValue = document.querySelector("#teaPacketSupplierSearch").value;
+  const choice = teaPacketSupplierChoices.find((item) => item.label === searchValue);
+  form.elements.supplierId.value = choice?.id || "";
+  return Boolean(choice);
+}
+
+function updateFertilizerStockTypeSelection() {
+  const form = document.querySelector("#fertilizerStockForm");
+  const searchValue = document.querySelector("#fertilizerStockTypeSearch").value;
+  const choice = fertilizerStockTypeChoices.find((item) => item.label === searchValue);
+  form.elements.fertilizerTypeId.value = choice?.id || "";
+  return Boolean(choice);
+}
+
+function updateFertilizerIssueStockSelection() {
+  const form = document.querySelector("#fertilizerForm");
+  const searchValue = document.querySelector("#fertilizerIssueStockSearch").value;
+  const choice = fertilizerIssueStockChoices.find((item) => item.label === searchValue);
+  form.elements.fertilizerStockId.value = choice?.id || "";
+  return Boolean(choice);
+}
+
+function updateTeaPacketTypeSelection() {
+  const form = document.querySelector("#teaPacketForm");
+  const searchValue = document.querySelector("#teaPacketTypeSearch").value;
+  const choice = teaPacketTypeChoices.find((item) => item.label === searchValue);
+  form.elements.teaPacketTypeId.value = choice?.id || "";
+  return Boolean(choice);
 }
 
 function populateFertilizerTypeForm() {
@@ -2214,12 +2362,18 @@ function populateFertilizerTypeForm() {
 function populateFertilizerStockForm() {
   const form = document.querySelector("#fertilizerStockForm");
   form.elements.id.value = "";
+  form.elements.fertilizerTypeId.value = "";
+  document.querySelector("#fertilizerStockTypeSearch").value = "";
   form.elements.date.value = localDateValue();
 }
 
 function populateFertilizerForm() {
   const form = document.querySelector("#fertilizerForm");
   form.elements.id.value = "";
+  form.elements.supplierId.value = "";
+  document.querySelector("#fertilizerSupplierSearch").value = "";
+  form.elements.fertilizerStockId.value = "";
+  document.querySelector("#fertilizerIssueStockSearch").value = "";
   form.elements.date.value = localDateValue();
   form.elements.bagsIssued.value = "";
   form.elements.kgGiven.value = "";
@@ -2254,6 +2408,10 @@ function updateFertilizerIssueTotals() {
 function populateTeaPacketForm() {
   const form = document.querySelector("#teaPacketForm");
   form.elements.id.value = "";
+  form.elements.supplierId.value = "";
+  document.querySelector("#teaPacketSupplierSearch").value = "";
+  form.elements.teaPacketTypeId.value = "";
+  document.querySelector("#teaPacketTypeSearch").value = "";
   form.elements.date.value = localDateValue();
   form.elements.packetCount.value = "";
   form.elements.effectiveMonth.value = localMonthValue();

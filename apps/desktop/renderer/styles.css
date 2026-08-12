@@ -750,8 +750,12 @@ main {
   grid-column: span 2;
 }
 
-.fertilizer-form .fertilizer-issue-type-field select {
+.fertilizer-form .fertilizer-issue-type-field input {
   min-width: 360px;
+}
+
+.advance-form .advance-supplier-field {
+  grid-column: span 2;
 }
 
 .tea-packet-form .tea-packet-supplier-field,
@@ -759,7 +763,7 @@ main {
   grid-column: span 2;
 }
 
-.tea-packet-form .tea-packet-type-field select {
+.tea-packet-form .tea-packet-type-field input {
   min-width: 320px;
 }
 
@@ -1837,8 +1841,12 @@ th:first-child {
     grid-column: 1;
   }
 
-  .fertilizer-form .fertilizer-issue-type-field select {
+  .fertilizer-form .fertilizer-issue-type-field input {
     min-width: 0;
+  }
+
+  .advance-form .advance-supplier-field {
+    grid-column: 1;
   }
 
   .tea-packet-form .tea-packet-supplier-field,
@@ -1846,7 +1854,7 @@ th:first-child {
     grid-column: 1;
   }
 
-  .tea-packet-form .tea-packet-type-field select {
+  .tea-packet-form .tea-packet-type-field input {
     min-width: 0;
   }
 

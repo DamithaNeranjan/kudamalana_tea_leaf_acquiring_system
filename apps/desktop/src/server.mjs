@@ -150,6 +150,7 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
     fertilizerTypes: { type: "fertilizer_type", label: (record) => `${record.name || ""} ${record.type || ""}`.trim() },
     fertilizerStocks: { type: "fertilizer_stock", label: (record) => `${record.date || ""} ${record.perBagPrice || ""}`.trim() },
     fertilizerIssues: { type: "fertilizer_issue", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() },
+    teaPacketTypes: { type: "tea_packet_type", label: (record) => `${record.name || ""} ${record.weight || ""}`.trim() },
     teaPackets: { type: "tea_packet", label: (record) => `${record.date || ""} ${record.totalAmount || ""}`.trim() }
   };
 
@@ -364,6 +365,9 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         }
         if (request.method === "POST" && url.pathname === "/office/fertilizer-issues") {
           return send(response, 201, await auditedUpsert(session, "fertilizerIssues", await parseJsonBody(request), "fert"));
+        }
+        if (request.method === "POST" && url.pathname === "/office/tea-packet-types") {
+          return send(response, 201, await auditedUpsert(session, "teaPacketTypes", await parseJsonBody(request), "tea_packet_type"));
         }
         if (request.method === "POST" && url.pathname === "/office/tea-packets") {
           return send(response, 201, await auditedUpsert(session, "teaPackets", await parseJsonBody(request), "tea_packet"));

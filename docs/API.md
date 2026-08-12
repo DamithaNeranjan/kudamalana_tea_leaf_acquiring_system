@@ -242,9 +242,23 @@ Payload:
 
 `splitMonths` must be `1` or `2`. The selected stock lot must have enough remaining bags. The Green Leaf Book only deducts the generated fertilizer installment amount whose effective month matches the selected book month. Direct `kgGiven` and `totalAmount` issue payloads remain supported for older records.
 
+### `POST /office/tea-packet-types`
+
+Office-session protected endpoint that registers or updates a made tea packet type. Updating a type changes future issue calculations only; existing issued packet rows keep their saved packet name, weight, per-packet price, and total.
+
+Payload:
+
+```json
+{
+  "name": "BOPF Packet",
+  "weight": "100g",
+  "price": 150
+}
+```
+
 ### `POST /office/tea-packets`
 
-Office-session protected endpoint that records made tea packets borrowed by a supplier for deduction in an effective month.
+Office-session protected endpoint that records made tea packets borrowed by a supplier for deduction in an effective month. When `teaPacketTypeId` is supplied, desktop calculates `perPacketPrice` and `totalAmount` from the selected registered packet type and snapshots the selected name, weight, and price onto the issued row.
 
 Payload:
 
@@ -252,14 +266,13 @@ Payload:
 {
   "supplierId": "supplier-id",
   "date": "2026-06-15",
+  "teaPacketTypeId": "tea_packet_type-id",
   "packetCount": 2,
-  "perPacketPrice": 100,
-  "totalAmount": 200,
   "effectiveMonth": "2026-06"
 }
 ```
 
-The Green Leaf Book only deducts made tea packet totals whose effective month matches the selected book month.
+The Green Leaf Book only deducts made tea packet totals whose effective month matches the selected book month. Direct `perPacketPrice` and `totalAmount` payloads remain supported for older records.
 
 ### `POST /office/supplier-month-overrides`
 

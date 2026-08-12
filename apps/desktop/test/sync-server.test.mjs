@@ -394,6 +394,38 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.equal(savedStockIssue.kgGiven, 100);
     assert.equal(savedStockIssue.totalAmount, 24000);
 
+    const teaPacketType = await fetch(`${baseUrl}/office/tea-packet-types`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ name: "BOPF Packet", weight: "100g", price: 150 })
+    });
+    assert.equal(teaPacketType.status, 201);
+    const teaPacketTypeBody = await teaPacketType.json();
+    const stockBackedTeaPacket = await fetch(`${baseUrl}/office/tea-packets`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        supplierId: "sup_1",
+        date: "2026-07-04",
+        teaPacketTypeId: teaPacketTypeBody.id,
+        packetCount: 3,
+        effectiveMonth: "2026-07"
+      })
+    });
+    assert.equal(stockBackedTeaPacket.status, 201);
+    await fetch(`${baseUrl}/office/tea-packet-types`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ ...teaPacketTypeBody, price: 175 })
+    });
+    const teaPacketState = await (await fetch(`${baseUrl}/office/state`, { headers: auth })).json();
+    const savedPacketIssue = teaPacketState.teaPackets.find((packet) => packet.teaPacketTypeId === teaPacketTypeBody.id);
+    assert.equal(savedPacketIssue.packetName, "BOPF Packet");
+    assert.equal(savedPacketIssue.packetWeight, "100g");
+    assert.equal(savedPacketIssue.perPacketPrice, 150);
+    assert.equal(savedPacketIssue.totalAmount, 450);
+    assert.equal(teaPacketState.teaPacketTypes.find((type) => type.id === teaPacketTypeBody.id).price, 175);
+
     const auditReport = await (await fetch(`${baseUrl}/office/audit-log`, { headers: auth })).json();
     assert.ok(auditReport.auditLogs.length >= 8);
     assert.ok(

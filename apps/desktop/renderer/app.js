@@ -44,6 +44,7 @@ const filters = {
   fertilizerReceived: "",
   fertilizerIssue: "",
   fertilizerStockBalance: "",
+  teaPacketType: "",
   recordSupplier: "",
   recordLine: "",
   recordDateFrom: "",
@@ -79,6 +80,7 @@ const listPages = {
   fertilizerStocks: 1,
   fertilizer: 1,
   fertilizerStockBalances: 1,
+  teaPacketTypes: 1,
   teaPackets: 1,
   staging: 1,
   payments: 1,
@@ -313,6 +315,7 @@ document.addEventListener("click", (event) => {
     if (clearFormId === "fertilizerTypeForm") populateFertilizerTypeForm();
     if (clearFormId === "fertilizerStockForm") populateFertilizerStockForm();
     if (clearFormId === "fertilizerForm") populateFertilizerForm();
+    if (clearFormId === "teaPacketTypeForm") populateTeaPacketTypeForm();
     if (clearFormId === "teaPacketForm") populateTeaPacketForm();
   }
 });
@@ -343,6 +346,12 @@ for (const [selector, key, pageKey] of [
     if (latestState) renderFertilizer(latestState);
   });
 }
+
+document.querySelector("#teaPacketTypeFilter").addEventListener("input", (event) => {
+  filters.teaPacketType = event.target.value.trim().toLowerCase();
+  listPages.teaPacketTypes = 1;
+  if (latestState) renderTeaPackets(latestState);
+});
 
 document.addEventListener("click", (event) => {
   const pageKey = event.target.dataset.pageKey;
@@ -764,7 +773,72 @@ function renderFertilizer(state) {
     .join("");
 }
 
+function teaPacketTypeLabel(type) {
+  if (!type) return "Unknown packet";
+  return `${type.name || ""} - ${type.weight || ""} - Rs. ${formatBookNumber(type.price)}`.replace(/\s+-\s+Rs\.\s+$/g, "");
+}
+
+function teaPacketIssueTypeLabel(packet, state) {
+  if (packet.packetName) {
+    return `${packet.packetName} - ${packet.packetWeight || ""} - Rs. ${formatBookNumber(packet.perPacketPrice)}`.replace(/\s+-\s+Rs\.\s+$/g, "");
+  }
+  const type = (state.teaPacketTypes || []).find((item) => item.id === packet.teaPacketTypeId);
+  return type ? teaPacketTypeLabel(type) : "Legacy packet";
+}
+
+function renderTeaPacketTypeEditForm(type) {
+  return `
+    <form class="modal-form" data-kind="tea-packet-type">
+      <input name="id" type="hidden" value="${escapeAttribute(type.id)}" />
+      <label>
+        Name
+        <input name="name" required value="${escapeAttribute(type.name)}" />
+      </label>
+      <label>
+        Weight
+        <input name="weight" required value="${escapeAttribute(type.weight)}" />
+      </label>
+      <label>
+        Price
+        <input name="price" type="number" step="0.01" min="0" required value="${escapeAttribute(type.price)}" />
+      </label>
+      <div class="form-actions">
+        <button type="submit">Save changes</button>
+      </div>
+    </form>`;
+}
+
 function renderTeaPackets(state) {
+  const typeOptions = (state.teaPacketTypes || [])
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    .map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(teaPacketTypeLabel(type))}</option>`)
+    .join("");
+  const typeSelect = document.querySelector('#teaPacketForm select[name="teaPacketTypeId"]');
+  const selectedType = typeSelect.value;
+  typeSelect.innerHTML = `<option value="">Select made tea packet</option>${typeOptions}`;
+  typeSelect.value = selectedType;
+  updateTeaPacketTotal();
+
+  const typeRows = paginateList(
+    "teaPacketTypes",
+    (state.teaPacketTypes || [])
+      .filter((type) => teaPacketTypeLabel(type).toLowerCase().includes(filters.teaPacketType))
+      .sort((a, b) => compareNewestFirst(a, b, "updatedAt", "name")),
+    "teaPacketTypesTable"
+  );
+  document.querySelector("#teaPacketTypesTable tbody").innerHTML = typeRows
+    .map(
+      (type) => `
+      <tr>
+        <td>${escapeHtml(type.name)}</td>
+        <td>${escapeHtml(type.weight)}</td>
+        <td>${formatBookNumber(type.price)}</td>
+        <td><button class="table-action" type="button" data-edit-tea-packet-type="${escapeAttribute(type.id)}">Edit</button></td>
+      </tr>`
+    )
+    .join("");
+
   const supplierOptions = state.suppliers
     .filter((supplier) => supplier.active)
     .map((supplier) => `<option value="${escapeAttribute(supplier.id)}">${escapeHtml(supplier.name)} (${escapeHtml(supplier.code)})</option>`)
@@ -786,9 +860,10 @@ function renderTeaPackets(state) {
       <tr>
         <td>${escapeHtml(supplier?.name || packet.supplierId)}</td>
         <td>${escapeHtml(packet.date)}</td>
-        <td>${packet.packetCount}</td>
-        <td>${packet.perPacketPrice}</td>
-        <td>${packet.totalAmount}</td>
+        <td>${escapeHtml(teaPacketIssueTypeLabel(packet, state))}</td>
+        <td>${formatBookNumber(packet.packetCount)}</td>
+        <td>${formatBookNumber(packet.perPacketPrice)}</td>
+        <td>${formatBookNumber(packet.totalAmount)}</td>
         <td>${escapeHtml(packet.effectiveMonth)}</td>
       </tr>`;
     })
@@ -797,11 +872,11 @@ function renderTeaPackets(state) {
 
 function updateTeaPacketTotal() {
   const form = document.querySelector("#teaPacketForm");
+  if (!form || !latestState) return;
+  const type = (latestState.teaPacketTypes || []).find((item) => item.id === form.elements.teaPacketTypeId.value);
   const packetCount = Number(form.elements.packetCount.value);
-  const perPacketPrice = Number(form.elements.perPacketPrice.value);
-  if (Number.isFinite(packetCount) && Number.isFinite(perPacketPrice)) {
-    form.elements.totalAmount.value = Math.round((packetCount * perPacketPrice + Number.EPSILON) * 100) / 100;
-  }
+  const price = Number(type?.price || 0);
+  form.elements.totalAmount.value = type && packetCount > 0 ? Math.round((packetCount * price + Number.EPSILON) * 100) / 100 : "";
 }
 
 function renderCollectionRecords(records = []) {
@@ -1154,6 +1229,7 @@ document.addEventListener("click", (event) => {
   const lineUserId = event.target.dataset.editLineUser;
   const supplierId = event.target.dataset.editSupplier;
   const monthlySettingId = event.target.dataset.editMonthlySetting;
+  const teaPacketTypeId = event.target.dataset.editTeaPacketType;
   const toggleLineId = event.target.dataset.toggleLine;
   const toggleOfficeUserId = event.target.dataset.toggleOfficeUser;
   const toggleLineUserId = event.target.dataset.toggleLineUser;
@@ -1187,6 +1263,11 @@ document.addEventListener("click", (event) => {
     const setting = latestState.monthlySettings.find((item) => item.id === monthlySettingId);
     populateMonthlySettingsForm(setting);
     showView("monthlySettingsView");
+  }
+
+  if (teaPacketTypeId) {
+    const type = latestState.teaPacketTypes.find((item) => item.id === teaPacketTypeId);
+    openEditModal("Edit Made Tea Packet", "Packet product", renderTeaPacketTypeEditForm(type));
   }
 
   if (toggleLineId) toggleActive("teaLines", toggleLineId, "/office/tea-lines", "Tea line");
@@ -1227,6 +1308,7 @@ function resetPageForForm(formId) {
     fertilizerTypeForm: "fertilizerTypes",
     fertilizerStockForm: "fertilizerStocks",
     fertilizerForm: "fertilizer",
+    teaPacketTypeForm: "teaPacketTypes",
     teaPacketForm: "teaPackets"
   };
   const pageKey = pageKeyByForm[formId];
@@ -1326,6 +1408,12 @@ document.querySelector("#fertilizerForm").addEventListener("submit", async (even
   populateFertilizerForm();
 });
 
+document.querySelector("#teaPacketTypeForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveForm(event.currentTarget, "/office/tea-packet-types");
+  populateTeaPacketTypeForm();
+});
+
 document.querySelector("#teaPacketForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   updateTeaPacketTotal();
@@ -1338,8 +1426,9 @@ for (const selector of ['#fertilizerForm select[name="fertilizerStockId"]', '#fe
   document.querySelector(selector).addEventListener("input", updateFertilizerIssueTotals);
   document.querySelector(selector).addEventListener("change", updateFertilizerIssueTotals);
 }
-for (const selector of ['#teaPacketForm input[name="packetCount"]', '#teaPacketForm input[name="perPacketPrice"]']) {
+for (const selector of ['#teaPacketForm select[name="teaPacketTypeId"]', '#teaPacketForm input[name="packetCount"]']) {
   document.querySelector(selector).addEventListener("input", updateTeaPacketTotal);
+  document.querySelector(selector).addEventListener("change", updateTeaPacketTotal);
 }
 
 document.querySelector("#suggestAdvance").addEventListener("click", async () => {
@@ -1372,6 +1461,7 @@ document.querySelector("#editModalBody").addEventListener("submit", async (event
   if (kind === "office-user") await updateFromModal(event.target, "/office/office-users", "Office user");
   if (kind === "line-user") await updateFromModal(event.target, "/office/line-users", "Line user");
   if (kind === "supplier") await updateFromModal(event.target, "/office/suppliers", "Supplier");
+  if (kind === "tea-packet-type") await updateFromModal(event.target, "/office/tea-packet-types", "Made tea packet");
 });
 
 document.querySelector("#stagingTable").addEventListener("click", async (event) => {
@@ -2085,6 +2175,7 @@ populateAdvanceForm();
 populateFertilizerTypeForm();
 populateFertilizerStockForm();
 populateFertilizerForm();
+populateTeaPacketTypeForm();
 populateTeaPacketForm();
 
 function populateMonthlySettingsForm(setting = null) {
@@ -2164,6 +2255,12 @@ function populateTeaPacketForm() {
   const form = document.querySelector("#teaPacketForm");
   form.elements.id.value = "";
   form.elements.date.value = localDateValue();
+  form.elements.packetCount.value = "";
   form.elements.effectiveMonth.value = localMonthValue();
   form.elements.totalAmount.value = "";
+}
+
+function populateTeaPacketTypeForm() {
+  const form = document.querySelector("#teaPacketTypeForm");
+  form.elements.id.value = "";
 }

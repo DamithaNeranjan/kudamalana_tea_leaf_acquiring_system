@@ -161,10 +161,21 @@ CREATE TABLE fertilizer_installments (
   updated_at TEXT
 );
 
+CREATE TABLE tea_packet_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  weight TEXT NOT NULL,
+  price REAL NOT NULL,
+  updated_at TEXT
+);
+
 CREATE TABLE tea_packets (
   id TEXT PRIMARY KEY,
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
+  tea_packet_type_id TEXT,
+  packet_name TEXT,
+  packet_weight TEXT,
   packet_count INTEGER NOT NULL,
   per_packet_price REAL NOT NULL,
   total_amount REAL NOT NULL,

@@ -255,6 +255,7 @@ export class LocalStore {
       ["fertilizer_stocks", ["updated_at", "TEXT"]],
       ["fertilizer_issues", ["updated_at", "TEXT"]],
       ["fertilizer_installments", ["updated_at", "TEXT"]],
+      ["tea_packet_types", ["updated_at", "TEXT"]],
       ["tea_packets", ["updated_at", "TEXT"]],
       ["arrears_ledger", ["updated_at", "TEXT"]]
     ]) {
@@ -289,6 +290,16 @@ export class LocalStore {
           bags_received INTEGER NOT NULL,
           updated_at TEXT
         )`
+      ],
+      [
+        "tea_packet_types",
+        `CREATE TABLE IF NOT EXISTS tea_packet_types (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          weight TEXT NOT NULL,
+          price REAL NOT NULL,
+          updated_at TEXT
+        )`
       ]
     ]) {
       this.db.prepare(definition).run();
@@ -302,6 +313,15 @@ export class LocalStore {
     ]) {
       if (!this.hasColumn("fertilizer_issues", column[0])) {
         this.db.prepare(`ALTER TABLE fertilizer_issues ADD COLUMN ${column[0]} ${column[1]}`).run();
+      }
+    }
+    for (const column of [
+      ["tea_packet_type_id", "TEXT"],
+      ["packet_name", "TEXT"],
+      ["packet_weight", "TEXT"]
+    ]) {
+      if (!this.hasColumn("tea_packets", column[0])) {
+        this.db.prepare(`ALTER TABLE tea_packets ADD COLUMN ${column[0]} ${column[1]}`).run();
       }
     }
     this.db
@@ -499,6 +519,7 @@ export class LocalStore {
     else if (collection === "fertilizerTypes") this.upsertFertilizerType(saved);
     else if (collection === "fertilizerStocks") this.upsertFertilizerStock(saved);
     else if (collection === "fertilizerIssues") this.upsertFertilizerIssue(saved);
+    else if (collection === "teaPacketTypes") this.upsertTeaPacketType(saved);
     else if (collection === "teaPackets") this.upsertTeaPacket(saved);
     else throw new Error(`Unsupported collection: ${collection}`);
     this.refreshSnapshot();
@@ -925,6 +946,33 @@ export class LocalStore {
     }
   }
 
+  upsertTeaPacketType(type) {
+    const name = String(type.name || "").trim();
+    const weight = String(type.weight || "").trim();
+    const price = Number(type.price);
+    if (!name || !weight) {
+      const error = new Error("Made tea packet name and weight are required");
+      error.status = 400;
+      throw error;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      const error = new Error("Made tea packet price must be greater than zero");
+      error.status = 400;
+      throw error;
+    }
+    this.db
+      .prepare(
+        `INSERT INTO tea_packet_types (id, name, weight, price, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           name = excluded.name,
+           weight = excluded.weight,
+           price = excluded.price,
+           updated_at = excluded.updated_at`
+      )
+      .run(type.id, name, weight, price, type.updatedAt || now());
+  }
+
   upsertTeaPacket(packet) {
     if (!packet.supplierId || !packet.date || !packet.effectiveMonth) {
       const error = new Error("Supplier, date, and effective month are required");
@@ -933,8 +981,25 @@ export class LocalStore {
     }
     this.assertMonthOpen(packet.effectiveMonth);
     const packetCount = Number(packet.packetCount);
-    const perPacketPrice = Number(packet.perPacketPrice);
-    const totalAmount = Number(packet.totalAmount ?? packetCount * perPacketPrice);
+    let teaPacketTypeId = packet.teaPacketTypeId || null;
+    let packetName = packet.packetName || null;
+    let packetWeight = packet.packetWeight || null;
+    let perPacketPrice = Number(packet.perPacketPrice);
+    let totalAmount = Number(packet.totalAmount ?? packetCount * perPacketPrice);
+    if (teaPacketTypeId) {
+      const type = this.db
+        .prepare("SELECT id, name, weight, price FROM tea_packet_types WHERE id = ? LIMIT 1")
+        .get(teaPacketTypeId);
+      if (!type) {
+        const error = new Error("Selected made tea packet type was not found");
+        error.status = 400;
+        throw error;
+      }
+      packetName = type.name;
+      packetWeight = type.weight;
+      perPacketPrice = Number(type.price);
+      totalAmount = money(packetCount * perPacketPrice);
+    }
     if (!Number.isFinite(packetCount) || packetCount <= 0) {
       const error = new Error("Packet count must be greater than zero");
       error.status = 400;
@@ -953,11 +1018,14 @@ export class LocalStore {
     this.db
       .prepare(
         `INSERT INTO tea_packets
-         (id, supplier_id, date, packet_count, per_packet_price, total_amount, effective_month, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         (id, supplier_id, date, tea_packet_type_id, packet_name, packet_weight, packet_count, per_packet_price, total_amount, effective_month, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            supplier_id = excluded.supplier_id,
            date = excluded.date,
+           tea_packet_type_id = excluded.tea_packet_type_id,
+           packet_name = excluded.packet_name,
+           packet_weight = excluded.packet_weight,
            packet_count = excluded.packet_count,
            per_packet_price = excluded.per_packet_price,
            total_amount = excluded.total_amount,
@@ -968,6 +1036,9 @@ export class LocalStore {
         packet.id,
         packet.supplierId,
         packet.date,
+        teaPacketTypeId,
+        packetName,
+        packetWeight,
         packetCount,
         perPacketPrice,
         totalAmount,
@@ -1651,6 +1722,7 @@ export class LocalStore {
       fertilizerStocks: this.fertilizerStocks(),
       fertilizerIssues: this.fertilizerIssues(),
       fertilizerInstallments: this.fertilizerInstallments(),
+      teaPacketTypes: this.teaPacketTypes(),
       teaPackets: this.teaPackets(),
       arrears: this.arrears(),
       supplierPayments: this.supplierPayments(),
@@ -1895,10 +1967,20 @@ export class LocalStore {
   teaPackets() {
     return this.db
       .prepare(
-        `SELECT id, supplier_id AS supplierId, date, packet_count AS packetCount,
+        `SELECT id, supplier_id AS supplierId, date, tea_packet_type_id AS teaPacketTypeId,
+         packet_name AS packetName, packet_weight AS packetWeight, packet_count AS packetCount,
          per_packet_price AS perPacketPrice, total_amount AS totalAmount,
          effective_month AS effectiveMonth, updated_at AS updatedAt
          FROM tea_packets`
+      )
+      .all();
+  }
+
+  teaPacketTypes() {
+    return this.db
+      .prepare(
+        `SELECT id, name, weight, price, updated_at AS updatedAt
+         FROM tea_packet_types`
       )
       .all();
   }
@@ -2208,10 +2290,21 @@ CREATE TABLE IF NOT EXISTS fertilizer_installments (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS tea_packet_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  weight TEXT NOT NULL,
+  price REAL NOT NULL,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS tea_packets (
   id TEXT PRIMARY KEY,
   supplier_id TEXT NOT NULL,
   date TEXT NOT NULL,
+  tea_packet_type_id TEXT,
+  packet_name TEXT,
+  packet_weight TEXT,
   packet_count INTEGER NOT NULL,
   per_packet_price REAL NOT NULL,
   total_amount REAL NOT NULL,

@@ -30,7 +30,7 @@ The current suite covers:
 - advance recording and advance payment suggestion
 - unpaid-month advance suggestion, paid/closed month exclusion, and closed Green Leaf Book edit blocking
 - fertilizer type registration, received fertilizer stock, stock-backed issue recording, stock balance summaries, and generated monthly fertilizer deductions
-- made tea packet recording and selected-month Green Leaf Book deductions
+- made tea packet type registration/editing, type-backed issue recording, price snapshots, and selected-month Green Leaf Book deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
 - desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by tracking, audit-log mutation tracking, and monthly book impact
 - web Green Leaf Book totals, signal filtering, pagination, target labels, and desktop renderer helper behavior
@@ -72,7 +72,7 @@ Manual desktop UI checks:
 - After setting a supplier-specific special price, run Sync to Web App and confirm the web Green Leaf Book uses the override for that supplier. The sync status should show `supplierMonthOverrides` when override rows exist.
 - Open Advances, select a supplier/month, request a suggestion, save an advance with date and amount, and confirm Green Leaf Book shows the advance and subtracts it from balance. Confirm later suggestions deduct advances already given for the same month.
 - Open Fertilizer, register a fertilizer type with name/type/bag weight, record a received stock lot with per-bag price and bag count, issue bags from that stock lot to a supplier, and confirm kg/value auto-fill from the selected stock. Confirm the issue listing, stock balance summary, and Green Leaf Book deduction for only the fertilizer rupee amount assigned to the selected month.
-- Open Made Tea Packets, select a supplier, enter date, packet count, per-packet price, total amount, and effective month. Confirm the Green Leaf Book deducts only the made tea packet rupee amount assigned to the selected month.
+- Open Made Tea Packets, register a made tea packet type with name/weight/price, issue that packet type to a supplier with date, packet count, and effective month, and confirm total price auto-fills. Edit the registered packet price afterward and confirm older issued packet rows keep their original price/total while future issues use the new price.
 - Open Supplier Bills, generate bill preview for all suppliers, confirm the print-preview area is collapsed by default, expand it, select a subset of suppliers, and confirm print actions use the Sinhala half-A4 layout with two bills per A4 sheet, fixed two-decimal rupee values, payment-mode text, daily zero kg values, and selected-supplier printing.
 - Filter Tea Lines, Line Users, and Suppliers from their tables.
 - Confirm saved listing tables show 10 records per page, the latest saved records appear first, and Previous/Next controls page through older records.

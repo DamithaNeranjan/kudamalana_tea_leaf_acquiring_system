@@ -25,7 +25,7 @@ npm.cmd run web:dev
 
 PowerShell script execution blocks `npm`, so use `npm.cmd` on this machine.
 
-The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd start` or `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission. CloudLinux / cPanel deployments should use `app.cjs` as the startup file.
+The backend persists web/director data in MySQL. Copy `.env.example` to `.env`, set the `MYSQL_*` values, then run `npm.cmd start` or `npm.cmd run backend`. The backend creates the configured database and missing tables at startup when the MySQL user has permission. CloudLinux / cPanel deployments should use `app.cjs` as the startup file, with `app.cjs`, `apps/backend`, and `packages/shared` extracted directly under the configured application root.
 
 `npm.cmd run desktop` starts the Electron desktop frontend and automatically starts the desktop local backend server on port `7070`. Use `npm.cmd run desktop:sync` only when you want the desktop backend server without opening the Electron frontend.
 

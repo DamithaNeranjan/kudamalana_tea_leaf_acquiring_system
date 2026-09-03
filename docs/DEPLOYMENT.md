@@ -35,6 +35,23 @@ Application startup file: app.cjs
 
 `app.cjs` is a CommonJS wrapper for hosts that load the startup file with `require()`. It starts the ESM backend server in `apps/backend/src/server.mjs`.
 
+When uploading a backend archive, extract it so the application root contains these paths:
+
+```text
+app.cjs
+package.json
+package-lock.json
+apps/backend/package.json
+apps/backend/src/server.mjs
+apps/backend/src/mysqlStore.mjs
+apps/backend/src/store.mjs
+apps/backend/src/mysql-schema.sql
+packages/shared/package.json
+packages/shared/src/
+```
+
+If cPanel reports `Cannot find module '/home/<user>/TeaLeaf_Acquiring_Web_Backend//app.cjs'`, the uploaded backend package is missing the root-level startup file or was extracted into an extra nested folder. Move/extract the listed files directly under the configured application root, then restart the Node.js app.
+
 ## Web App
 
 Build the web app with the production API URL:

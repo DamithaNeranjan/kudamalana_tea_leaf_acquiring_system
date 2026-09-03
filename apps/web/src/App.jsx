@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { request } from "./api/client.js";
 import { Header } from "./components/Header.jsx";
+import { LoadingSpinner } from "./components/LoadingSpinner.jsx";
 import { Sidebar } from "./components/Sidebar.jsx";
 import { ToastHost } from "./components/ToastHost.jsx";
 import { AdvancesView } from "./views/AdvancesView.jsx";
+import { AuditLogView } from "./views/AuditLogView.jsx";
 import { BalancesView } from "./views/BalancesView.jsx";
 import { BookView } from "./views/BookView.jsx";
 import { DirectorsView } from "./views/DirectorsView.jsx";
@@ -15,6 +17,7 @@ function AppShell({ activeView, currentUser, onNavigate, showToast }) {
   const canViewDirectors = ["super_admin", "director"].includes(currentUser.role);
   const canViewOfficeUsers = ["super_admin", "director", "office_user"].includes(currentUser.role);
   const canManageUsers = currentUser.role === "super_admin";
+  const canViewAudit = currentUser.role === "super_admin";
 
   return (
     <main className="app-shell">
@@ -29,6 +32,7 @@ function AppShell({ activeView, currentUser, onNavigate, showToast }) {
         {activeView === "officeUsers" && canViewOfficeUsers && (
           <OfficeUsersView canManage={canManageUsers} showToast={showToast} />
         )}
+        {activeView === "audit" && canViewAudit && <AuditLogView showToast={showToast} />}
         {activeView === "profile" && <ProfileView currentUser={currentUser} />}
       </section>
     </main>
@@ -81,6 +85,12 @@ export default function App() {
         onLogout={handleLogout}
         onProfile={() => setActiveView("profile")}
       />
+      {authLoading && (
+        <main className="app-loading">
+          <LoadingSpinner label="Checking session" />
+          <span>Checking session...</span>
+        </main>
+      )}
       {!authLoading && !currentUser && <LoginView onLogin={handleLogin} />}
       {!authLoading && currentUser && (
         <AppShell

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ButtonSpinner } from "../components/LoadingSpinner.jsx";
 import { request } from "../api/client.js";
 import { formatOptionalDecimal, localMonthValue } from "../../../../packages/shared/src/format.mjs";
 import { greenLeafBookTotals, poyaDaysForMonth } from "../utils/bookLogic.js";
@@ -9,9 +10,15 @@ export function BookView() {
   const [supplierFilter, setSupplierFilter] = useState("");
   const [lineFilter, setLineFilter] = useState("");
   const [excludeFactorySuppliersFromTotals, setExcludeFactorySuppliersFromTotals] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   async function loadBook() {
-    setBook(await request(`/green-leaf-book?month=${month}`));
+    setLoading(true);
+    try {
+      setBook(await request(`/green-leaf-book?month=${month}`));
+    } finally {
+      setLoading(false);
+    }
   }
 
   const poyaDays = useMemo(() => poyaDaysForMonth(book?.month), [book]);
@@ -59,7 +66,10 @@ export function BookView() {
             />
             Exclude factory-owned from totals
           </label>
-          <button type="button" onClick={loadBook}>Load</button>
+          <button type="button" onClick={loadBook} disabled={loading}>
+            {loading && <ButtonSpinner label="Loading book" />}
+            {loading ? "Loading..." : "Load"}
+          </button>
         </div>
         <div className="book-legend" aria-label="Green Leaf Book color legend">
           <span><i className="legend-swatch poya"></i>Poya day</span>

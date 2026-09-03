@@ -36,6 +36,7 @@ export function createMemoryStore() {
   const advanceSignals = new Map();
   const arrears = new Map();
   const monthClosures = new Map();
+  const webAuditLogs = [];
   const syncLog = [];
 
   for (const user of [
@@ -145,6 +146,10 @@ export function createMemoryStore() {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   }
 
+  function dateOnly(value = new Date()) {
+    return String(value instanceof Date ? value.toISOString() : value || new Date().toISOString()).slice(0, 10);
+  }
+
   function previousMonthValue(month) {
     const [year, monthNumber] = String(month).split("-").map(Number);
     const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
@@ -153,6 +158,59 @@ export function createMemoryStore() {
 
   function publicBalanceSignal(signal) {
     return signal || null;
+  }
+
+  function sanitizeAuditValue(value) {
+    if (Array.isArray(value)) return value.map((item) => sanitizeAuditValue(item));
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([key]) => !/password|hash|token|authorization/i.test(key))
+          .map(([key, child]) => [key, sanitizeAuditValue(child)])
+      );
+    }
+    return value;
+  }
+
+  function publicWebAuditLog(entry) {
+    return {
+      ...entry,
+      before: entry.beforeJson ? JSON.parse(entry.beforeJson) : null,
+      after: entry.afterJson ? JSON.parse(entry.afterJson) : null
+    };
+  }
+
+  function recordWebAudit(user, entry) {
+    const auditEntry = {
+      id: makeId("web_audit"),
+      userId: user?.id || null,
+      username: user?.username || "",
+      displayName: user?.displayName || user?.username || "",
+      role: user?.role || "",
+      action: entry.action,
+      entityType: entry.entityType,
+      entityId: entry.entityId || "",
+      entityLabel: entry.entityLabel || "",
+      summary: entry.summary || "",
+      beforeJson: entry.before === undefined ? null : JSON.stringify(sanitizeAuditValue(entry.before)),
+      afterJson: entry.after === undefined ? null : JSON.stringify(sanitizeAuditValue(entry.after)),
+      createdAt: new Date().toISOString()
+    };
+    webAuditLogs.push(auditEntry);
+    return auditEntry;
+  }
+
+  function assertCanChangeSignal(signal, user) {
+    if (!signal) {
+      const error = new Error("Signal not found");
+      error.status = 404;
+      throw error;
+    }
+    if (user.role !== "super_admin" && signal.markedByUserId !== user.id) {
+      const error = new Error("Directors can change only records they added");
+      error.status = 403;
+      throw error;
+    }
   }
 
   function markSignalMapRead(map, signalId, user) {
@@ -376,11 +434,18 @@ export function createMemoryStore() {
       }
       const token = randomBytes(24).toString("hex");
       sessions.set(token, { token, userId: user.id, createdAt: new Date().toISOString() });
+      recordWebAudit(user, {
+        action: "login",
+        entityType: "session",
+        entityId: user.id,
+        entityLabel: user.username,
+        summary: `${user.displayName || user.username} logged in`
+      });
       return { token, user: publicUser(user) };
     },
 
     createUser(sessionToken, input) {
-      requireRole(sessionToken, ["super_admin"]);
+      const actor = requireRole(sessionToken, ["super_admin"]);
       assertManagedRole(input?.role);
       if (!input?.username || !input?.password || !input?.displayName) {
         const error = new Error("role, username, password, and displayName are required");
@@ -403,7 +468,16 @@ export function createMemoryStore() {
         updatedAt: new Date().toISOString()
       };
       users.set(user.id, user);
-      return publicUser(user);
+      const safeUser = publicUser(user);
+      recordWebAudit(actor, {
+        action: "create",
+        entityType: "user",
+        entityId: user.id,
+        entityLabel: user.username,
+        summary: `Created ${user.role} user ${user.username}`,
+        after: safeUser
+      });
+      return safeUser;
     },
 
     createDirector(sessionToken, input) {
@@ -424,13 +498,14 @@ export function createMemoryStore() {
     },
 
     updateUser(sessionToken, userId, input) {
-      requireRole(sessionToken, ["super_admin"]);
+      const actor = requireRole(sessionToken, ["super_admin"]);
       const user = users.get(userId);
       if (!user || !["director", "office_user"].includes(user.role)) {
         const error = new Error("Managed user not found");
         error.status = 404;
         throw error;
       }
+      const before = publicUser({ ...user });
       if (input.username && input.username !== user.username) {
         if ([...users.values()].some((candidate) => candidate.username === input.username && candidate.id !== userId)) {
           const error = new Error("Username already exists");
@@ -444,11 +519,32 @@ export function createMemoryStore() {
       if (input.password) user.passwordHash = hashPassword(input.password);
       user.updatedAt = new Date().toISOString();
       users.set(userId, user);
-      return publicUser(user);
+      const after = publicUser(user);
+      recordWebAudit(actor, {
+        action: "update",
+        entityType: "user",
+        entityId: user.id,
+        entityLabel: user.username,
+        summary: `Updated ${user.role} user ${user.username}`,
+        before,
+        after
+      });
+      return after;
     },
 
     logout(sessionToken) {
+      const session = sessions.get(sessionToken);
+      const user = session ? users.get(session.userId) : null;
       sessions.delete(sessionToken);
+      if (user) {
+        recordWebAudit(user, {
+          action: "logout",
+          entityType: "session",
+          entityId: user.id,
+          entityLabel: user.username,
+          summary: `${user.displayName || user.username} logged out`
+        });
+      }
       return { ok: true };
     },
 
@@ -545,7 +641,73 @@ export function createMemoryStore() {
         readByDisplayName: null
       };
       advanceSignals.set(signal.id, signal);
+      recordWebAudit(user, {
+        action: "create",
+        entityType: "advance_signal",
+        entityId: signal.id,
+        entityLabel: signal.targetLabel,
+        summary: `Created advance signal for ${signal.targetLabel}`,
+        after: signal
+      });
       return signal;
+    },
+
+    updateAdvanceSignal(sessionToken, signalId, input) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const existing = advanceSignals.get(signalId);
+      assertCanChangeSignal(existing, user);
+      const effectiveMonth = normalizeMonth(input.effectiveMonth || existing.effectiveMonth);
+      const amount = money(input.amount ?? existing.amount);
+      if (!input.dateGiven && !existing.dateGiven) {
+        const error = new Error("dateGiven is required");
+        error.status = 400;
+        throw error;
+      }
+      if (amount <= 0) {
+        const error = new Error("amount must be greater than zero");
+        error.status = 400;
+        throw error;
+      }
+      const suggestion = advanceSuggestion(this.getGreenLeafInput(sessionToken, effectiveMonth), existing.scope, existing.targetId);
+      const updated = {
+        ...existing,
+        effectiveMonth,
+        dateGiven: String(input.dateGiven || existing.dateGiven).slice(0, 10),
+        suggestedAmount: money(suggestion.suggestedAmount),
+        amount,
+        breakdown: suggestion.breakdown,
+        comment: input.comment ?? existing.comment,
+        readAt: null,
+        readByUserId: null,
+        readByDisplayName: null
+      };
+      advanceSignals.set(signalId, updated);
+      recordWebAudit(user, {
+        action: "update",
+        entityType: "advance_signal",
+        entityId: signalId,
+        entityLabel: updated.targetLabel,
+        summary: `Updated advance signal for ${updated.targetLabel}`,
+        before: existing,
+        after: updated
+      });
+      return updated;
+    },
+
+    deleteAdvanceSignal(sessionToken, signalId) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const existing = advanceSignals.get(signalId);
+      assertCanChangeSignal(existing, user);
+      advanceSignals.delete(signalId);
+      recordWebAudit(user, {
+        action: "delete",
+        entityType: "advance_signal",
+        entityId: signalId,
+        entityLabel: existing.targetLabel,
+        summary: `Deleted advance signal for ${existing.targetLabel}`,
+        before: existing
+      });
+      return { ok: true };
     },
 
     markBalancePaid(sessionToken, input) {
@@ -559,6 +721,8 @@ export function createMemoryStore() {
         throw error;
       }
       const id = `${month}:${section}:${targetId}`;
+      const existing = balanceTransferSignals.get(id);
+      if (existing) assertCanChangeSignal(existing, user);
       const signal = {
         id,
         month,
@@ -566,16 +730,42 @@ export function createMemoryStore() {
         targetId,
         targetLabel: input.targetLabel || "",
         amount: money(input.amount),
+        paymentDoneDate: dateOnly(input.paymentDoneDate || existing?.paymentDoneDate),
         comment: input.comment || "",
-        markedAt: new Date().toISOString(),
-        markedByUserId: user.id,
-        markedByDisplayName: user.displayName || user.username,
+        markedAt: existing?.markedAt || new Date().toISOString(),
+        markedByUserId: existing?.markedByUserId || user.id,
+        markedByDisplayName: existing?.markedByDisplayName || user.displayName || user.username,
         readAt: null,
         readByUserId: null,
         readByDisplayName: null
       };
       balanceTransferSignals.set(id, signal);
+      recordWebAudit(user, {
+        action: existing ? "update" : "create",
+        entityType: "balance_signal",
+        entityId: id,
+        entityLabel: signal.targetLabel,
+        summary: `${existing ? "Updated" : "Created"} ${section} balance signal for ${signal.targetLabel || targetId}`,
+        before: existing,
+        after: signal
+      });
       return signal;
+    },
+
+    deleteBalanceSignal(sessionToken, signalId) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const existing = balanceTransferSignals.get(signalId);
+      assertCanChangeSignal(existing, user);
+      balanceTransferSignals.delete(signalId);
+      recordWebAudit(user, {
+        action: "delete",
+        entityType: "balance_signal",
+        entityId: signalId,
+        entityLabel: existing.targetLabel,
+        summary: `Deleted ${existing.section} balance signal for ${existing.targetLabel || existing.targetId}`,
+        before: existing
+      });
+      return { ok: true };
     },
 
     addFactoryOfficerTransfer(sessionToken, input) {
@@ -590,6 +780,7 @@ export function createMemoryStore() {
         id: makeId("factory_transfer"),
         month: normalizeMonth(input.month),
         amount,
+        paymentDoneDate: dateOnly(input.paymentDoneDate),
         comment: input.comment || "",
         markedAt: new Date().toISOString(),
         markedByUserId: user.id,
@@ -599,7 +790,63 @@ export function createMemoryStore() {
         readByDisplayName: null
       };
       factoryOfficerTransferSignals.set(signal.id, signal);
+      recordWebAudit(user, {
+        action: "create",
+        entityType: "factory_transfer_signal",
+        entityId: signal.id,
+        entityLabel: signal.month,
+        summary: `Created factory officer transfer signal for ${signal.month}`,
+        after: signal
+      });
       return signal;
+    },
+
+    updateFactoryOfficerTransfer(sessionToken, signalId, input) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const existing = factoryOfficerTransferSignals.get(signalId);
+      assertCanChangeSignal(existing, user);
+      const amount = money(input.amount ?? existing.amount);
+      if (amount <= 0) {
+        const error = new Error("amount must be greater than zero");
+        error.status = 400;
+        throw error;
+      }
+      const updated = {
+        ...existing,
+        amount,
+        paymentDoneDate: dateOnly(input.paymentDoneDate || existing.paymentDoneDate),
+        comment: input.comment ?? existing.comment,
+        readAt: null,
+        readByUserId: null,
+        readByDisplayName: null
+      };
+      factoryOfficerTransferSignals.set(signalId, updated);
+      recordWebAudit(user, {
+        action: "update",
+        entityType: "factory_transfer_signal",
+        entityId: signalId,
+        entityLabel: updated.month,
+        summary: `Updated factory officer transfer signal for ${updated.month}`,
+        before: existing,
+        after: updated
+      });
+      return updated;
+    },
+
+    deleteFactoryOfficerTransfer(sessionToken, signalId) {
+      const user = requireRole(sessionToken, ["super_admin", "director"]);
+      const existing = factoryOfficerTransferSignals.get(signalId);
+      assertCanChangeSignal(existing, user);
+      factoryOfficerTransferSignals.delete(signalId);
+      recordWebAudit(user, {
+        action: "delete",
+        entityType: "factory_transfer_signal",
+        entityId: signalId,
+        entityLabel: existing.month,
+        summary: `Deleted factory officer transfer signal for ${existing.month}`,
+        before: existing
+      });
+      return { ok: true };
     },
 
     markSignalRead(sessionToken, input) {
@@ -611,12 +858,40 @@ export function createMemoryStore() {
         error.status = 400;
         throw error;
       }
-      if (type === "advance") return markSignalMapRead(advanceSignals, signalId, user);
-      if (type === "balance") return markSignalMapRead(balanceTransferSignals, signalId, user);
-      if (type === "factory") return markSignalMapRead(factoryOfficerTransferSignals, signalId, user);
+      let updated;
+      let entityType;
+      if (type === "advance") {
+        updated = markSignalMapRead(advanceSignals, signalId, user);
+        entityType = "advance_signal";
+      } else if (type === "balance") {
+        updated = markSignalMapRead(balanceTransferSignals, signalId, user);
+        entityType = "balance_signal";
+      } else if (type === "factory") {
+        updated = markSignalMapRead(factoryOfficerTransferSignals, signalId, user);
+        entityType = "factory_transfer_signal";
+      }
+      if (updated) {
+        recordWebAudit(user, {
+          action: "mark_read",
+          entityType,
+          entityId: signalId,
+          entityLabel: updated.targetLabel || updated.month || "",
+          summary: `Marked ${type} signal as read`,
+          after: updated
+        });
+        return updated;
+      }
       const error = new Error("Signal type must be advance, balance, or factory");
       error.status = 400;
       throw error;
+    },
+
+    listWebAuditLogs(sessionToken) {
+      requireRole(sessionToken, ["super_admin"]);
+      return webAuditLogs
+        .slice()
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .map(publicWebAuditLog);
     },
 
     seedDesktopData(payload) {

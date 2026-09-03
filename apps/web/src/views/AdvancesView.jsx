@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ButtonSpinner } from "../components/LoadingSpinner.jsx";
 import { request } from "../api/client.js";
 import {
   formatAmountInput,
@@ -32,6 +33,10 @@ function paginate(rows, page) {
   return paginateWebRows(rows, page);
 }
 
+function canChangeSignal(signal, currentUser) {
+  return Boolean(signal && (currentUser?.role === "super_admin" || signal.markedByUserId === currentUser?.id));
+}
+
 export function AdvancesView({ currentUser, showToast }) {
   const [data, setData] = useState({ suppliers: [], teaLines: [], signals: [] });
   const [scope, setScope] = useState("supplier");
@@ -41,11 +46,21 @@ export function AdvancesView({ currentUser, showToast }) {
   const [amount, setAmount] = useState("");
   const [comment, setComment] = useState("");
   const [suggestion, setSuggestion] = useState(null);
+  const [loadingSignals, setLoadingSignals] = useState(false);
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [savingSignal, setSavingSignal] = useState(false);
+  const [readLoadingId, setReadLoadingId] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [showRead, setShowRead] = useState(true);
   const [signalsPage, setSignalsPage] = useState(1);
+  const [editingSignalId, setEditingSignalId] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editEffectiveMonth, setEditEffectiveMonth] = useState("");
+  const [editDateGiven, setEditDateGiven] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editComment, setEditComment] = useState("");
   const canManage = ["super_admin", "director"].includes(currentUser?.role);
   const canMarkRead = ["super_admin", "office_user"].includes(currentUser?.role);
 
@@ -60,16 +75,28 @@ export function AdvancesView({ currentUser, showToast }) {
   const pagedSignals = useMemo(() => paginate(visibleSignals, signalsPage), [signalsPage, visibleSignals]);
 
   async function markRead(signal) {
-    await request("/signals/mark-read", {
-      method: "POST",
-      body: JSON.stringify({ type: "advance", id: signal.id })
-    });
-    showToast("Signal marked as read.");
-    await loadSignals();
+    setReadLoadingId(signal.id);
+    try {
+      await request("/signals/mark-read", {
+        method: "POST",
+        body: JSON.stringify({ type: "advance", id: signal.id })
+      });
+      showToast("Signal marked as read.");
+      await loadSignals();
+    } finally {
+      setReadLoadingId("");
+    }
   }
 
   async function loadSignals() {
-    setData(await request("/advance-signals"));
+    setLoadingSignals(true);
+    try {
+      setData(await request("/advance-signals"));
+    } catch (error) {
+      showToast(error.message, "error");
+    } finally {
+      setLoadingSignals(false);
+    }
   }
 
   async function loadSuggestion() {
@@ -77,11 +104,16 @@ export function AdvancesView({ currentUser, showToast }) {
       setSuggestion(null);
       return;
     }
-    const payload = await request(
-      `/advance-signals/suggestion?scope=${encodeURIComponent(scope)}&targetId=${encodeURIComponent(selectedTarget.id)}&month=${encodeURIComponent(effectiveMonth)}`
-    );
-    setSuggestion(payload);
-    if (!amount) setAmount(formatAmountInput(payload.suggestedAmount || ""));
+    setLoadingSuggestion(true);
+    try {
+      const payload = await request(
+        `/advance-signals/suggestion?scope=${encodeURIComponent(scope)}&targetId=${encodeURIComponent(selectedTarget.id)}&month=${encodeURIComponent(effectiveMonth)}`
+      );
+      setSuggestion(payload);
+      if (!amount) setAmount(formatAmountInput(payload.suggestedAmount || ""));
+    } finally {
+      setLoadingSuggestion(false);
+    }
   }
 
   async function submitSignal(event) {
@@ -90,22 +122,71 @@ export function AdvancesView({ currentUser, showToast }) {
       showToast("Select a supplier or line.", "error");
       return;
     }
-    await request("/advance-signals", {
-      method: "POST",
-      body: JSON.stringify({
-        scope,
-        targetId: selectedTarget.id,
-        effectiveMonth,
-        dateGiven,
-        amount: parseAmountInput(amount),
-        comment
-      })
-    });
-    setAmount("");
-    setComment("");
-    showToast("Advance signal saved.");
+    setSavingSignal(true);
+    try {
+      await request("/advance-signals", {
+        method: "POST",
+        body: JSON.stringify({
+          scope,
+          targetId: selectedTarget.id,
+          effectiveMonth,
+          dateGiven,
+          amount: parseAmountInput(amount),
+          comment
+        })
+      });
+      setScope("supplier");
+      setTargetText("");
+      setEffectiveMonth(localMonthValue());
+      setDateGiven(localDateValue());
+      setAmount("");
+      setComment("");
+      setSuggestion(null);
+      showToast("Advance signal saved.");
+      await loadSignals();
+    } finally {
+      setSavingSignal(false);
+    }
+  }
+
+  function startEditSignal(signal) {
+    setEditingSignalId(signal.id);
+    setEditEffectiveMonth(signal.effectiveMonth || "");
+    setEditDateGiven(signal.dateGiven || "");
+    setEditAmount(formatAmountInput(signal.amount));
+    setEditComment(signal.comment || "");
+  }
+
+  async function updateSignal(event, signal) {
+    event.preventDefault();
+    setEditSaving(true);
+    try {
+      await request(`/advance-signals/${encodeURIComponent(signal.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          effectiveMonth: editEffectiveMonth,
+          dateGiven: editDateGiven,
+          amount: parseAmountInput(editAmount),
+          comment: editComment
+        })
+      });
+      setEditingSignalId("");
+      setEditEffectiveMonth("");
+      setEditDateGiven("");
+      setEditAmount("");
+      setEditComment("");
+      showToast("Advance signal updated.");
+      await loadSignals();
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function deleteSignal(signal) {
+    if (!window.confirm("Delete this advance signal?")) return;
+    await request(`/advance-signals/${encodeURIComponent(signal.id)}`, { method: "DELETE" });
+    showToast("Advance signal deleted.");
     await loadSignals();
-    await loadSuggestion();
   }
 
   useEffect(() => {
@@ -141,7 +222,7 @@ export function AdvancesView({ currentUser, showToast }) {
           <form className="advance-signal-form" onSubmit={submitSignal}>
             <label>
               Advance type
-              <select value={scope} onChange={(event) => setScope(event.target.value)}>
+              <select value={scope} onChange={(event) => setScope(event.target.value)} disabled={savingSignal}>
                 <option value="supplier">Supplier advance</option>
                 <option value="line">Line advance</option>
               </select>
@@ -153,6 +234,7 @@ export function AdvancesView({ currentUser, showToast }) {
                 value={targetText}
                 onChange={(event) => setTargetText(event.target.value)}
                 placeholder={scope === "line" ? "Filter line" : "Filter supplier"}
+                disabled={savingSignal}
                 required
               />
             </label>
@@ -163,11 +245,11 @@ export function AdvancesView({ currentUser, showToast }) {
             </datalist>
             <label>
               Effective month
-              <input type="month" value={effectiveMonth} onChange={(event) => setEffectiveMonth(event.target.value)} required />
+              <input type="month" value={effectiveMonth} onChange={(event) => setEffectiveMonth(event.target.value)} disabled={savingSignal} required />
             </label>
             <label>
               Date given
-              <input type="date" value={dateGiven} onChange={(event) => setDateGiven(event.target.value)} required />
+              <input type="date" value={dateGiven} onChange={(event) => setDateGiven(event.target.value)} disabled={savingSignal} required />
             </label>
             <label>
               Amount given
@@ -176,18 +258,25 @@ export function AdvancesView({ currentUser, showToast }) {
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(formatAmountInput(event.target.value))}
+                disabled={savingSignal}
                 required
               />
             </label>
             <label>
               Comment
-              <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Optional comment" />
+              <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Optional comment" disabled={savingSignal} />
             </label>
-            <button type="submit">Save signal</button>
+            <button type="submit" disabled={savingSignal}>
+              {savingSignal && <ButtonSpinner label="Saving advance signal" />}
+              {savingSignal ? "Saving..." : "Save signal"}
+            </button>
           </form>
 
           <div className="advance-suggestion">
-            <strong>Suggested amount: Rs. {formatCurrency(suggestion?.suggestedAmount)}</strong>
+            <strong>
+              {loadingSuggestion && <ButtonSpinner label="Loading advance suggestion" />}
+              Suggested amount: Rs. {formatCurrency(suggestion?.suggestedAmount)}
+            </strong>
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
@@ -230,7 +319,10 @@ export function AdvancesView({ currentUser, showToast }) {
             <input type="checkbox" checked={showRead} onChange={(event) => setShowRead(event.target.checked)} />
             Show read signals
           </label>
-          <button type="button" onClick={loadSignals}>Refresh</button>
+          <button type="button" onClick={loadSignals} disabled={loadingSignals}>
+            {loadingSignals && <ButtonSpinner label="Refreshing advance signals" />}
+            {loadingSignals ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
         <div className="table-wrap">
           <table className="data-table">
@@ -263,10 +355,51 @@ export function AdvancesView({ currentUser, showToast }) {
                       <span className="status-pill active">Unread</span>
                     )}
                   </td>
-                  <td>
+                  <td className="signal-actions">
                     {canMarkRead && !signal.readAt ? (
-                      <button type="button" onClick={() => markRead(signal)}>Mark read</button>
+                      <button
+                        type="button"
+                        className="table-button signal-action-button read-button"
+                        onClick={() => markRead(signal)}
+                        disabled={readLoadingId === signal.id}
+                      >
+                        {readLoadingId === signal.id && <ButtonSpinner label="Marking read" />}
+                        {readLoadingId === signal.id ? "Saving..." : "Mark read"}
+                      </button>
                     ) : ""}
+                    {canChangeSignal(signal, currentUser) && editingSignalId !== signal.id && (
+                      <>
+                        <button type="button" className="table-button signal-action-button edit-button" onClick={() => startEditSignal(signal)}>Edit</button>
+                        <button type="button" className="table-button signal-action-button danger-button" onClick={() => deleteSignal(signal)}>Delete</button>
+                      </>
+                    )}
+                    {editingSignalId === signal.id && (
+                      <form className="row-edit-form" onSubmit={(event) => updateSignal(event, signal)}>
+                        <input type="month" value={editEffectiveMonth} onChange={(event) => setEditEffectiveMonth(event.target.value)} disabled={editSaving} required />
+                        <input type="date" value={editDateGiven} onChange={(event) => setEditDateGiven(event.target.value)} disabled={editSaving} required />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editAmount}
+                          onChange={(event) => setEditAmount(formatAmountInput(event.target.value))}
+                          disabled={editSaving}
+                          required
+                        />
+                        <input value={editComment} onChange={(event) => setEditComment(event.target.value)} placeholder="Comment" disabled={editSaving} />
+                        <button type="submit" className="table-button signal-action-button save-button" disabled={editSaving}>
+                          {editSaving && <ButtonSpinner label="Saving advance edit" />}
+                          {editSaving ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="table-button signal-action-button cancel-button"
+                          onClick={() => setEditingSignalId("")}
+                          disabled={editSaving}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}

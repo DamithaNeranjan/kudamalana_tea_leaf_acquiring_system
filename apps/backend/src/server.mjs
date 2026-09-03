@@ -25,7 +25,7 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
     const headers = {
       "access-control-allow-credentials": "true",
       "access-control-allow-headers": "content-type, authorization, x-sync-token",
-      "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+      "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS",
       vary: "Origin"
     };
     if (allowOrigin) headers["access-control-allow-origin"] = allowOrigin;
@@ -139,8 +139,20 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       if (request.method === "POST" && url.pathname === "/balances/mark-paid") {
         return send(request, response, 201, await store.markBalancePaid(sessionToken(request), await parseJsonBody(request)));
       }
+      if (request.method === "DELETE" && url.pathname.startsWith("/balances/signals/")) {
+        const signalId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.deleteBalanceSignal(sessionToken(request), signalId));
+      }
       if (request.method === "POST" && url.pathname === "/balances/factory-officer-payments") {
         return send(request, response, 201, await store.addFactoryOfficerTransfer(sessionToken(request), await parseJsonBody(request)));
+      }
+      if (request.method === "PATCH" && url.pathname.startsWith("/balances/factory-officer-payments/")) {
+        const signalId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.updateFactoryOfficerTransfer(sessionToken(request), signalId, await parseJsonBody(request)));
+      }
+      if (request.method === "DELETE" && url.pathname.startsWith("/balances/factory-officer-payments/")) {
+        const signalId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.deleteFactoryOfficerTransfer(sessionToken(request), signalId));
       }
       if (request.method === "GET" && url.pathname === "/advance-signals") {
         return send(request, response, 200, await store.listAdvanceSignals(sessionToken(request)));
@@ -160,8 +172,19 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
       if (request.method === "POST" && url.pathname === "/advance-signals") {
         return send(request, response, 201, await store.createAdvanceSignal(sessionToken(request), await parseJsonBody(request)));
       }
+      if (request.method === "PATCH" && url.pathname.startsWith("/advance-signals/")) {
+        const signalId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.updateAdvanceSignal(sessionToken(request), signalId, await parseJsonBody(request)));
+      }
+      if (request.method === "DELETE" && url.pathname.startsWith("/advance-signals/")) {
+        const signalId = decodeURIComponent(url.pathname.split("/").pop());
+        return send(request, response, 200, await store.deleteAdvanceSignal(sessionToken(request), signalId));
+      }
       if (request.method === "POST" && url.pathname === "/signals/mark-read") {
         return send(request, response, 200, await store.markSignalRead(sessionToken(request), await parseJsonBody(request)));
+      }
+      if (request.method === "GET" && url.pathname === "/web-audit-log") {
+        return send(request, response, 200, { auditLogs: await store.listWebAuditLogs(sessionToken(request)) });
       }
       return send(request, response, 404, { error: "Not found" });
     } catch (error) {

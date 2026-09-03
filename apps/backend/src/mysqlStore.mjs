@@ -179,6 +179,12 @@ async function executeSchema(pool) {
       }
     }
   }
+  for (const table of ["balance_transfer_signals", "factory_officer_transfer_signals"]) {
+    const [columns] = await pool.query(`SHOW COLUMNS FROM ${table} LIKE 'payment_done_date'`);
+    if (!columns.length) {
+      await pool.query(`ALTER TABLE ${table} ADD COLUMN payment_done_date DATE NULL AFTER amount`);
+    }
+  }
 }
 
 function mapBalanceSignal(row) {
@@ -189,6 +195,7 @@ function mapBalanceSignal(row) {
     targetId: row.target_id,
     targetLabel: row.target_label,
     amount: numberOrDefault(row.amount),
+    paymentDoneDate: toDateOnly(row.payment_done_date),
     comment: row.comment || "",
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
@@ -204,6 +211,7 @@ function mapFactoryOfficerSignal(row) {
     id: row.id,
     month: row.month,
     amount: numberOrDefault(row.amount),
+    paymentDoneDate: toDateOnly(row.payment_done_date),
     comment: row.comment || "",
     markedAt: row.marked_at,
     markedByUserId: row.marked_by_user_id,
@@ -239,6 +247,73 @@ function mapAdvanceSignal(row) {
     readByUserId: row.read_by_user_id,
     readByDisplayName: row.read_by_display_name
   };
+}
+
+function sanitizeAuditValue(value) {
+  if (Array.isArray(value)) return value.map((item) => sanitizeAuditValue(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !/password|hash|token|authorization/i.test(key))
+        .map(([key, child]) => [key, sanitizeAuditValue(child)])
+    );
+  }
+  return value;
+}
+
+function mapWebAuditLog(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    displayName: row.display_name,
+    role: row.role,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    entityLabel: row.entity_label,
+    summary: row.summary,
+    before: parseJsonValue(row.before_json, null),
+    after: parseJsonValue(row.after_json, null),
+    createdAt: row.created_at
+  };
+}
+
+async function recordWebAudit(conn, user, entry) {
+  await conn.execute(
+    `INSERT INTO web_audit_log
+     (id, user_id, username, display_name, role, action, entity_type, entity_id,
+      entity_label, summary, before_json, after_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      makeId("web_audit"),
+      user?.id || null,
+      user?.username || "",
+      user?.display_name || user?.displayName || user?.username || "",
+      user?.role || "",
+      entry.action,
+      entry.entityType,
+      entry.entityId || "",
+      entry.entityLabel || "",
+      entry.summary || "",
+      entry.before === undefined ? null : JSON.stringify(sanitizeAuditValue(entry.before)),
+      entry.after === undefined ? null : JSON.stringify(sanitizeAuditValue(entry.after)),
+      toMysqlDateTime()
+    ]
+  );
+}
+
+function assertCanChangeSignal(signal, user) {
+  if (!signal) {
+    const error = new Error("Signal not found");
+    error.status = 404;
+    throw error;
+  }
+  if (user.role !== "super_admin" && signal.markedByUserId !== user.id) {
+    const error = new Error("Directors can change only records they added");
+    error.status = 403;
+    throw error;
+  }
 }
 
 function supplierAdvanceBreakdown(input, supplier) {
@@ -798,6 +873,13 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           user.id,
           toMysqlDateTime()
         ]);
+        await recordWebAudit(conn, user, {
+          action: "login",
+          entityType: "session",
+          entityId: user.id,
+          entityLabel: user.username,
+          summary: `${user.display_name || user.username} logged in`
+        });
         await conn.commit();
         return { token, user: publicUser(user) };
       } catch (error) {
@@ -812,7 +894,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        await requireRole(conn, sessionToken, ["super_admin"]);
+        const actor = await requireRole(conn, sessionToken, ["super_admin"]);
         assertManagedRole(input?.role);
         if (!input?.username || !input?.password || !input?.displayName) {
           const error = new Error("role, username, password, and displayName are required");
@@ -834,6 +916,21 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [user.id, user.username, user.displayName, user.role, user.passwordHash, 1, user.createdAt, user.updatedAt]
         );
+        await recordWebAudit(conn, actor, {
+          action: "create",
+          entityType: "user",
+          entityId: user.id,
+          entityLabel: user.username,
+          summary: `Created ${user.role} user ${user.username}`,
+          after: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            role: user.role,
+            active: user.active,
+            createdAt: user.createdAt
+          }
+        });
         await conn.commit();
         return {
           id: user.id,
@@ -883,7 +980,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
-        await requireRole(conn, sessionToken, ["super_admin"]);
+        const actor = await requireRole(conn, sessionToken, ["super_admin"]);
         const [rows] = await conn.execute(
           "SELECT * FROM users WHERE id = ? AND role IN (?, ?)",
           [userId, "director", "office_user"]
@@ -895,6 +992,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         }
 
         const current = rows[0];
+        const before = publicUser(current);
         const nextUsername = input.username || current.username;
         const nextDisplayName = input.displayName || current.display_name;
         const nextActive = typeof input.active === "boolean" ? toBool(input.active) : current.active;
@@ -908,8 +1006,18 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           [nextUsername, nextDisplayName, nextActive, nextPasswordHash, nextUpdatedAt, userId]
         );
         const [updatedRows] = await conn.execute("SELECT * FROM users WHERE id = ?", [userId]);
+        const after = publicUser(updatedRows[0]);
+        await recordWebAudit(conn, actor, {
+          action: "update",
+          entityType: "user",
+          entityId: userId,
+          entityLabel: after.username,
+          summary: `Updated ${after.role} user ${after.username}`,
+          before,
+          after
+        });
         await conn.commit();
-        return publicUser(updatedRows[0]);
+        return after;
       } catch (error) {
         await conn.rollback();
         if (error.code === "ER_DUP_ENTRY") {
@@ -924,8 +1032,34 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
     },
 
     async logout(sessionToken) {
-      await pool.execute("DELETE FROM sessions WHERE token = ?", [sessionToken]);
-      return { ok: true };
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [rows] = await conn.execute(
+          `SELECT users.*
+           FROM sessions
+           INNER JOIN users ON users.id = sessions.user_id
+           WHERE sessions.token = ?`,
+          [sessionToken]
+        );
+        await conn.execute("DELETE FROM sessions WHERE token = ?", [sessionToken]);
+        if (rows[0]) {
+          await recordWebAudit(conn, rows[0], {
+            action: "logout",
+            entityType: "session",
+            entityId: rows[0].id,
+            entityLabel: rows[0].username,
+            summary: `${rows[0].display_name || rows[0].username} logged out`
+          });
+        }
+        await conn.commit();
+        return { ok: true };
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
     },
 
     async getCurrentUser(sessionToken) {
@@ -1261,8 +1395,107 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             signal.markedByDisplayName
           ]
         );
+        await recordWebAudit(conn, user, {
+          action: "create",
+          entityType: "advance_signal",
+          entityId: signal.id,
+          entityLabel: signal.targetLabel,
+          summary: `Created advance signal for ${signal.targetLabel}`,
+          after: signal
+        });
         await conn.commit();
         return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async updateAdvanceSignal(sessionToken, signalId, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [existingRows] = await conn.execute("SELECT * FROM advance_signals WHERE id = ?", [signalId]);
+        const existing = existingRows[0] ? mapAdvanceSignal(existingRows[0]) : null;
+        assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
+        const effectiveMonth = normalizeMonth(input.effectiveMonth || existing.effectiveMonth);
+        const amount = money(input.amount ?? existing.amount);
+        if (amount <= 0) {
+          const error = new Error("amount must be greater than zero");
+          error.status = 400;
+          throw error;
+        }
+        const calculationInput = await this.getGreenLeafInput(sessionToken, effectiveMonth);
+        const suggestion = buildAdvanceSuggestion(calculationInput, existing.scope, existing.targetId);
+        const updated = {
+          ...existing,
+          effectiveMonth,
+          dateGiven: toDateOnly(input.dateGiven || existing.dateGiven),
+          suggestedAmount: money(suggestion.suggestedAmount),
+          amount,
+          breakdown: suggestion.breakdown,
+          comment: input.comment ?? existing.comment,
+          readAt: null,
+          readByUserId: null,
+          readByDisplayName: null
+        };
+        await conn.execute(
+          `UPDATE advance_signals
+           SET effective_month = ?, date_given = ?, suggested_amount = ?, amount = ?,
+               breakdown_json = ?, comment = ?, read_at = NULL, read_by_user_id = NULL,
+               read_by_display_name = NULL
+           WHERE id = ?`,
+          [
+            updated.effectiveMonth,
+            updated.dateGiven,
+            updated.suggestedAmount,
+            updated.amount,
+            JSON.stringify(updated.breakdown || []),
+            updated.comment,
+            signalId
+          ]
+        );
+        await recordWebAudit(conn, user, {
+          action: "update",
+          entityType: "advance_signal",
+          entityId: signalId,
+          entityLabel: updated.targetLabel,
+          summary: `Updated advance signal for ${updated.targetLabel}`,
+          before: existing,
+          after: updated
+        });
+        await conn.commit();
+        return updated;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async deleteAdvanceSignal(sessionToken, signalId) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [existingRows] = await conn.execute("SELECT * FROM advance_signals WHERE id = ?", [signalId]);
+        const existing = existingRows[0] ? mapAdvanceSignal(existingRows[0]) : null;
+        assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
+        await conn.execute("DELETE FROM advance_signals WHERE id = ?", [signalId]);
+        await recordWebAudit(conn, user, {
+          action: "delete",
+          entityType: "advance_signal",
+          entityId: signalId,
+          entityLabel: existing.targetLabel,
+          summary: `Deleted advance signal for ${existing.targetLabel}`,
+          before: existing
+        });
+        await conn.commit();
+        return { ok: true };
       } catch (error) {
         await conn.rollback();
         throw error;
@@ -1284,30 +1517,35 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           error.status = 400;
           throw error;
         }
+        const [existingRows] = await conn.execute(
+          "SELECT * FROM balance_transfer_signals WHERE month = ? AND section = ? AND target_id = ?",
+          [month, section, targetId]
+        );
+        const existing = existingRows[0] ? mapBalanceSignal(existingRows[0]) : null;
+        if (existing) assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
         const signal = {
-          id: makeId("balance_signal"),
+          id: existing?.id || makeId("balance_signal"),
           month,
           section,
           targetId,
           targetLabel: input.targetLabel || "",
           amount: money(input.amount),
+          paymentDoneDate: toDateOnly(input.paymentDoneDate || existing?.paymentDoneDate || new Date()),
           comment: input.comment || "",
-          markedAt: toMysqlDateTime(),
-          markedByUserId: user.id,
-          markedByDisplayName: user.display_name || user.username
+          markedAt: existing?.markedAt || toMysqlDateTime(),
+          markedByUserId: existing?.markedByUserId || user.id,
+          markedByDisplayName: existing?.markedByDisplayName || user.display_name || user.username
         };
         await conn.execute(
           `INSERT INTO balance_transfer_signals
-           (id, month, section, target_id, target_label, amount, comment, marked_at, marked_by_user_id, marked_by_display_name,
+           (id, month, section, target_id, target_label, amount, payment_done_date, comment, marked_at, marked_by_user_id, marked_by_display_name,
             read_at, read_by_user_id, read_by_display_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
            ON DUPLICATE KEY UPDATE
               target_label = VALUES(target_label),
               amount = VALUES(amount),
+              payment_done_date = VALUES(payment_done_date),
               comment = VALUES(comment),
-              marked_at = VALUES(marked_at),
-              marked_by_user_id = VALUES(marked_by_user_id),
-              marked_by_display_name = VALUES(marked_by_display_name),
               read_at = NULL,
               read_by_user_id = NULL,
               read_by_display_name = NULL`,
@@ -1318,14 +1556,56 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             signal.targetId,
             signal.targetLabel,
             signal.amount,
+            signal.paymentDoneDate,
             signal.comment,
             signal.markedAt,
             signal.markedByUserId,
             signal.markedByDisplayName
           ]
         );
+        const [updatedRows] = await conn.execute(
+          "SELECT * FROM balance_transfer_signals WHERE month = ? AND section = ? AND target_id = ?",
+          [month, section, targetId]
+        );
+        const updated = mapBalanceSignal(updatedRows[0]);
+        await recordWebAudit(conn, user, {
+          action: existing ? "update" : "create",
+          entityType: "balance_signal",
+          entityId: updated.id,
+          entityLabel: updated.targetLabel,
+          summary: `${existing ? "Updated" : "Created"} ${section} balance signal for ${updated.targetLabel || targetId}`,
+          before: existing,
+          after: updated
+        });
         await conn.commit();
-        return signal;
+        return updated;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async deleteBalanceSignal(sessionToken, signalId) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [existingRows] = await conn.execute("SELECT * FROM balance_transfer_signals WHERE id = ?", [signalId]);
+        const existing = existingRows[0] ? mapBalanceSignal(existingRows[0]) : null;
+        assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
+        await conn.execute("DELETE FROM balance_transfer_signals WHERE id = ?", [signalId]);
+        await recordWebAudit(conn, user, {
+          action: "delete",
+          entityType: "balance_signal",
+          entityId: signalId,
+          entityLabel: existing.targetLabel,
+          summary: `Deleted ${existing.section} balance signal for ${existing.targetLabel || existing.targetId}`,
+          before: existing
+        });
+        await conn.commit();
+        return { ok: true };
       } catch (error) {
         await conn.rollback();
         throw error;
@@ -1349,6 +1629,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           id: makeId("factory_transfer"),
           month: normalizeMonth(input.month),
           amount,
+          paymentDoneDate: toDateOnly(input.paymentDoneDate || new Date()),
           comment: input.comment || "",
           markedAt: toMysqlDateTime(),
           markedByUserId: user.id,
@@ -1356,21 +1637,106 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         };
         await conn.execute(
           `INSERT INTO factory_officer_transfer_signals
-           (id, month, amount, comment, marked_at, marked_by_user_id, marked_by_display_name,
+           (id, month, amount, payment_done_date, comment, marked_at, marked_by_user_id, marked_by_display_name,
             read_at, read_by_user_id, read_by_display_name)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
           [
             signal.id,
             signal.month,
             signal.amount,
+            signal.paymentDoneDate,
             signal.comment,
             signal.markedAt,
             signal.markedByUserId,
             signal.markedByDisplayName
           ]
         );
+        await recordWebAudit(conn, user, {
+          action: "create",
+          entityType: "factory_transfer_signal",
+          entityId: signal.id,
+          entityLabel: signal.month,
+          summary: `Created factory officer transfer signal for ${signal.month}`,
+          after: signal
+        });
         await conn.commit();
         return signal;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async updateFactoryOfficerTransfer(sessionToken, signalId, input) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [existingRows] = await conn.execute("SELECT * FROM factory_officer_transfer_signals WHERE id = ?", [signalId]);
+        const existing = existingRows[0] ? mapFactoryOfficerSignal(existingRows[0]) : null;
+        assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
+        const amount = money(input.amount ?? existing.amount);
+        if (amount <= 0) {
+          const error = new Error("amount must be greater than zero");
+          error.status = 400;
+          throw error;
+        }
+        const updated = {
+          ...existing,
+          amount,
+          paymentDoneDate: toDateOnly(input.paymentDoneDate || existing.paymentDoneDate || new Date()),
+          comment: input.comment ?? existing.comment,
+          readAt: null,
+          readByUserId: null,
+          readByDisplayName: null
+        };
+        await conn.execute(
+          `UPDATE factory_officer_transfer_signals
+           SET amount = ?, payment_done_date = ?, comment = ?, read_at = NULL, read_by_user_id = NULL,
+               read_by_display_name = NULL
+           WHERE id = ?`,
+          [updated.amount, updated.paymentDoneDate, updated.comment, signalId]
+        );
+        await recordWebAudit(conn, user, {
+          action: "update",
+          entityType: "factory_transfer_signal",
+          entityId: signalId,
+          entityLabel: updated.month,
+          summary: `Updated factory officer transfer signal for ${updated.month}`,
+          before: existing,
+          after: updated
+        });
+        await conn.commit();
+        return updated;
+      } catch (error) {
+        await conn.rollback();
+        throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async deleteFactoryOfficerTransfer(sessionToken, signalId) {
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const user = await requireRole(conn, sessionToken, ["super_admin", "director"]);
+        const [existingRows] = await conn.execute("SELECT * FROM factory_officer_transfer_signals WHERE id = ?", [signalId]);
+        const existing = existingRows[0] ? mapFactoryOfficerSignal(existingRows[0]) : null;
+        assertCanChangeSignal(existing, { ...user, displayName: user.display_name });
+        await conn.execute("DELETE FROM factory_officer_transfer_signals WHERE id = ?", [signalId]);
+        await recordWebAudit(conn, user, {
+          action: "delete",
+          entityType: "factory_transfer_signal",
+          entityId: signalId,
+          entityLabel: existing.month,
+          summary: `Deleted factory officer transfer signal for ${existing.month}`,
+          before: existing
+        });
+        await conn.commit();
+        return { ok: true };
       } catch (error) {
         await conn.rollback();
         throw error;
@@ -1417,13 +1783,51 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           throw error;
         }
         const [rows] = await conn.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+        let updated;
+        let entityType;
+        let entityLabel;
+        if (type === "advance") {
+          updated = mapAdvanceSignal(rows[0]);
+          entityType = "advance_signal";
+          entityLabel = updated.targetLabel;
+        } else if (type === "balance") {
+          updated = mapBalanceSignal(rows[0]);
+          entityType = "balance_signal";
+          entityLabel = updated.targetLabel;
+        } else {
+          updated = mapFactoryOfficerSignal(rows[0]);
+          entityType = "factory_transfer_signal";
+          entityLabel = updated.month;
+        }
+        await recordWebAudit(conn, user, {
+          action: "mark_read",
+          entityType,
+          entityId: id,
+          entityLabel,
+          summary: `Marked ${type} signal as read`,
+          after: updated
+        });
         await conn.commit();
-        if (type === "advance") return mapAdvanceSignal(rows[0]);
-        if (type === "balance") return mapBalanceSignal(rows[0]);
-        return mapFactoryOfficerSignal(rows[0]);
+        return updated;
       } catch (error) {
         await conn.rollback();
         throw error;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async listWebAuditLogs(sessionToken) {
+      const conn = await pool.getConnection();
+      try {
+        await requireRole(conn, sessionToken, ["super_admin"]);
+        const [rows] = await conn.execute(
+          `SELECT *
+           FROM web_audit_log
+           ORDER BY created_at DESC, id DESC
+           LIMIT 500`
+        );
+        return rows.map(mapWebAuditLog);
       } finally {
         conn.release();
       }

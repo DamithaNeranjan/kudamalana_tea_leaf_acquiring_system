@@ -1,14 +1,17 @@
 import { useState } from "react";
+import { ButtonSpinner } from "../components/LoadingSpinner.jsx";
 import { request } from "../api/client.js";
 import { logoUrl } from "../utils/format.js";
 
 export function LoginView({ onLogin }) {
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    setLoading(true);
     setMessage("Checking login...");
     try {
       const login = await request("/auth/login", {
@@ -23,6 +26,8 @@ export function LoginView({ onLogin }) {
       onLogin(login.user);
     } catch (error) {
       setMessage(error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -72,7 +77,10 @@ export function LoginView({ onLogin }) {
               </button>
             </div>
           </label>
-          <button type="submit">Login</button>
+          <button type="submit" disabled={loading}>
+            {loading && <ButtonSpinner label="Checking login" />}
+            {loading ? "Checking..." : "Login"}
+          </button>
           <span className="message" aria-live="polite">{message}</span>
         </form>
       </section>

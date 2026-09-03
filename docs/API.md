@@ -514,7 +514,7 @@ Signal rows include read metadata when an office user or super admin has marked 
 
 ### `POST /balances/mark-paid`
 
-Director/super-admin endpoint that marks a line-wise or supplier-wise bank transfer row as paid for web signalling only. This does not record a desktop supplier payment.
+Director/super-admin endpoint that marks a line-wise or supplier-wise bank transfer row as paid for web signalling only. Directors can update only records they added; super admins can update any record. This does not record a desktop supplier payment.
 
 Payload:
 
@@ -525,11 +525,16 @@ Payload:
   "targetId": "line-id",
   "targetLabel": "Line A",
   "amount": 12500,
+  "paymentDoneDate": "2026-06-30",
   "comment": "Bank transfer completed"
 }
 ```
 
 Use `"section": "supplier"` with a supplier id for supplier-wise bank transfer rows.
+
+### `DELETE /balances/signals/:id`
+
+Director/super-admin endpoint that deletes a web-only line-wise or supplier-wise balance transfer signal. Directors can delete only records they added; super admins can delete any record.
 
 ### `POST /balances/factory-officer-payments`
 
@@ -541,9 +546,18 @@ Payload:
 {
   "month": "2026-06",
   "amount": 50000,
+  "paymentDoneDate": "2026-06-30",
   "comment": "First transfer to factory officer"
 }
 ```
+
+### `PATCH /balances/factory-officer-payments/:id`
+
+Director/super-admin endpoint that updates a web-only factory officer transfer signal amount, payment done date, and comment, then clears read metadata so office users can review the changed signal. Directors can update only records they added; super admins can update any record.
+
+### `DELETE /balances/factory-officer-payments/:id`
+
+Director/super-admin endpoint that deletes a web-only factory officer transfer signal. Directors can delete only records they added; super admins can delete any record.
 
 ### `GET /advance-signals`
 
@@ -574,6 +588,14 @@ Payload:
 
 Use `"scope": "line"` with a tea-line id for line advance signals.
 
+### `PATCH /advance-signals/:id`
+
+Director/super-admin endpoint that updates a web-only advance signal's effective month, given date, amount, and comment. The backend recalculates the suggested amount/breakdown for the unchanged supplier or line target and clears read metadata. Directors can update only records they added; super admins can update any record.
+
+### `DELETE /advance-signals/:id`
+
+Director/super-admin endpoint that deletes a web-only advance signal. Directors can delete only records they added; super admins can delete any record.
+
 ### `POST /signals/mark-read`
 
 Office-user/super-admin endpoint that marks a web signal as read so completed signals can be identified in the Balances and Advances listings, or hidden when the user turns off the show-read checkbox. Directors cannot mark signals as read.
@@ -588,6 +610,10 @@ Payload:
 ```
 
 Use `"type": "balance"` for line-wise or supplier-wise balance transfer signals and `"type": "factory"` for factory officer transfer signals.
+
+### `GET /web-audit-log`
+
+Super-admin-only endpoint that returns the latest web app action audit records. It records web logins/logouts, managed user create/update actions, balance and advance signal create/update/delete actions, and signal read marking. Sensitive values such as passwords, password hashes, tokens, and authorization values are excluded from snapshots.
 
 ## Authentication Notes
 

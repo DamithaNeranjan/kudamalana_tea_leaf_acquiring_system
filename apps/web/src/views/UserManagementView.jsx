@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ButtonSpinner } from "../components/LoadingSpinner.jsx";
 import { request } from "../api/client.js";
 
 const ROLE_COPY = {
@@ -40,16 +41,23 @@ export function UserManagementView({ canManage, role, showToast }) {
   const copy = ROLE_COPY[role];
   const [users, setUsers] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [statusLoadingId, setStatusLoadingId] = useState("");
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState(emptyEditForm);
 
   async function loadUsers() {
+    setLoading(true);
     try {
       const payload = await request(`/admin/users?role=${role}`);
       setUsers(payload.users || []);
       setLoaded(true);
     } catch (error) {
       showToast(error.message, "error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -61,6 +69,7 @@ export function UserManagementView({ canManage, role, showToast }) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    setCreating(true);
     try {
       await request("/admin/users", {
         method: "POST",
@@ -76,6 +85,8 @@ export function UserManagementView({ canManage, role, showToast }) {
       await loadUsers();
     } catch (error) {
       showToast(error.message, "error");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -97,6 +108,7 @@ export function UserManagementView({ canManage, role, showToast }) {
 
   async function saveEdit(event) {
     event.preventDefault();
+    setSavingEdit(true);
     try {
       await request(`/admin/users/${encodeURIComponent(editForm.id)}`, {
         method: "PATCH",
@@ -112,10 +124,13 @@ export function UserManagementView({ canManage, role, showToast }) {
       await loadUsers();
     } catch (error) {
       showToast(error.message, "error");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
   async function toggleActive(user) {
+    setStatusLoadingId(user.id);
     try {
       await request(`/admin/users/${encodeURIComponent(user.id)}`, {
         method: "PATCH",
@@ -125,6 +140,8 @@ export function UserManagementView({ canManage, role, showToast }) {
       await loadUsers();
     } catch (error) {
       showToast(error.message, "error");
+    } finally {
+      setStatusLoadingId("");
     }
   }
 
@@ -143,17 +160,20 @@ export function UserManagementView({ canManage, role, showToast }) {
             <h3>{copy.createTitle}</h3>
             <label>
               Display name
-              <input name="displayName" placeholder={copy.displayPlaceholder} required />
+              <input name="displayName" placeholder={copy.displayPlaceholder} disabled={creating} required />
             </label>
             <label>
               Username
-              <input name="username" placeholder={copy.usernamePlaceholder} required />
+              <input name="username" placeholder={copy.usernamePlaceholder} disabled={creating} required />
             </label>
             <label>
               Password
-              <input name="password" placeholder="Temporary password" type="password" required />
+              <input name="password" placeholder="Temporary password" type="password" disabled={creating} required />
             </label>
-            <button type="submit">Create account</button>
+            <button type="submit" disabled={creating}>
+              {creating && <ButtonSpinner label={`Creating ${copy.title}`} />}
+              {creating ? "Creating..." : "Create account"}
+            </button>
           </form>
         )}
 
@@ -165,7 +185,10 @@ export function UserManagementView({ canManage, role, showToast }) {
                 {loaded ? `${users.length} account${users.length === 1 ? "" : "s"}` : "No accounts loaded"}
               </p>
             </div>
-            <button className="ghost-button" type="button" onClick={loadUsers}>Refresh</button>
+            <button className="ghost-button" type="button" onClick={loadUsers} disabled={loading}>
+              {loading && <ButtonSpinner label={`Refreshing ${copy.title}`} />}
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
           </div>
           <div className="table-wrap">
             <table className="data-table">
@@ -188,9 +211,10 @@ export function UserManagementView({ canManage, role, showToast }) {
                       <td><span className={`status-pill ${user.active ? "active" : "inactive"}`}>{user.active ? "Active" : "Inactive"}</span></td>
                       {canManage && (
                         <td className="table-actions">
-                          <button className="ghost-button table-button" type="button" onClick={() => startEdit(user)}>Edit</button>
-                          <button className="ghost-button table-button" type="button" onClick={() => toggleActive(user)}>
-                            {user.active ? "Deactivate" : "Activate"}
+                          <button className="ghost-button table-button" type="button" onClick={() => startEdit(user)} disabled={statusLoadingId === user.id}>Edit</button>
+                          <button className="ghost-button table-button" type="button" onClick={() => toggleActive(user)} disabled={statusLoadingId === user.id}>
+                            {statusLoadingId === user.id && <ButtonSpinner label="Updating status" />}
+                            {statusLoadingId === user.id ? "Saving..." : user.active ? "Deactivate" : "Activate"}
                           </button>
                         </td>
                       )}
@@ -210,7 +234,7 @@ export function UserManagementView({ canManage, role, showToast }) {
               <span className="eyebrow">Edit account</span>
               <h3>{editForm.displayName}</h3>
             </div>
-            <button className="ghost-button" type="button" onClick={cancelEdit}>Cancel</button>
+            <button className="ghost-button" type="button" onClick={cancelEdit} disabled={savingEdit}>Cancel</button>
           </div>
           <form className="edit-form" onSubmit={saveEdit}>
             <label>
@@ -218,6 +242,7 @@ export function UserManagementView({ canManage, role, showToast }) {
               <input
                 value={editForm.displayName}
                 onChange={(event) => setEditForm((value) => ({ ...value, displayName: event.target.value }))}
+                disabled={savingEdit}
                 required
               />
             </label>
@@ -226,6 +251,7 @@ export function UserManagementView({ canManage, role, showToast }) {
               <input
                 value={editForm.username}
                 onChange={(event) => setEditForm((value) => ({ ...value, username: event.target.value }))}
+                disabled={savingEdit}
                 required
               />
             </label>
@@ -236,6 +262,7 @@ export function UserManagementView({ canManage, role, showToast }) {
                 placeholder="Leave blank to keep current password"
                 type="password"
                 onChange={(event) => setEditForm((value) => ({ ...value, password: event.target.value }))}
+                disabled={savingEdit}
               />
             </label>
             <label className="switch-row">
@@ -243,10 +270,14 @@ export function UserManagementView({ canManage, role, showToast }) {
                 checked={editForm.active}
                 type="checkbox"
                 onChange={(event) => setEditForm((value) => ({ ...value, active: event.target.checked }))}
+                disabled={savingEdit}
               />
               Active account
             </label>
-            <button type="submit">Save changes</button>
+            <button type="submit" disabled={savingEdit}>
+              {savingEdit && <ButtonSpinner label="Saving account" />}
+              {savingEdit ? "Saving..." : "Save changes"}
+            </button>
           </form>
         </section>
       )}

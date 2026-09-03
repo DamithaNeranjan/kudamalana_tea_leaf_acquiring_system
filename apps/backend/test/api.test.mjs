@@ -304,6 +304,7 @@ test("super admin can create directors and director can view green leaf book", a
         targetId: "line_a",
         targetLabel: "Line A",
         amount: 2400,
+        paymentDoneDate: "2026-05-31",
         comment: "Transferred as a whole line"
       })
     });
@@ -311,7 +312,7 @@ test("super admin can create directors and director can view green leaf book", a
     const factoryOfficerPaymentResponse = await fetch(`${baseUrl}/balances/factory-officer-payments`, {
       method: "POST",
       headers: { authorization: `Bearer ${directorLogin.token}` },
-      body: JSON.stringify({ month: "2026-05", amount: 250, comment: "First cash batch" })
+      body: JSON.stringify({ month: "2026-05", amount: 250, paymentDoneDate: "2026-05-30", comment: "First cash batch" })
     });
     assert.equal(factoryOfficerPaymentResponse.status, 201);
 
@@ -321,6 +322,8 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(signalledBalancesResponse.status, 200);
     const signalledBalances = await signalledBalancesResponse.json();
     assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.comment, "Transferred as a whole line");
+    assert.equal(signalledBalances.lineWiseBankTransfers[0].signal.paymentDoneDate, "2026-05-31");
+    assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].paymentDoneDate, "2026-05-30");
     assert.equal(signalledBalances.factoryOfficerTransfers.payments[0].remainingPositiveBalance, 150);
 
     const directorReadBalanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
@@ -337,6 +340,78 @@ test("super admin can create directors and director can view green leaf book", a
     });
     assert.equal(officeReadBalanceResponse.status, 200);
     assert.ok((await officeReadBalanceResponse.json()).readAt);
+
+    const otherDirectorLoginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: "director", password: "director123" })
+    });
+    assert.equal(otherDirectorLoginResponse.status, 200);
+    const otherDirectorLogin = await otherDirectorLoginResponse.json();
+
+    const otherDirectorUpdateBalanceResponse = await fetch(`${baseUrl}/balances/mark-paid`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${otherDirectorLogin.token}` },
+      body: JSON.stringify({
+        month: "2026-05",
+        section: "line",
+        targetId: "line_a",
+        targetLabel: "Line A",
+        amount: 2400,
+        paymentDoneDate: "2026-06-01",
+        comment: "Changed by another director"
+      })
+    });
+    assert.equal(otherDirectorUpdateBalanceResponse.status, 403);
+
+    const originalDirectorUpdateBalanceResponse = await fetch(`${baseUrl}/balances/mark-paid`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({
+        month: "2026-05",
+        section: "line",
+        targetId: "line_a",
+        targetLabel: "Line A",
+        amount: 2400,
+        paymentDoneDate: "2026-06-01",
+        comment: "Updated by original director"
+      })
+    });
+    assert.equal(originalDirectorUpdateBalanceResponse.status, 201);
+    const updatedBalanceSignal = await originalDirectorUpdateBalanceResponse.json();
+    assert.equal(updatedBalanceSignal.comment, "Updated by original director");
+    assert.equal(updatedBalanceSignal.paymentDoneDate, "2026-06-01");
+    assert.equal(updatedBalanceSignal.markedByUserId, directorLogin.user.id);
+    assert.equal(updatedBalanceSignal.readAt, null);
+
+    const otherDirectorDeleteBalanceResponse = await fetch(`${baseUrl}/balances/signals/${updatedBalanceSignal.id}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${otherDirectorLogin.token}` }
+    });
+    assert.equal(otherDirectorDeleteBalanceResponse.status, 403);
+
+    const adminDeleteBalanceResponse = await fetch(`${baseUrl}/balances/signals/${updatedBalanceSignal.id}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${login.token}` }
+    });
+    assert.equal(adminDeleteBalanceResponse.status, 200);
+
+    const otherDirectorUpdateFactoryResponse = await fetch(`${baseUrl}/balances/factory-officer-payments/${signalledBalances.factoryOfficerTransfers.payments[0].id}`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${otherDirectorLogin.token}` },
+      body: JSON.stringify({ amount: 300, paymentDoneDate: "2026-06-02", comment: "Changed by another director" })
+    });
+    assert.equal(otherDirectorUpdateFactoryResponse.status, 403);
+
+    const originalDirectorUpdateFactoryResponse = await fetch(`${baseUrl}/balances/factory-officer-payments/${signalledBalances.factoryOfficerTransfers.payments[0].id}`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({ amount: 275, paymentDoneDate: "2026-06-02", comment: "Updated cash batch" })
+    });
+    assert.equal(originalDirectorUpdateFactoryResponse.status, 200);
+    const updatedFactorySignal = await originalDirectorUpdateFactoryResponse.json();
+    assert.equal(updatedFactorySignal.amount, 275);
+    assert.equal(updatedFactorySignal.paymentDoneDate, "2026-06-02");
+    assert.equal(updatedFactorySignal.markedByUserId, directorLogin.user.id);
 
     const advanceSignalsListResponse = await fetch(`${baseUrl}/advance-signals`, {
       headers: { authorization: `Bearer ${officeViewerLogin.token}` }
@@ -397,17 +472,45 @@ test("super admin can create directors and director can view green leaf book", a
     assert.equal(directorAdvanceSignal.amount, 300);
     assert.equal(directorAdvanceSignal.suggestedAmount, lineAdvanceSuggestion.suggestedAmount);
 
+    const otherDirectorUpdateAdvanceResponse = await fetch(`${baseUrl}/advance-signals/${directorAdvanceSignal.id}`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${otherDirectorLogin.token}` },
+      body: JSON.stringify({
+        effectiveMonth: "2026-05",
+        dateGiven: "2026-05-21",
+        amount: 350,
+        comment: "Changed by another director"
+      })
+    });
+    assert.equal(otherDirectorUpdateAdvanceResponse.status, 403);
+
+    const originalDirectorUpdateAdvanceResponse = await fetch(`${baseUrl}/advance-signals/${directorAdvanceSignal.id}`, {
+      method: "PATCH",
+      headers: { authorization: `Bearer ${directorLogin.token}` },
+      body: JSON.stringify({
+        effectiveMonth: "2026-05",
+        dateGiven: "2026-05-21",
+        amount: 350,
+        comment: "Updated director requested advance"
+      })
+    });
+    assert.equal(originalDirectorUpdateAdvanceResponse.status, 200);
+    const updatedAdvanceSignal = await originalDirectorUpdateAdvanceResponse.json();
+    assert.equal(updatedAdvanceSignal.amount, 350);
+    assert.equal(updatedAdvanceSignal.dateGiven, "2026-05-21");
+    assert.equal(updatedAdvanceSignal.markedByUserId, directorLogin.user.id);
+
     const directorReadAdvanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
       method: "POST",
       headers: { authorization: `Bearer ${directorLogin.token}` },
-      body: JSON.stringify({ type: "advance", id: directorAdvanceSignal.id })
+      body: JSON.stringify({ type: "advance", id: updatedAdvanceSignal.id })
     });
     assert.equal(directorReadAdvanceResponse.status, 403);
 
     const officeReadAdvanceResponse = await fetch(`${baseUrl}/signals/mark-read`, {
       method: "POST",
       headers: { authorization: `Bearer ${officeViewerLogin.token}` },
-      body: JSON.stringify({ type: "advance", id: directorAdvanceSignal.id })
+      body: JSON.stringify({ type: "advance", id: updatedAdvanceSignal.id })
     });
     assert.equal(officeReadAdvanceResponse.status, 200);
     const readAdvance = await officeReadAdvanceResponse.json();
@@ -426,8 +529,41 @@ test("super admin can create directors and director can view green leaf book", a
         headers: { authorization: `Bearer ${officeViewerLogin.token}` }
       })
     ).json();
-    assert.equal(advanceSignalsAfterCreate.signals[0].comment, "Director requested advance");
+    assert.equal(advanceSignalsAfterCreate.signals[0].comment, "Updated director requested advance");
     assert.ok(advanceSignalsAfterCreate.signals[0].readAt);
+
+    const adminDeleteAdvanceResponse = await fetch(`${baseUrl}/advance-signals/${updatedAdvanceSignal.id}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${login.token}` }
+    });
+    assert.equal(adminDeleteAdvanceResponse.status, 200);
+
+    const adminDeleteFactoryResponse = await fetch(`${baseUrl}/balances/factory-officer-payments/${updatedFactorySignal.id}`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${login.token}` }
+    });
+    assert.equal(adminDeleteFactoryResponse.status, 200);
+
+    const directorAuditResponse = await fetch(`${baseUrl}/web-audit-log`, {
+      headers: { authorization: `Bearer ${directorLogin.token}` }
+    });
+    assert.equal(directorAuditResponse.status, 403);
+
+    const officeAuditResponse = await fetch(`${baseUrl}/web-audit-log`, {
+      headers: { authorization: `Bearer ${officeViewerLogin.token}` }
+    });
+    assert.equal(officeAuditResponse.status, 403);
+
+    const adminAuditResponse = await fetch(`${baseUrl}/web-audit-log`, {
+      headers: { authorization: `Bearer ${login.token}` }
+    });
+    assert.equal(adminAuditResponse.status, 200);
+    const auditPayload = await adminAuditResponse.json();
+    assert.ok(auditPayload.auditLogs.some((log) => log.entityType === "advance_signal" && log.action === "update"));
+    assert.ok(auditPayload.auditLogs.some((log) => log.entityType === "factory_transfer_signal" && log.action === "delete"));
+    assert.ok(auditPayload.auditLogs.some((log) => log.action === "mark_read"));
+    assert.ok(!JSON.stringify(auditPayload).includes("passwordHash"));
+    assert.ok(!JSON.stringify(auditPayload).includes(directorLogin.token));
   });
 });
 

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ButtonSpinner } from "../components/LoadingSpinner.jsx";
 import { request } from "../api/client.js";
 import {
   formatAmountInput,
   formatCurrency,
+  localDateValue,
   parseAmountInput,
   parseDateTime
 } from "../../../../packages/shared/src/format.mjs";
@@ -70,20 +72,56 @@ function ReadStatusCell({ signal }) {
   );
 }
 
-function MarkPaidForm({ row, section, canManage, onSubmit }) {
-  const [comment, setComment] = useState("");
-  if (!canManage) return null;
+function canChangeSignal(signal, currentUser) {
+  return Boolean(signal && (currentUser?.role === "super_admin" || signal.markedByUserId === currentUser?.id));
+}
+
+function displayDate(value) {
+  return value || "-";
+}
+
+function MarkPaidForm({ row, section, canManage, currentUser, onSubmit }) {
+  const defaultPaymentDoneDate = localDateValue();
+  const [paymentDoneDate, setPaymentDoneDate] = useState(row.signal?.paymentDoneDate || defaultPaymentDoneDate);
+  const [comment, setComment] = useState(row.signal?.comment || "");
+  const [saving, setSaving] = useState(false);
+  const keepClearedAfterSubmit = useRef(false);
+  useEffect(() => {
+    if (keepClearedAfterSubmit.current) {
+      keepClearedAfterSubmit.current = false;
+      setPaymentDoneDate(defaultPaymentDoneDate);
+      setComment("");
+      return;
+    }
+    setPaymentDoneDate(row.signal?.paymentDoneDate || defaultPaymentDoneDate);
+    setComment(row.signal?.comment || "");
+  }, [defaultPaymentDoneDate, row.signal?.comment, row.signal?.id, row.signal?.paymentDoneDate]);
+  if (!canManage || (row.signal && !canChangeSignal(row.signal, currentUser))) return null;
   return (
     <form
       className="inline-signal-form"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
-        onSubmit(row, section, comment);
-        setComment("");
+        keepClearedAfterSubmit.current = true;
+        setSaving(true);
+        try {
+          await onSubmit(row, section, { paymentDoneDate, comment });
+          setPaymentDoneDate(defaultPaymentDoneDate);
+          setComment("");
+        } catch (error) {
+          keepClearedAfterSubmit.current = false;
+          throw error;
+        } finally {
+          setSaving(false);
+        }
       }}
     >
-      <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Optional comment" />
-      <button type="submit">Mark paid</button>
+      <input type="date" value={paymentDoneDate} onChange={(event) => setPaymentDoneDate(event.target.value)} disabled={saving} required />
+      <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Optional comment" disabled={saving} />
+      <button type="submit" disabled={saving}>
+        {saving && <ButtonSpinner label="Saving paid signal" />}
+        {saving ? "Saving..." : row.signal ? "Update" : "Mark paid"}
+      </button>
     </form>
   );
 }
@@ -108,12 +146,20 @@ export function BalancesView({ currentUser, showToast }) {
   const [month, setMonth] = useState(previousMonth);
   const [balances, setBalances] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [factorySaving, setFactorySaving] = useState(false);
+  const [readLoadingId, setReadLoadingId] = useState("");
+  const [factoryPaymentDoneDate, setFactoryPaymentDoneDate] = useState(localDateValue);
   const [factoryAmount, setFactoryAmount] = useState("");
   const [factoryComment, setFactoryComment] = useState("");
   const [lineFilter, setLineFilter] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [factorySupplierFilter, setFactorySupplierFilter] = useState("");
   const [factoryPaymentFilter, setFactoryPaymentFilter] = useState("");
+  const [editingFactoryId, setEditingFactoryId] = useState("");
+  const [editFactorySaving, setEditFactorySaving] = useState(false);
+  const [editFactoryPaymentDoneDate, setEditFactoryPaymentDoneDate] = useState("");
+  const [editFactoryAmount, setEditFactoryAmount] = useState("");
+  const [editFactoryComment, setEditFactoryComment] = useState("");
   const [showRead, setShowRead] = useState(true);
   const [linePage, setLinePage] = useState(1);
   const [supplierPage, setSupplierPage] = useState(1);
@@ -159,7 +205,7 @@ export function BalancesView({ currentUser, showToast }) {
     }
   }
 
-  async function markPaid(row, section, comment) {
+  async function markPaid(row, section, { paymentDoneDate, comment }) {
     await request("/balances/mark-paid", {
       method: "POST",
       body: JSON.stringify({
@@ -168,6 +214,7 @@ export function BalancesView({ currentUser, showToast }) {
         targetId: section === "line" ? row.lineId || row.lineName : row.supplierId,
         targetLabel: section === "line" ? row.lineName : row.supplierName,
         amount: row.positiveBalance,
+        paymentDoneDate,
         comment
       })
     });
@@ -175,25 +222,85 @@ export function BalancesView({ currentUser, showToast }) {
     await loadBalances();
   }
 
+  async function deleteBalanceSignal(signal) {
+    if (!window.confirm("Delete this balance signal?")) return;
+    await request(`/balances/signals/${encodeURIComponent(signal.id)}`, { method: "DELETE" });
+    showToast("Balance signal deleted.");
+    await loadBalances();
+  }
+
   async function addFactoryPayment(event) {
     event.preventDefault();
-    await request("/balances/factory-officer-payments", {
-      method: "POST",
-      body: JSON.stringify({ month, amount: parseAmountInput(factoryAmount), comment: factoryComment })
-    });
-    setFactoryAmount("");
-    setFactoryComment("");
-    showToast("Factory officer transfer signal added.");
+    setFactorySaving(true);
+    try {
+      await request("/balances/factory-officer-payments", {
+        method: "POST",
+        body: JSON.stringify({
+          month,
+          amount: parseAmountInput(factoryAmount),
+          paymentDoneDate: factoryPaymentDoneDate,
+          comment: factoryComment
+        })
+      });
+      setFactoryPaymentDoneDate(localDateValue());
+      setFactoryAmount("");
+      setFactoryComment("");
+      showToast("Factory officer transfer signal added.");
+      await loadBalances();
+    } finally {
+      setFactorySaving(false);
+    }
+  }
+
+  function startFactoryEdit(payment) {
+    setEditingFactoryId(payment.id);
+    setEditFactoryPaymentDoneDate(payment.paymentDoneDate || localDateValue());
+    setEditFactoryAmount(formatAmountInput(payment.amount));
+    setEditFactoryComment(payment.comment || "");
+  }
+
+  async function updateFactoryPayment(event, payment) {
+    event.preventDefault();
+    setEditFactorySaving(true);
+    try {
+      await request(`/balances/factory-officer-payments/${encodeURIComponent(payment.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          amount: parseAmountInput(editFactoryAmount),
+          paymentDoneDate: editFactoryPaymentDoneDate,
+          comment: editFactoryComment
+        })
+      });
+      setEditingFactoryId("");
+      setEditFactoryPaymentDoneDate("");
+      setEditFactoryAmount("");
+      setEditFactoryComment("");
+      showToast("Factory officer transfer signal updated.");
+      await loadBalances();
+    } finally {
+      setEditFactorySaving(false);
+    }
+  }
+
+  async function deleteFactoryPayment(payment) {
+    if (!window.confirm("Delete this factory officer transfer signal?")) return;
+    await request(`/balances/factory-officer-payments/${encodeURIComponent(payment.id)}`, { method: "DELETE" });
+    showToast("Factory officer transfer signal deleted.");
     await loadBalances();
   }
 
   async function markRead(type, signal) {
-    await request("/signals/mark-read", {
-      method: "POST",
-      body: JSON.stringify({ type, id: signal.id })
-    });
-    showToast("Signal marked as read.");
-    await loadBalances();
+    setReadLoadingId(signal.id);
+    try {
+      await request("/signals/mark-read", {
+        method: "POST",
+        body: JSON.stringify({ type, id: signal.id })
+      });
+      showToast("Signal marked as read.");
+      await loadBalances();
+    } finally {
+      setReadLoadingId("");
+    }
   }
 
   useEffect(() => {
@@ -233,6 +340,7 @@ export function BalancesView({ currentUser, showToast }) {
           </select>
         </label>
         <button type="button" onClick={() => loadBalances()} disabled={loading}>
+          {loading && <ButtonSpinner label="Loading balances" />}
           {loading ? "Loading..." : "Load balances"}
         </button>
         <label className="switch-row compact-switch">
@@ -254,7 +362,7 @@ export function BalancesView({ currentUser, showToast }) {
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr><th>Line</th><th>Suppliers</th><th>Positive balance</th><th>Signal</th><th>Comment</th><th>Marked at</th><th>Read status</th><th>Action</th></tr>
+              <tr><th>Line</th><th>Suppliers</th><th>Positive balance</th><th>Signal</th><th>Payment done date</th><th>Comment</th><th>Marked at</th><th>Read status</th><th>Action</th></tr>
             </thead>
             <tbody>
               {pagedLines.rows.map((row) => (
@@ -263,13 +371,20 @@ export function BalancesView({ currentUser, showToast }) {
                   <td>{row.supplierCount}</td>
                   <td>{formatCurrency(row.positiveBalance)}</td>
                   <td><PaidSignalCell signal={row.signal} /></td>
+                  <td>{displayDate(row.signal?.paymentDoneDate)}</td>
                   <td>{row.signal?.comment || "-"}</td>
                   <td>{dateTime(row.signal?.markedAt)}</td>
                   <td><ReadStatusCell signal={row.signal} /></td>
                   <td>
-                    <MarkPaidForm row={row} section="line" canManage={canManage} onSubmit={markPaid} />
+                    <MarkPaidForm row={row} section="line" canManage={canManage} currentUser={currentUser} onSubmit={markPaid} />
                     {canMarkRead && row.signal && !row.signal.readAt && (
-                      <button type="button" onClick={() => markRead("balance", row.signal)}>Mark read</button>
+                      <button type="button" onClick={() => markRead("balance", row.signal)} disabled={readLoadingId === row.signal.id}>
+                        {readLoadingId === row.signal.id && <ButtonSpinner label="Marking read" />}
+                        {readLoadingId === row.signal.id ? "Saving..." : "Mark read"}
+                      </button>
+                    )}
+                    {canChangeSignal(row.signal, currentUser) && (
+                      <button type="button" className="table-button danger-button" onClick={() => deleteBalanceSignal(row.signal)}>Delete</button>
                     )}
                   </td>
                 </tr>
@@ -293,7 +408,7 @@ export function BalancesView({ currentUser, showToast }) {
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr><th>Code</th><th>Supplier</th><th>Line</th><th>Balance</th><th>Signal</th><th>Comment</th><th>Marked at</th><th>Read status</th><th>Action</th></tr>
+              <tr><th>Code</th><th>Supplier</th><th>Line</th><th>Balance</th><th>Signal</th><th>Payment done date</th><th>Comment</th><th>Marked at</th><th>Read status</th><th>Action</th></tr>
             </thead>
             <tbody>
               {pagedSuppliers.rows.map((row) => (
@@ -303,13 +418,20 @@ export function BalancesView({ currentUser, showToast }) {
                   <td>{row.lineName}</td>
                   <td>{formatCurrency(row.positiveBalance)}</td>
                   <td><PaidSignalCell signal={row.signal} /></td>
+                  <td>{displayDate(row.signal?.paymentDoneDate)}</td>
                   <td>{row.signal?.comment || "-"}</td>
                   <td>{dateTime(row.signal?.markedAt)}</td>
                   <td><ReadStatusCell signal={row.signal} /></td>
                   <td>
-                    <MarkPaidForm row={row} section="supplier" canManage={canManage} onSubmit={markPaid} />
+                    <MarkPaidForm row={row} section="supplier" canManage={canManage} currentUser={currentUser} onSubmit={markPaid} />
                     {canMarkRead && row.signal && !row.signal.readAt && (
-                      <button type="button" onClick={() => markRead("balance", row.signal)}>Mark read</button>
+                      <button type="button" onClick={() => markRead("balance", row.signal)} disabled={readLoadingId === row.signal.id}>
+                        {readLoadingId === row.signal.id && <ButtonSpinner label="Marking read" />}
+                        {readLoadingId === row.signal.id ? "Saving..." : "Mark read"}
+                      </button>
+                    )}
+                    {canChangeSignal(row.signal, currentUser) && (
+                      <button type="button" className="table-button danger-button" onClick={() => deleteBalanceSignal(row.signal)}>Delete</button>
                     )}
                   </td>
                 </tr>
@@ -357,15 +479,26 @@ export function BalancesView({ currentUser, showToast }) {
         {canManage && (
           <form className="factory-payment-form" onSubmit={addFactoryPayment}>
             <input
+              type="date"
+              value={factoryPaymentDoneDate}
+              onChange={(event) => setFactoryPaymentDoneDate(event.target.value)}
+              disabled={factorySaving}
+              required
+            />
+            <input
               type="text"
               inputMode="decimal"
               value={factoryAmount}
               onChange={(event) => setFactoryAmount(formatAmountInput(event.target.value))}
               placeholder="Amount paid"
+              disabled={factorySaving}
               required
             />
-            <input value={factoryComment} onChange={(event) => setFactoryComment(event.target.value)} placeholder="Optional comment" />
-            <button type="submit">Add payment row</button>
+            <input value={factoryComment} onChange={(event) => setFactoryComment(event.target.value)} placeholder="Optional comment" disabled={factorySaving} />
+            <button type="submit" disabled={factorySaving}>
+              {factorySaving && <ButtonSpinner label="Saving factory payment" />}
+              {factorySaving ? "Saving..." : "Add payment row"}
+            </button>
           </form>
         )}
 
@@ -375,12 +508,13 @@ export function BalancesView({ currentUser, showToast }) {
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr><th>Amount</th><th>Comment</th><th>Added at</th><th>Added by</th><th>Remaining positive balance</th><th>Read status</th><th>Action</th></tr>
+              <tr><th>Amount</th><th>Payment done date</th><th>Comment</th><th>Added at</th><th>Added by</th><th>Remaining positive balance</th><th>Read status</th><th>Action</th></tr>
             </thead>
             <tbody>
               {pagedFactoryPayments.rows.map((payment) => (
                 <tr key={payment.id}>
                   <td>{formatCurrency(payment.amount)}</td>
+                  <td>{displayDate(payment.paymentDoneDate)}</td>
                   <td>{payment.comment || "-"}</td>
                   <td>{dateTime(payment.markedAt)}</td>
                   <td>{payment.markedByDisplayName || ""}</td>
@@ -388,8 +522,36 @@ export function BalancesView({ currentUser, showToast }) {
                   <td><ReadStatusCell signal={payment} /></td>
                   <td>
                     {canMarkRead && !payment.readAt ? (
-                      <button type="button" onClick={() => markRead("factory", payment)}>Mark read</button>
+                      <button type="button" onClick={() => markRead("factory", payment)} disabled={readLoadingId === payment.id}>
+                        {readLoadingId === payment.id && <ButtonSpinner label="Marking read" />}
+                        {readLoadingId === payment.id ? "Saving..." : "Mark read"}
+                      </button>
                     ) : ""}
+                    {canChangeSignal(payment, currentUser) && editingFactoryId !== payment.id && (
+                      <>
+                        <button type="button" className="table-button" onClick={() => startFactoryEdit(payment)}>Edit</button>
+                        <button type="button" className="table-button danger-button" onClick={() => deleteFactoryPayment(payment)}>Delete</button>
+                      </>
+                    )}
+                    {editingFactoryId === payment.id && (
+                      <form className="row-edit-form" onSubmit={(event) => updateFactoryPayment(event, payment)}>
+                        <input type="date" value={editFactoryPaymentDoneDate} onChange={(event) => setEditFactoryPaymentDoneDate(event.target.value)} disabled={editFactorySaving} required />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editFactoryAmount}
+                          onChange={(event) => setEditFactoryAmount(formatAmountInput(event.target.value))}
+                          disabled={editFactorySaving}
+                          required
+                        />
+                        <input value={editFactoryComment} onChange={(event) => setEditFactoryComment(event.target.value)} placeholder="Comment" disabled={editFactorySaving} />
+                        <button type="submit" className="table-button" disabled={editFactorySaving}>
+                          {editFactorySaving && <ButtonSpinner label="Saving factory payment edit" />}
+                          {editFactorySaving ? "Saving..." : "Save"}
+                        </button>
+                        <button type="button" className="table-button ghost-button" onClick={() => setEditingFactoryId("")} disabled={editFactorySaving}>Cancel</button>
+                      </form>
+                    )}
                   </td>
                 </tr>
               ))}

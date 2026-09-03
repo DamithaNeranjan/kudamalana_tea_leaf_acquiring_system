@@ -686,9 +686,61 @@ button {
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
+button:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.loading-spinner {
+  animation: spinner-rotate 800ms linear infinite;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 16px;
+  width: 16px;
+}
+
+button .loading-spinner {
+  margin-right: 8px;
+}
+
+.app-loading {
+  align-items: center;
+  color: var(--brand);
+  display: grid;
+  gap: 10px;
+  min-height: calc(100vh - 81px);
+  place-content: center;
+}
+
+.app-loading .loading-spinner {
+  height: 34px;
+  justify-self: center;
+  width: 34px;
+}
+
+.app-loading span:last-child {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 button:hover {
   background: #174b2a;
   border-color: #174b2a;
+}
+
+button:disabled:hover {
+  background: var(--brand);
+  border-color: var(--brand);
+  box-shadow: none;
 }
 
 button:active {
@@ -1075,7 +1127,13 @@ details[open] > .collapsible-heading::after {
 }
 
 .advance-suggestion strong {
+  align-items: center;
   color: var(--brand-strong);
+  display: inline-flex;
+}
+
+.advance-suggestion .loading-spinner {
+  margin-right: 8px;
 }
 
 .advance-breakdown {
@@ -1152,9 +1210,169 @@ tbody tr:hover {
   justify-content: flex-end;
 }
 
+.signal-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 210px;
+}
+
 .table-button {
   min-height: 34px;
   padding: 6px 10px;
+}
+
+.signal-action-button {
+  border-radius: 6px;
+  flex: 0 0 96px;
+  font-size: 12px;
+  min-height: 34px;
+  padding: 6px 8px;
+  width: 96px;
+}
+
+.read-button {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.read-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.edit-button {
+  background: #b7791f;
+  border-color: #b7791f;
+}
+
+.edit-button:hover {
+  background: #975a16;
+  border-color: #975a16;
+}
+
+.save-button {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.save-button:hover {
+  background: #174b2a;
+  border-color: #174b2a;
+}
+
+.cancel-button {
+  background: #ffffff;
+  border-color: #9aa79a;
+  color: #334231;
+}
+
+.cancel-button:hover {
+  background: #eef3eb;
+  border-color: #7c8a7c;
+}
+
+.danger-button {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.danger-button:hover {
+  background: #6f1d19;
+  border-color: #6f1d19;
+}
+
+.read-button:disabled:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.edit-button:disabled:hover {
+  background: #b7791f;
+  border-color: #b7791f;
+}
+
+.save-button:disabled:hover {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.cancel-button:disabled:hover {
+  background: #ffffff;
+  border-color: #9aa79a;
+}
+
+.row-edit-form {
+  display: inline-grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  justify-items: stretch;
+  min-width: 300px;
+}
+
+.row-edit-form input,
+.row-edit-form button {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.row-edit-form .signal-action-button {
+  width: 100%;
+}
+
+.audit-table td {
+  vertical-align: top;
+}
+
+.audit-snapshot {
+  min-width: 260px;
+  text-align: left;
+}
+
+.audit-snapshot summary {
+  color: var(--brand);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.audit-snapshot-panel {
+  background: #f4f8f1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 8px 0 0;
+  max-height: 260px;
+  max-width: 720px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.audit-change-table {
+  border-collapse: collapse;
+  margin: 0;
+  min-width: 520px;
+}
+
+.audit-change-table th,
+.audit-change-table td {
+  background: transparent;
+  border-bottom: 1px solid #dde6d8;
+  color: #243323;
+  max-width: 280px;
+  padding: 7px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.audit-change-table th {
+  color: var(--brand-strong);
+  font-size: 12px;
+}
+
+.audit-change-table tr:last-child td {
+  border-bottom: 0;
 }
 
 td:first-child,

@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS balance_transfer_signals (
   target_id VARCHAR(160),
   target_label VARCHAR(180),
   amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  payment_done_date DATE,
   comment VARCHAR(255),
   marked_at DATETIME NOT NULL,
   marked_by_user_id VARCHAR(80),
@@ -159,6 +160,7 @@ CREATE TABLE IF NOT EXISTS factory_officer_transfer_signals (
   id VARCHAR(80) PRIMARY KEY,
   month CHAR(7) NOT NULL,
   amount DECIMAL(12,2) NOT NULL,
+  payment_done_date DATE,
   comment VARCHAR(255),
   marked_at DATETIME NOT NULL,
   marked_by_user_id VARCHAR(80),
@@ -202,4 +204,22 @@ CREATE TABLE IF NOT EXISTS sync_log (
   source VARCHAR(80) NOT NULL,
   synced_at DATETIME NOT NULL,
   summary_json JSON NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS web_audit_log (
+  id VARCHAR(80) PRIMARY KEY,
+  user_id VARCHAR(80),
+  username VARCHAR(120),
+  display_name VARCHAR(160),
+  role VARCHAR(40),
+  action VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(160),
+  entity_label VARCHAR(180),
+  summary VARCHAR(255),
+  before_json JSON,
+  after_json JSON,
+  created_at DATETIME NOT NULL,
+  KEY idx_web_audit_created_at (created_at),
+  KEY idx_web_audit_user (username, created_at)
 );

@@ -1059,7 +1059,8 @@ button {
   justify-content: flex-end;
 }
 
-.cloud-backup-reminder-card {
+.cloud-backup-reminder-card,
+.daily-reminder-card {
   align-items: end;
   background: #ffffff;
   border: 1px solid var(--line);
@@ -1070,12 +1071,14 @@ button {
   padding: 16px;
 }
 
-.cloud-backup-reminder-card > div {
+.cloud-backup-reminder-card > div,
+.daily-reminder-card > div {
   display: grid;
   gap: 6px;
 }
 
-.cloud-backup-reminder-card label {
+.cloud-backup-reminder-card label,
+.daily-reminder-card label {
   color: #334231;
   display: grid;
   gap: 6px;
@@ -1870,7 +1873,8 @@ th:first-child {
   .cloud-sync-form,
   .cloud-sync-status,
   .cloud-backup-actions,
-  .cloud-backup-reminder-card {
+  .cloud-backup-reminder-card,
+  .daily-reminder-card {
     grid-template-columns: 1fr;
   }
 

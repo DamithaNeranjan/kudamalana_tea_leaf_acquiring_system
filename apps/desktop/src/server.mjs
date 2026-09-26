@@ -550,6 +550,24 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             config: cloudSyncConfig(session)
           });
         }
+        if (request.method === "GET" && url.pathname === "/office/daily-reminders") {
+          return send(response, 200, { reminders: store.dailyReminderStatuses() });
+        }
+        if (request.method === "PUT" && url.pathname.startsWith("/office/daily-reminders/")) {
+          const reminderId = decodeURIComponent(url.pathname.split("/").pop());
+          const before = store.dailyReminderStatus(reminderId);
+          const reminder = store.updateDailyReminderSettings(reminderId, await parseJsonBody(request));
+          logAudit(session, {
+            action: "update",
+            entityType: "daily_reminder",
+            entityId: reminder.id,
+            entityLabel: reminder.id === "cloud_sync" ? "Sync to Web App reminder" : "Staging Review reminder",
+            summary: `Updated ${reminder.id === "cloud_sync" ? "Sync to Web App" : "Staging Review"} reminder settings`,
+            before,
+            after: reminder
+          });
+          return send(response, 200, { reminder, reminders: store.dailyReminderStatuses() });
+        }
         if (request.method === "PUT" && url.pathname === "/office/cloud-sync/config") {
           requireDesktopAdmin(session);
           const payload = await parseJsonBody(request);

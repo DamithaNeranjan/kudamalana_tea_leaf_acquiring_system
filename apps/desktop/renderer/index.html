@@ -116,6 +116,20 @@
             </div>
             <button type="button" data-view-shortcut="cloudBackupView">Open backup</button>
           </div>
+          <div id="cloudSyncReminderNotice" class="reminder-card hidden">
+            <div>
+              <strong>Sync to Web App is due</strong>
+              <span id="cloudSyncReminderNoticeText">Run today's hosted web sync.</span>
+            </div>
+            <button type="button" data-view-shortcut="cloudSyncView">Open sync</button>
+          </div>
+          <div id="stagingReviewReminderNotice" class="reminder-card hidden">
+            <div>
+              <strong>Staging Review is pending</strong>
+              <span id="stagingReviewReminderNoticeText">Review pending tablet imports.</span>
+            </div>
+            <button type="button" data-view-shortcut="stagingView">Open staging</button>
+          </div>
           <div class="dashboard-sections">
             <section class="dashboard-section">
               <h3>Monthly Work</h3>
@@ -871,6 +885,23 @@
             </div>
           </div>
           <section class="panel">
+            <form id="stagingReviewReminderForm" class="daily-reminder-card" data-reminder-id="staging_review">
+              <div>
+                <span class="eyebrow">Daily reminder</span>
+                <strong id="stagingReviewReminderStatus">Reminder status not loaded</strong>
+                <span id="stagingReviewReminderDetails" class="muted-text"></span>
+              </div>
+              <label class="switch-row">
+                <input name="enabled" type="checkbox" />
+                Remind office users
+              </label>
+              <label>
+                Reminder time
+                <input name="timeOfDay" type="time" />
+              </label>
+              <button type="submit">Save reminder</button>
+            </form>
+            <span id="stagingReminderMessage" class="message"></span>
             <div class="filter-grid compact-filter-grid">
               <label>
                 Supplier
@@ -1047,6 +1078,22 @@
               </div>
               <span id="cloudSyncMessage" class="message"></span>
             </div>
+            <form id="cloudSyncReminderForm" class="daily-reminder-card" data-reminder-id="cloud_sync">
+              <div>
+                <span class="eyebrow">Daily reminder</span>
+                <strong id="cloudSyncReminderStatus">Reminder status not loaded</strong>
+                <span id="cloudSyncReminderDetails" class="muted-text"></span>
+              </div>
+              <label class="switch-row">
+                <input name="enabled" type="checkbox" />
+                Remind office users
+              </label>
+              <label>
+                Reminder time
+                <input name="timeOfDay" type="time" />
+              </label>
+              <button type="submit">Save reminder</button>
+            </form>
             <div class="table-scroll">
               <div class="filter-grid compact-filter-grid">
                 <label>

@@ -29,6 +29,7 @@ let latestBook = null;
 let latestMonthEndSummary = null;
 let latestAuditLogs = [];
 let latestCloudBackupReminder = null;
+let latestDailyReminders = null;
 let activeBillSummaryScope = "all";
 let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
@@ -151,12 +152,22 @@ function clearSession() {
   document.querySelector("#cloudBackupReminderStatus").textContent = "Reminder status not loaded";
   document.querySelector("#cloudBackupReminderDetails").textContent = "";
   document.querySelector("#cloudBackupReminderForm").reset();
+  document.querySelector("#cloudSyncReminderNotice").classList.add("hidden");
+  document.querySelector("#stagingReviewReminderNotice").classList.add("hidden");
+  document.querySelector("#cloudSyncReminderStatus").textContent = "Reminder status not loaded";
+  document.querySelector("#cloudSyncReminderDetails").textContent = "";
+  document.querySelector("#cloudSyncReminderForm").reset();
+  document.querySelector("#stagingReviewReminderStatus").textContent = "Reminder status not loaded";
+  document.querySelector("#stagingReviewReminderDetails").textContent = "";
+  document.querySelector("#stagingReviewReminderForm").reset();
+  document.querySelector("#stagingReminderMessage").textContent = "";
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
   latestMonthEndSummary = null;
   latestAuditLogs = [];
   latestCloudBackupReminder = null;
+  latestDailyReminders = null;
   document.querySelector("#stagingTable tbody").innerHTML = "";
   document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#auditTable tbody").innerHTML = "";
@@ -189,7 +200,10 @@ function showView(viewId) {
     item.classList.toggle("active", item.dataset.view === viewId);
   }
   if (viewId === "pairingView" && officeToken) refreshPairingQr();
-  if (viewId === "stagingView" && officeToken) refreshState();
+  if (viewId === "stagingView" && officeToken) {
+    refreshState();
+    loadDailyReminders().catch(() => {});
+  }
   if (viewId === "recordsView" && officeToken) refreshState();
   if (viewId === "supplierBillsView" && officeToken) {
     loadBillSelectorOptions().catch((error) => showToast(error.message, "error"));
@@ -203,6 +217,7 @@ function showView(viewId) {
   }
   if (viewId === "cloudSyncView" && officeToken) {
     loadCloudSyncStatus().catch((error) => showToast(error.message, "error"));
+    loadDailyReminders().catch(() => {});
   }
   if (viewId === "cloudBackupView" && officeToken) {
     loadCloudBackupStatus().catch(() => {
@@ -212,6 +227,7 @@ function showView(viewId) {
   }
   if (viewId === "dashboardView" && officeToken) {
     loadCloudBackupReminder().catch(() => {});
+    loadDailyReminders().catch(() => {});
   }
 }
 
@@ -297,6 +313,7 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     message.textContent = "";
     await refreshState();
     await loadCloudBackupReminder({ showToastIfDue: true }).catch(() => {});
+    await loadDailyReminders({ showToastIfDue: true }).catch(() => {});
   } catch (error) {
     message.textContent = error.message;
   }
@@ -332,6 +349,14 @@ document.querySelector(".dashboard-sections").addEventListener("click", (event) 
 
 document.querySelector("#cloudBackupReminderNotice button").addEventListener("click", () => {
   showView("cloudBackupView");
+});
+
+document.querySelector("#cloudSyncReminderNotice button").addEventListener("click", () => {
+  showView("cloudSyncView");
+});
+
+document.querySelector("#stagingReviewReminderNotice button").addEventListener("click", () => {
+  showView("stagingView");
 });
 
 document.addEventListener("click", (event) => {
@@ -502,6 +527,7 @@ async function refreshState() {
   const state = await api("/office/state");
   latestState = state;
   renderStateTables(state);
+  await loadDailyReminders().catch(() => {});
 }
 
 function renderStateTables(state) {
@@ -1192,6 +1218,7 @@ async function runCloudSync(event) {
     showToast("Cloud sync completed.");
     await loadCloudSyncStatus();
     await refreshState();
+    await loadDailyReminders().catch(() => {});
   } catch (error) {
     message.className = "message error";
     message.textContent = error.message;
@@ -1250,6 +1277,61 @@ function renderCloudBackupReminder(reminder) {
   details.textContent = reminder ? `${backupReminderText(reminder)} Interval: every ${reminder.intervalDays || 30} day${Number(reminder.intervalDays || 30) === 1 ? "" : "s"}.` : "";
 }
 
+function formatReminderTime(value) {
+  const [hour, minute] = String(value || "17:00").split(":").map(Number);
+  const date = new Date();
+  date.setHours(Number.isFinite(hour) ? hour : 17, Number.isFinite(minute) ? minute : 0, 0, 0);
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function dailyReminderText(reminder) {
+  if (!reminder?.enabled) return "Reminder is turned off.";
+  const time = formatReminderTime(reminder.timeOfDay);
+  if (reminder.id === "cloud_sync") {
+    return reminder.due ? `Daily web sync is due for today. Reminder time: ${time}.` : `${reminder.reason}. Next check: ${formatDateTime(reminder.nextDueAt)}.`;
+  }
+  return reminder.due
+    ? `${reminder.pendingCount || 0} staging review record${Number(reminder.pendingCount || 0) === 1 ? "" : "s"} pending. Reminder time: ${time}.`
+    : `${reminder.reason}. Next check: ${formatDateTime(reminder.nextDueAt)}.`;
+}
+
+function renderDailyReminder(reminder, config) {
+  const notice = document.querySelector(config.noticeSelector);
+  const noticeText = document.querySelector(config.noticeTextSelector);
+  const form = document.querySelector(config.formSelector);
+  const status = document.querySelector(config.statusSelector);
+  const details = document.querySelector(config.detailsSelector);
+  const due = Boolean(reminder?.enabled && reminder?.due);
+  notice.classList.toggle("hidden", !due);
+  noticeText.textContent = reminder ? dailyReminderText(reminder) : config.defaultNotice;
+  form.elements.enabled.checked = reminder?.enabled !== false;
+  form.elements.timeOfDay.value = reminder?.timeOfDay || "17:00";
+  status.textContent = due ? config.dueStatus : reminder?.enabled === false ? "Reminder is off" : "Reminder is scheduled";
+  details.textContent = reminder ? dailyReminderText(reminder) : "";
+}
+
+function renderDailyReminders(reminders = {}) {
+  latestDailyReminders = reminders;
+  renderDailyReminder(reminders.cloudSync, {
+    noticeSelector: "#cloudSyncReminderNotice",
+    noticeTextSelector: "#cloudSyncReminderNoticeText",
+    formSelector: "#cloudSyncReminderForm",
+    statusSelector: "#cloudSyncReminderStatus",
+    detailsSelector: "#cloudSyncReminderDetails",
+    dueStatus: "Daily web sync is due",
+    defaultNotice: "Run today's hosted web sync."
+  });
+  renderDailyReminder(reminders.stagingReview, {
+    noticeSelector: "#stagingReviewReminderNotice",
+    noticeTextSelector: "#stagingReviewReminderNoticeText",
+    formSelector: "#stagingReviewReminderForm",
+    statusSelector: "#stagingReviewReminderStatus",
+    detailsSelector: "#stagingReviewReminderDetails",
+    dueStatus: "Staging review is pending",
+    defaultNotice: "Review pending tablet imports."
+  });
+}
+
 async function loadCloudBackupStatus() {
   const result = await api("/office/cloud-backup/latest");
   renderCloudBackupStatus(result);
@@ -1261,6 +1343,20 @@ async function loadCloudBackupReminder({ showToastIfDue = false } = {}) {
   renderCloudBackupReminder(result.reminder);
   if (showToastIfDue && result.reminder?.enabled && result.reminder?.due) {
     showToast("Cloud DB Backup is due. Open Cloud DB Backup to upload now.", "error");
+  }
+  return result;
+}
+
+async function loadDailyReminders({ showToastIfDue = false } = {}) {
+  const result = await api("/office/daily-reminders");
+  renderDailyReminders(result.reminders || {});
+  if (showToastIfDue) {
+    if (result.reminders?.cloudSync?.enabled && result.reminders.cloudSync.due) {
+      showToast("Sync to Web App is due for today.", "error");
+    }
+    if (result.reminders?.stagingReview?.enabled && result.reminders.stagingReview.due) {
+      showToast("Staging Review has pending records.", "error");
+    }
   }
   return result;
 }
@@ -1278,6 +1374,40 @@ async function checkCloudBackup() {
     message.className = "message error";
     message.textContent = error.message;
     showToast(error.message, "error");
+  }
+}
+
+async function saveDailyReminder(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const reminderId = form.dataset.reminderId;
+  const payload = {
+    enabled: form.elements.enabled.checked,
+    timeOfDay: form.elements.timeOfDay.value || "17:00"
+  };
+  const message =
+    reminderId === "cloud_sync"
+      ? document.querySelector("#cloudSyncMessage")
+      : document.querySelector("#stagingReminderMessage");
+  const button = form.querySelector('button[type="submit"]');
+  message.className = "message info";
+  message.textContent = "Saving reminder settings...";
+  button.disabled = true;
+  try {
+    const result = await api(`/office/daily-reminders/${encodeURIComponent(reminderId)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    renderDailyReminders(result.reminders || {});
+    message.className = "message success";
+    message.textContent = "Reminder settings saved.";
+    showToast("Reminder settings saved.");
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -2441,6 +2571,8 @@ function formatSinhalaMonth(month) {
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 document.querySelector("#cloudSyncConfigForm").addEventListener("submit", saveCloudSyncConfig);
 document.querySelector("#cloudSyncForm").addEventListener("submit", runCloudSync);
+document.querySelector("#cloudSyncReminderForm").addEventListener("submit", saveDailyReminder);
+document.querySelector("#stagingReviewReminderForm").addEventListener("submit", saveDailyReminder);
 document.querySelector("#checkCloudBackup").addEventListener("click", checkCloudBackup);
 document.querySelector("#uploadCloudBackup").addEventListener("click", uploadCloudBackup);
 document.querySelector("#restoreCloudBackup").addEventListener("click", restoreCloudBackup);

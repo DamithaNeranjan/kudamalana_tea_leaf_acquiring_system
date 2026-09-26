@@ -173,6 +173,16 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
     assert.match(uploadResult.imported[0], /^stage_/);
     assert.deepEqual(uploadResult.skipped, []);
 
+    const stagingReminderUpdate = await fetch(`${baseUrl}/office/daily-reminders/staging_review`, {
+      method: "PUT",
+      headers: auth,
+      body: JSON.stringify({ enabled: true, timeOfDay: "00:00" })
+    });
+    assert.equal(stagingReminderUpdate.status, 200);
+    const stagingReminder = await stagingReminderUpdate.json();
+    assert.equal(stagingReminder.reminders.stagingReview.due, true);
+    assert.equal(stagingReminder.reminders.stagingReview.pendingCount, 1);
+
     const duplicate = await fetch(`${baseUrl}/sync/collections`, {
       method: "POST",
       body: JSON.stringify({ deviceId: "tablet-1", records: [{ id: "mobile_1" }] })
@@ -187,6 +197,9 @@ test("desktop imports tablet records idempotently and posts reviewed entries", a
       body: JSON.stringify({ netWeightKg: 12 })
     });
     await fetch(`${baseUrl}/office/staging/${stageId}/post`, { method: "POST", headers: auth });
+    const stagingReminderAfterPost = await (await fetch(`${baseUrl}/office/daily-reminders`, { headers: auth })).json();
+    assert.equal(stagingReminderAfterPost.reminders.stagingReview.due, false);
+    assert.equal(stagingReminderAfterPost.reminders.stagingReview.pendingCount, 0);
 
     const lineOverride = await fetch(`${baseUrl}/office/line-supplier-price-overrides`, {
       method: "POST",
@@ -710,6 +723,14 @@ test("desktop cloud sync records status and sends only changed data after first 
       });
       assert.equal(individualPriceOverride.status, 201);
 
+      const syncReminderUpdate = await fetch(`${desktopUrl}/office/daily-reminders/cloud_sync`, {
+        method: "PUT",
+        headers: auth,
+        body: JSON.stringify({ enabled: true, timeOfDay: "00:00" })
+      });
+      assert.equal(syncReminderUpdate.status, 200);
+      assert.equal((await syncReminderUpdate.json()).reminders.cloudSync.due, true);
+
       const firstSync = await fetch(`${desktopUrl}/office/cloud-sync`, {
         method: "POST",
         headers: auth,
@@ -720,6 +741,9 @@ test("desktop cloud sync records status and sends only changed data after first 
       assert.equal(firstResult.sentCounts.officeUsers >= 2, true);
       assert.equal(firstResult.sentCounts.supplierMonthOverrides, 1);
       assert.equal(firstResult.syncRun.status, "success");
+      const syncReminderAfterSync = await (await fetch(`${desktopUrl}/office/daily-reminders`, { headers: auth })).json();
+      assert.equal(syncReminderAfterSync.reminders.cloudSync.due, false);
+      assert.equal(syncReminderAfterSync.reminders.cloudSync.timeOfDay, "00:00");
 
       const webLogin = await fetch(`${backendUrl}/auth/login`, {
         method: "POST",

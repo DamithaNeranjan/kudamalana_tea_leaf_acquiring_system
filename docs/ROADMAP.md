@@ -16,6 +16,7 @@
 - Add complete monthly override screens.
 - Add financial entry screens for advances, fertilizer, tea packets, and arrears. (Advances, fertilizer, and made tea packets implemented.)
 - Add richer staging review filters and bulk posting. (Bulk Post all implemented; filters remain future work.)
+- Add office reminders for recurring operational tasks. (Implemented for daily Sync to Web App, pending Staging Review, and interval-based Cloud DB Backup reminders.)
 - Expand Collection Records audit filters/export options.
 - Add export/print options for green leaf books.
 - Add SQLite backup and restore workflow. (Implemented with hosted monthly Cloud DB Backup upload and admin restore.)

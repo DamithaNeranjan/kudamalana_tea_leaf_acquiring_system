@@ -481,6 +481,30 @@ Desktop-session protected endpoint returning the last successful web-app sync an
 
 The response also includes a `config` object for the Sync to Web App screen. Desktop admin sessions receive the current `backendUrl`, `backendUrlConfigured`, `tokenConfigured`, and `canManage` values; non-admin desktop office sessions receive only configuration-status booleans and `canManage: false`.
 
+### `GET /office/daily-reminders`
+
+Desktop-session protected endpoint returning daily reminder settings and due status for:
+
+- `cloudSync`: Sync to Web App reminder.
+- `stagingReview`: Staging Review reminder.
+
+The default time is `17:00`. `cloudSync` is due when the reminder time has passed and today's web sync has not succeeded. `stagingReview` is due when the reminder time has passed and staging still has pending tablet imports.
+
+### `PUT /office/daily-reminders/:id`
+
+Desktop-session protected endpoint that updates one daily reminder. Supported ids are `cloud_sync` and `staging_review`.
+
+Payload:
+
+```json
+{
+  "enabled": true,
+  "timeOfDay": "17:00"
+}
+```
+
+Use `enabled: false` to turn the reminder off. `timeOfDay` is stored in 24-hour `HH:mm` format.
+
 ### `PUT /office/cloud-sync/config`
 
 Desktop admin-only endpoint that saves the hosted backend URL for deployed desktop installs and optionally updates the cloud sync token in the desktop data folder `.env` file.

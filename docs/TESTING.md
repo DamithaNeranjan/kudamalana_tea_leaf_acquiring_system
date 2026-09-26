@@ -32,7 +32,7 @@ The current suite covers:
 - fertilizer type registration, received fertilizer stock, stock-backed issue recording, stock balance summaries, and generated monthly fertilizer deductions
 - made tea packet type registration/editing, type-backed issue recording, price snapshots, and selected-month Green Leaf Book deductions
 - backend login, logout, managed web-user creation/update, inactive-login blocking, desktop sync, and green leaf book viewing
-- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by tracking, audit-log mutation tracking, and monthly book impact
+- desktop login/session protection, profile password update, logout invalidation, tablet import, duplicate suppression, staging edit/post, posted-by tracking, audit-log mutation tracking, daily reminder due-state behavior, cloud backup upload/restore, and monthly book impact
 - web Green Leaf Book totals, signal filtering, pagination, target labels, and desktop renderer helper behavior
 
 ## Manual Checks
@@ -79,9 +79,12 @@ Manual desktop UI checks:
 - Edit each master-data record from its modal and toggle active/inactive.
 - Confirm toast messages appear at the bottom-right after save/update/status actions.
 - Upload tablet records, refresh Staging Review, post one record, and confirm it appears in Collection Records with print status, tablet saved/printed times, posted-by user, and local posted time.
+- In Staging Review, set the daily reminder time, turn the reminder off/on, and confirm the dashboard reminder appears only when staged tablet records are still pending after the reminder time.
 - Confirm Post all opens a confirmation modal before posting all staged records.
 - After all positive balances for a month are paid, close the Green Leaf Book month, confirm the in-app warning/confirmation appears, confirm the closed note appears and month-specific edits are blocked, then log in as `admin` and reopen the month for corrections. Confirm close/reopen audit entries appear.
 - Open Sync to Web App and confirm sync run history can be filtered by status/mode and paged through with Previous/Next.
+- In Sync to Web App, set the daily reminder time, turn the reminder off/on, and confirm the dashboard reminder clears after a successful sync for the current day.
+- Open Cloud DB Backup, upload a backup, check latest backup metadata, change the reminder interval to 14 days, turn the reminder off/on, and confirm admin users can restore the latest backup on a test install.
 - Open Audit Reports and confirm login/logout, create/update/status-checkbox submissions, staging posts, price override batches, successful supplier bill print records, and balance payment records appear latest-first with user/action/entity/date filters. Confirm opening or expanding supplier bill print previews does not create an audit record, and password values are not shown in change details.
 - In the web app, log in as two different directors and confirm each director can edit/delete only their own Balance and Advance signal records, while `admin` can edit/delete any signal. Confirm Balance signal and factory officer payment entries save/display payment done date and reset add-form inputs to defaults after saving. Confirm loading spinners appear during authentication restore, page loading, refresh, save, edit, and mark-read actions. Confirm the Audit Trail menu is visible only to admin and shows web login/logout, signal create/update/delete, and mark-read actions without password/token values, with snapshot details shown as readable field-level before/after rows. Confirm Latest Signals action buttons in Advances use consistent sizing and distinct colors.
 

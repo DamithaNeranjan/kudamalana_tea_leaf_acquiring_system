@@ -119,6 +119,7 @@ $env:OFFICE_SYNC_URL="http://<desktop-lan-ip>:7070"
 - Confirm backend `/health` responds from the hosting environment.
 - Confirm web login, logout, and page refresh session restore work against the hosted backend.
 - Confirm desktop Sync to Web App succeeds and the web Green Leaf Book shows the synced month.
+- Confirm desktop Sync to Web App and Staging Review daily reminders can be turned off/on and set to the intended time, for example 5:00 PM.
 - Confirm desktop Cloud DB Backup can upload a backup to the hosted backend, then check the latest backup metadata from the desktop app.
 - Confirm desktop Cloud DB Backup reminder settings can be changed, for example to 14 days for a bi-weekly reminder, and turned off/on.
 - Confirm each tablet can pair with the desktop QR code, log in as a line user, download 14 tea lines and 496 suppliers, save offline records, print receipts, and upload records to desktop staging.

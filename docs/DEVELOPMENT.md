@@ -65,7 +65,9 @@ On desktop-sized windows, the sidebar has its own scroll area, section title ban
 Desktop form inputs, including login and edit-modal fields, trim leading and trailing spaces before validation and API submission.
 Only desktop admin users can create, edit, activate, and deactivate office users. Office users can open the Office Users menu as a read-only listing.
 The Pair Tablet section is available to the logged-in office user and shows a QR code for tablet sync pairing.
-The Sync to Web App section is available below Green Leaf Book. It uses `BACKEND_URL` and `CLOUD_SYNC_TOKEN`, so office users can sync with one button without typing web credentials. Desktop admin users can save the hosted backend URL there for deployed installs and can update the cloud sync token if needed; non-admin office users do not see that setup form. Keep Sync Green Leaf Book data only checked for normal daily syncs; uncheck it when office-user accounts also need to sync in both directions. Normal syncs send changed posted collection entries and resend calculation adjustment/reference rows such as supplier special prices, advances, fertilizer installments, made tea packets, supplier payments, arrears, and month closures.
+The Sync to Web App section is available below Green Leaf Book. It uses `BACKEND_URL` and `CLOUD_SYNC_TOKEN`, so office users can sync with one button without typing web credentials. Desktop admin users can save the hosted backend URL there for deployed installs and can update the cloud sync token if needed; non-admin office users do not see that setup form. Keep Sync Green Leaf Book data only checked for normal daily syncs; uncheck it when office-user accounts also need to sync in both directions. Normal syncs send changed posted collection entries and resend calculation adjustment/reference rows such as supplier special prices, advances, fertilizer installments, made tea packets, supplier payments, arrears, and month closures. The same screen has a daily reminder setting, defaulting to 17:00, that becomes due only when no successful web sync exists for the current local date.
+The Staging Review section has a daily reminder setting, defaulting to 17:00, that becomes due only when staging records are still waiting to be reviewed. Posting all pending staging records clears the due state.
+The Cloud DB Backup section is available under Sync & Records. It uses the same hosted backend URL and cloud sync token as Sync to Web App, uploads a verified compressed SQLite backup to the hosted backend, and lets desktop admins restore the latest backup on a replacement computer. Its reminder setting is interval-based, defaulting to every 30 days, and can be changed to values such as 14 days for bi-weekly backup reminders.
 Use Monthly Settings for default month rates. Use supplier editing for one supplier's special monthly price, or edit a registered tea line to apply the same monthly price to every active supplier in that line.
 Use supplier editing to choose Cash or Bank transfer as the supplier payment mode and to mark factory-owned suppliers when their leaf details should remain visible but payable balance should not be calculated.
 Use Fertilizer to register fertilizer bag types, record received stock lots, issue selected stock lots to suppliers, review stock balances, and split the issue rupee deduction across one or two effective Green Leaf Book months.
@@ -138,7 +140,8 @@ npm.cmd run desktop
 ```
 
 5. Log in to the desktop app and use Sync to Web App.
-6. Open the web app, log in through the backend API on `http://127.0.0.1:8080`, and confirm the Green Leaf Book data appears.
+6. Open Cloud DB Backup and confirm a local test backup uploads to the hosted backend.
+7. Open the web app, log in through the backend API on `http://127.0.0.1:8080`, and confirm the Green Leaf Book data appears.
 
 When debugging a synced row that exists in MySQL but does not appear in the web Green Leaf Book, first check the selected month and the row's `collection_date`. MySQL `DATE` values must remain calendar-date strings in backend calculation input; UTC conversion can shift first-of-month rows into the previous month.
 

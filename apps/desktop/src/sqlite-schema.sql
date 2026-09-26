@@ -266,6 +266,13 @@ CREATE TABLE cloud_backup_reminder_settings (
   updated_at TEXT
 );
 
+CREATE TABLE daily_reminder_settings (
+  id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  time_of_day TEXT NOT NULL DEFAULT '17:00',
+  updated_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);

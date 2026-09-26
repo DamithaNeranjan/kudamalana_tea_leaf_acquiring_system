@@ -63,6 +63,8 @@ This backup is separate from Green Leaf Book cloud sync. Cloud sync keeps hosted
 
 Cloud DB Backup reminder settings are stored locally in desktop SQLite in `cloud_backup_reminder_settings`. The default reminder is enabled every 30 days. Changing it to 14 days gives the office user a bi-weekly reminder, and the last successful backup timestamp is updated after each successful cloud backup upload.
 
+Daily Sync to Web App and Staging Review reminder settings are stored locally in desktop SQLite in `daily_reminder_settings`. The default reminder time is `17:00`. Sync to Web App is due only when today's successful cloud sync has not happened by that time. Staging Review is due only when pending staging records still exist by that time.
+
 ## Current Persistence Notes
 
 - Desktop uses SQLite through Node's built-in `node:sqlite` module.

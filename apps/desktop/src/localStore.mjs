@@ -39,11 +39,37 @@ function currentMonth() {
 
 const CLOUD_BACKUP_REMINDER_ID = "desktop_cloud_backup";
 const DEFAULT_CLOUD_BACKUP_REMINDER_DAYS = 30;
+const DAILY_REMINDERS = {
+  cloudSync: "cloud_sync",
+  stagingReview: "staging_review"
+};
+const DEFAULT_DAILY_REMINDER_TIME = "17:00";
 
 function isAfter(value, since) {
   if (!since) return true;
   if (!value) return false;
   return new Date(value).getTime() > new Date(since).getTime();
+}
+
+function localDateKey(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function normalizedTimeOfDay(value, fallback = DEFAULT_DAILY_REMINDER_TIME) {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return fallback;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function scheduledLocalTime(reference, timeOfDay) {
+  const date = reference instanceof Date ? reference : new Date(reference);
+  const [hour, minute] = normalizedTimeOfDay(timeOfDay).split(":").map(Number);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute, 0, 0);
 }
 
 function nextMonthValue(month) {
@@ -190,6 +216,13 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?)`
       )
       .run(CLOUD_BACKUP_REMINDER_ID, 1, DEFAULT_CLOUD_BACKUP_REMINDER_DAYS, null, now());
+    const insertDailyReminder = this.db.prepare(
+      `INSERT OR IGNORE INTO daily_reminder_settings
+       (id, enabled, time_of_day, updated_at)
+       VALUES (?, ?, ?, ?)`
+    );
+    insertDailyReminder.run(DAILY_REMINDERS.cloudSync, 1, DEFAULT_DAILY_REMINDER_TIME, now());
+    insertDailyReminder.run(DAILY_REMINDERS.stagingReview, 1, DEFAULT_DAILY_REMINDER_TIME, now());
 
     this.seedDefaultMasterData();
   }
@@ -417,6 +450,16 @@ export class LocalStore {
           enabled INTEGER NOT NULL DEFAULT 1,
           interval_days INTEGER NOT NULL DEFAULT 30,
           last_backup_at TEXT,
+          updated_at TEXT
+        )`
+      )
+      .run();
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS daily_reminder_settings (
+          id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          time_of_day TEXT NOT NULL DEFAULT '17:00',
           updated_at TEXT
         )`
       )
@@ -1805,6 +1848,93 @@ export class LocalStore {
     return this.cloudBackupReminderStatus();
   }
 
+  dailyReminderSettings(id) {
+    const reminderId = Object.values(DAILY_REMINDERS).includes(id) ? id : DAILY_REMINDERS.cloudSync;
+    let row = this.db
+      .prepare(
+        `SELECT id, enabled, time_of_day AS timeOfDay, updated_at AS updatedAt
+         FROM daily_reminder_settings
+         WHERE id = ?`
+      )
+      .get(reminderId);
+    if (!row) {
+      this.db
+        .prepare(
+          `INSERT INTO daily_reminder_settings
+           (id, enabled, time_of_day, updated_at)
+           VALUES (?, ?, ?, ?)`
+        )
+        .run(reminderId, 1, DEFAULT_DAILY_REMINDER_TIME, now());
+      row = this.db
+        .prepare(
+          `SELECT id, enabled, time_of_day AS timeOfDay, updated_at AS updatedAt
+           FROM daily_reminder_settings
+           WHERE id = ?`
+        )
+        .get(reminderId);
+    }
+    return {
+      ...row,
+      enabled: fromBool(row.enabled),
+      timeOfDay: normalizedTimeOfDay(row.timeOfDay)
+    };
+  }
+
+  dailyReminderStatus(id, referenceTime = now()) {
+    const settings = this.dailyReminderSettings(id);
+    const reference = new Date(referenceTime);
+    const scheduled = scheduledLocalTime(reference, settings.timeOfDay);
+    const timeReached = reference.getTime() >= scheduled.getTime();
+    let due = false;
+    let reason = "";
+    let pendingCount = 0;
+    let lastCompletedAt = null;
+
+    if (settings.id === DAILY_REMINDERS.cloudSync) {
+      const lastSync = this.lastSuccessfulCloudSync();
+      lastCompletedAt = lastSync?.completedAt || lastSync?.startedAt || null;
+      const alreadySyncedToday = lastCompletedAt && localDateKey(lastCompletedAt) === localDateKey(reference);
+      due = Boolean(settings.enabled && timeReached && !alreadySyncedToday);
+      reason = alreadySyncedToday ? "Synced today" : "Daily web sync has not been completed today";
+    } else if (settings.id === DAILY_REMINDERS.stagingReview) {
+      pendingCount = this.collectionStaging().length;
+      due = Boolean(settings.enabled && timeReached && pendingCount > 0);
+      reason = pendingCount > 0 ? `${pendingCount} staging review record${pendingCount === 1 ? "" : "s"} pending` : "No staging review records pending";
+    }
+
+    const nextScheduled = timeReached ? new Date(scheduled.getTime() + 24 * 60 * 60 * 1000) : scheduled;
+    return {
+      ...settings,
+      due,
+      reason,
+      pendingCount,
+      lastCompletedAt,
+      nextDueAt: nextScheduled.toISOString()
+    };
+  }
+
+  dailyReminderStatuses(referenceTime = now()) {
+    return {
+      cloudSync: this.dailyReminderStatus(DAILY_REMINDERS.cloudSync, referenceTime),
+      stagingReview: this.dailyReminderStatus(DAILY_REMINDERS.stagingReview, referenceTime)
+    };
+  }
+
+  updateDailyReminderSettings(id, input = {}) {
+    const current = this.dailyReminderSettings(id);
+    const enabled = input.enabled === undefined ? current.enabled : input.enabled === true || input.enabled === "true" || input.enabled === "on";
+    const timeOfDay = normalizedTimeOfDay(input.timeOfDay || current.timeOfDay);
+    this.db
+      .prepare(
+        `UPDATE daily_reminder_settings
+         SET enabled = ?, time_of_day = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(bool(enabled), timeOfDay, now(), current.id);
+    this.refreshSnapshot();
+    return this.dailyReminderStatus(current.id);
+  }
+
   refreshSnapshot() {
     this.data = {
       officeUsers: this.officeUsers(),
@@ -2490,6 +2620,13 @@ CREATE TABLE IF NOT EXISTS cloud_backup_reminder_settings (
   enabled INTEGER NOT NULL DEFAULT 1,
   interval_days INTEGER NOT NULL DEFAULT 30,
   last_backup_at TEXT,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS daily_reminder_settings (
+  id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  time_of_day TEXT NOT NULL DEFAULT '17:00',
   updated_at TEXT
 );
 

@@ -1,6 +1,6 @@
 {
   "name": "tea-leaf-acquiring-system",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline-first tea leaf intake and payment desktop, web, backend, and tablet system.",
   "author": "Kudamalana Tea Factory",
   "private": true,

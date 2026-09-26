@@ -18,7 +18,7 @@
 - Add richer staging review filters and bulk posting. (Bulk Post all implemented; filters remain future work.)
 - Expand Collection Records audit filters/export options.
 - Add export/print options for green leaf books.
-- Add SQLite backup and restore workflow.
+- Add SQLite backup and restore workflow. (Implemented with hosted monthly Cloud DB Backup upload and admin restore.)
 
 ## Phase 3: Cloud And Web
 
@@ -31,7 +31,7 @@
 ## Production Hardening
 
 - Replace any remaining prototype authentication pieces with production-grade password and session policies.
-- Add database backups.
+- Add database backups. (Implemented for desktop SQLite cloud backup; hosted MySQL backup remains an infrastructure responsibility.)
 - Add schema migrations.
 - Add app versioning and sync protocol versioning.
 - Add device registration for tablets.

@@ -117,6 +117,25 @@ export function createBackendServer({ store = createMemoryStore() } = {}) {
         }
         return send(request, response, 200, await store.syncFromDesktop(sessionToken(request), payload));
       }
+      if (url.pathname.startsWith("/desktop-backups")) {
+        if (!validDesktopSyncToken(request)) {
+          return send(request, response, 401, { error: "Desktop backup token is required" });
+        }
+        if (request.method === "POST" && url.pathname === "/desktop-backups") {
+          return send(
+            request,
+            response,
+            201,
+            await store.saveDesktopBackup(await parseJsonBody(request), "trusted_desktop_backup")
+          );
+        }
+        if (request.method === "GET" && url.pathname === "/desktop-backups/latest/metadata") {
+          return send(request, response, 200, { backup: await store.latestDesktopBackup({ includeData: false }) });
+        }
+        if (request.method === "GET" && url.pathname === "/desktop-backups/latest") {
+          return send(request, response, 200, { backup: await store.latestDesktopBackup({ includeData: true }) });
+        }
+      }
       if (request.method === "GET" && url.pathname === "/green-leaf-book") {
         const month = url.searchParams.get("month");
         const input = await store.getGreenLeafInput(sessionToken(request), month);

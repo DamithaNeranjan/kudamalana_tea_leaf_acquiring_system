@@ -206,6 +206,21 @@ CREATE TABLE IF NOT EXISTS sync_log (
   summary_json JSON NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS desktop_backups (
+  id VARCHAR(80) PRIMARY KEY,
+  created_at DATETIME NOT NULL,
+  uploaded_at DATETIME NOT NULL,
+  uploaded_by VARCHAR(80),
+  app_name VARCHAR(120),
+  format_version INT NOT NULL DEFAULT 1,
+  compression VARCHAR(40) NOT NULL DEFAULT 'gzip',
+  size_bytes BIGINT NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  backup_data LONGTEXT NOT NULL,
+  note VARCHAR(255),
+  KEY idx_desktop_backups_uploaded_at (uploaded_at)
+);
+
 CREATE TABLE IF NOT EXISTS web_audit_log (
   id VARCHAR(80) PRIMARY KEY,
   user_id VARCHAR(80),

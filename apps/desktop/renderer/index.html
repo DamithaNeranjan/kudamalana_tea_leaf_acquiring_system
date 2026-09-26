@@ -91,6 +91,7 @@
             <button class="menu-item" type="button" data-view="lineUsersView">Line Users</button>
             <button class="menu-item" type="button" data-view="stagingView">Staging Review</button>
             <button class="menu-item" type="button" data-view="recordsView">Collection Records</button>
+            <button class="menu-item" type="button" data-view="cloudBackupView">Cloud DB Backup</button>
           </div>
           <div class="menu-section">
             <span class="menu-section-label">Reports</span>
@@ -176,6 +177,10 @@
                 <button class="summary-card" type="button" data-view-shortcut="recordsView">
                   <strong>Collection Records</strong>
                   <span>View posted mobile records and office adjustments.</span>
+                </button>
+                <button class="summary-card" type="button" data-view-shortcut="cloudBackupView">
+                  <strong>Cloud DB Backup</strong>
+                  <span>Upload the desktop SQLite database backup to the hosted backend.</span>
                 </button>
               </div>
             </section>
@@ -1098,6 +1103,28 @@
               <button id="printSupplierBills" class="secondary-button" type="button">Open printer preview</button>
             </div>
             <div id="monthEndSummary" class="month-summary hidden"></div>
+          </section>
+        </section>
+
+        <section id="cloudBackupView" class="view">
+          <div class="view-heading">
+            <h2>Cloud DB Backup</h2>
+            <p>Upload a monthly desktop SQLite backup and restore the latest cloud copy on a replacement computer.</p>
+          </div>
+          <section class="panel cloud-backup-panel">
+            <div class="cloud-backup-actions">
+              <div class="status-card">
+                <span class="eyebrow">Latest cloud backup</span>
+                <strong id="cloudBackupLatest">No cloud backup checked yet</strong>
+                <span id="cloudBackupDetails" class="muted-text"></span>
+              </div>
+              <div class="cloud-backup-buttons">
+                <button id="checkCloudBackup" class="secondary-action-button" type="button">Check latest backup</button>
+                <button id="uploadCloudBackup" type="button">Upload DB backup now</button>
+                <button id="restoreCloudBackup" class="danger-button hidden" type="button">Restore latest backup</button>
+              </div>
+            </div>
+            <span id="cloudBackupMessage" class="message"></span>
           </section>
         </section>
 

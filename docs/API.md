@@ -496,6 +496,47 @@ Payload:
 
 `backendUrl` is required and must start with `http://` or `https://`. Omit `backendToken` or send an empty string to keep the current token unchanged.
 
+### `POST /desktop-backups`
+
+Hosted backend endpoint called by the desktop app when an office user uploads a disaster-recovery DB backup. It requires the shared cloud sync token in `x-sync-token`.
+
+The payload format is:
+
+```json
+{
+  "format": "tea-desktop-sqlite-backup",
+  "formatVersion": 1,
+  "appName": "Tea Leaf Acquiring System",
+  "createdAt": "2026-09-06T10:00:00.000Z",
+  "compression": "gzip",
+  "sizeBytes": 123456,
+  "sha256": "<sha256-of-original-sqlite-file>",
+  "backupData": "<base64-gzip-sqlite-backup>"
+}
+```
+
+The response returns backup metadata only; it does not echo `backupData`.
+
+### `GET /desktop-backups/latest/metadata`
+
+Hosted backend endpoint that returns metadata for the latest uploaded desktop DB backup. It requires `x-sync-token`.
+
+### `GET /desktop-backups/latest`
+
+Hosted backend endpoint that returns the latest uploaded desktop DB backup, including `backupData`. It requires `x-sync-token` and is used by desktop admin restore.
+
+### `POST /office/cloud-backup`
+
+Desktop-session protected endpoint on the local desktop sync server. It creates a consistent SQLite backup using SQLite `VACUUM INTO`, verifies it, compresses it, and uploads it to hosted `/desktop-backups` with the configured `BACKEND_URL` and `CLOUD_SYNC_TOKEN`.
+
+### `GET /office/cloud-backup/latest`
+
+Desktop-session protected endpoint that asks the hosted backend for latest cloud backup metadata.
+
+### `POST /office/cloud-backup/restore`
+
+Desktop admin-only endpoint that downloads the latest hosted backup, verifies the checksum and SQLite integrity, saves the current DB as a `.before-restore-<timestamp>` copy, replaces the active desktop DB, clears desktop sessions, and requires users to log in again.
+
 ### `GET /green-leaf-book?month=YYYY-MM`
 
 Returns a role-protected monthly green leaf book from synced backend data. The backend uses the shared Green Leaf Book calculation, applies supplier and line special prices, calculates automatic arrears from the previous month using previous-month collection, settings, deduction, payment, and arrears inputs, and returns synced closed-book metadata when available.

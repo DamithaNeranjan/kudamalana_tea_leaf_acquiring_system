@@ -1,7 +1,10 @@
 import http from "node:http";
-import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { networkInterfaces } from "node:os";
+import { createHash, randomBytes } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { gzipSync, gunzipSync } from "node:zlib";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { networkInterfaces, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import QRCode from "qrcode";
@@ -102,6 +105,134 @@ function cloudSyncConfig(session) {
     tokenConfigured: Boolean(configuredBackendToken({}, process.env)),
     canManage: session?.user?.role === "admin"
   };
+}
+
+function sqliteStringLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function isoStamp(value = new Date()) {
+  return value.toISOString().replace(/[:.]/g, "-");
+}
+
+function backupMetadata(backup) {
+  if (!backup) return null;
+  const { backupData, ...metadata } = backup;
+  return metadata;
+}
+
+function validateBackupPayload(payload = {}) {
+  if (payload.format !== "tea-desktop-sqlite-backup" || Number(payload.formatVersion || 0) < 1) {
+    const error = new Error("Unsupported desktop backup format");
+    error.status = 400;
+    throw error;
+  }
+  if (!payload.backupData || !payload.sha256 || !payload.sizeBytes) {
+    const error = new Error("Desktop backup is missing required data");
+    error.status = 400;
+    throw error;
+  }
+}
+
+function backupBufferFromPayload(payload) {
+  validateBackupPayload(payload);
+  const compressed = Buffer.from(payload.backupData, "base64");
+  const buffer = payload.compression === "gzip" ? gunzipSync(compressed) : compressed;
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  if (sha256 !== payload.sha256 || buffer.length !== Number(payload.sizeBytes)) {
+    const error = new Error("Downloaded desktop backup failed integrity verification");
+    error.status = 400;
+    throw error;
+  }
+  return buffer;
+}
+
+function assertValidSqliteBackup(filePath) {
+  const db = new DatabaseSync(filePath);
+  try {
+    const result = db.prepare("PRAGMA integrity_check").get();
+    const value = Object.values(result || {})[0];
+    if (value !== "ok") throw new Error(`SQLite integrity check failed: ${value || "unknown error"}`);
+  } finally {
+    db.close();
+  }
+}
+
+async function createDesktopBackupPayload(store, { note = "" } = {}) {
+  const backupDir = await mkdtemp(join(tmpdir(), "tea-desktop-backup-"));
+  const backupPath = join(backupDir, "tea-local-db.sqlite");
+  try {
+    store.db.exec("PRAGMA wal_checkpoint(FULL);");
+    store.db.exec(`VACUUM INTO ${sqliteStringLiteral(backupPath)}`);
+    assertValidSqliteBackup(backupPath);
+    const buffer = await readFile(backupPath);
+    const compressed = gzipSync(buffer);
+    const createdAt = new Date().toISOString();
+    return {
+      id: `desktop_backup_${createdAt.replace(/[-:.TZ]/g, "")}`,
+      format: "tea-desktop-sqlite-backup",
+      formatVersion: 1,
+      appName: "Tea Leaf Acquiring System",
+      createdAt,
+      compression: "gzip",
+      sizeBytes: buffer.length,
+      sha256: createHash("sha256").update(buffer).digest("hex"),
+      note,
+      backupData: compressed.toString("base64")
+    };
+  } finally {
+    await rm(backupDir, { recursive: true, force: true });
+  }
+}
+
+async function replaceStoreWithBackup(store, backupPayload) {
+  const buffer = backupBufferFromPayload(backupPayload);
+  const targetPath = store.filePath;
+  const restoreDir = dirname(targetPath);
+  const validationDir = await mkdtemp(join(tmpdir(), "tea-desktop-restore-"));
+  const validationPath = join(validationDir, "tea-local-db.sqlite");
+  let previousPath = "";
+  try {
+    await writeFile(validationPath, buffer);
+    assertValidSqliteBackup(validationPath);
+
+    previousPath = `${targetPath}.before-restore-${isoStamp()}`;
+    store.close();
+    await mkdir(restoreDir, { recursive: true });
+    if (existsSync(targetPath)) await rename(targetPath, previousPath);
+    await rm(`${targetPath}-wal`, { force: true });
+    await rm(`${targetPath}-shm`, { force: true });
+    await writeFile(targetPath, buffer);
+    const restoredStore = new LocalStore(targetPath);
+    try {
+      await restoredStore.load();
+    } catch (error) {
+      restoredStore.close();
+      await rm(targetPath, { force: true });
+      if (previousPath && existsSync(previousPath)) await rename(previousPath, targetPath);
+      await store.load();
+      throw error;
+    }
+    return { store: restoredStore, previousPath };
+  } finally {
+    await rm(validationDir, { recursive: true, force: true });
+  }
+}
+
+async function requireCloudBackupConfig(payload = {}) {
+  const backendUrl = configuredBackendUrl(payload);
+  if (!backendUrl) {
+    const error = new Error("BACKEND_URL is not configured for cloud backup");
+    error.status = 400;
+    throw error;
+  }
+  const backendToken = await resolveBackendToken({ payload, backendUrl });
+  if (!backendToken) {
+    const error = new Error("CLOUD_SYNC_TOKEN is not configured for cloud backup");
+    error.status = 400;
+    throw error;
+  }
+  return { backendUrl, backendToken };
 }
 
 export async function createDesktopSyncServer({ store = new LocalStore() } = {}) {
@@ -505,6 +636,89 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             store.failCloudSyncRun(syncRun.id, error);
             throw error;
           }
+        }
+        if (request.method === "POST" && url.pathname === "/office/cloud-backup") {
+          const payload = await parseJsonBody(request);
+          const { backendUrl, backendToken } = await requireCloudBackupConfig(payload);
+          const backupPayload = await createDesktopBackupPayload(store, { note: payload.note });
+          const backupResponse = await fetch(`${backendUrl}/desktop-backups`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${backendToken}`,
+              "x-sync-token": backendToken,
+              "content-type": "application/json"
+            },
+            body: JSON.stringify(backupPayload)
+          });
+          const responsePayload = await backupResponse.json();
+          if (!backupResponse.ok) {
+            const error = new Error(responsePayload.error || "Cloud DB backup failed");
+            error.status = backupResponse.status;
+            throw error;
+          }
+          logAudit(session, {
+            action: "backup",
+            entityType: "desktop_db_backup",
+            entityId: responsePayload.id || responsePayload.backup?.id || backupPayload.id,
+            entityLabel: "Desktop SQLite backup",
+            summary: `Uploaded desktop DB backup (${backupPayload.sizeBytes} bytes)`,
+            before: null,
+            after: backupMetadata(responsePayload.backup || responsePayload)
+          });
+          return send(response, 201, responsePayload);
+        }
+        if (request.method === "GET" && url.pathname === "/office/cloud-backup/latest") {
+          const { backendUrl, backendToken } = await requireCloudBackupConfig();
+          const backupResponse = await fetch(`${backendUrl}/desktop-backups/latest/metadata`, {
+            headers: {
+              authorization: `Bearer ${backendToken}`,
+              "x-sync-token": backendToken
+            }
+          });
+          const responsePayload = await backupResponse.json();
+          if (!backupResponse.ok) {
+            const error = new Error(responsePayload.error || "Could not load latest cloud DB backup");
+            error.status = backupResponse.status;
+            throw error;
+          }
+          return send(response, 200, responsePayload);
+        }
+        if (request.method === "POST" && url.pathname === "/office/cloud-backup/restore") {
+          requireDesktopAdmin(session);
+          const { backendUrl, backendToken } = await requireCloudBackupConfig(await parseJsonBody(request));
+          const backupResponse = await fetch(`${backendUrl}/desktop-backups/latest`, {
+            headers: {
+              authorization: `Bearer ${backendToken}`,
+              "x-sync-token": backendToken
+            }
+          });
+          const responsePayload = await backupResponse.json();
+          if (!backupResponse.ok) {
+            const error = new Error(responsePayload.error || "Could not download latest cloud DB backup");
+            error.status = backupResponse.status;
+            throw error;
+          }
+          const restored = await replaceStoreWithBackup(store, responsePayload.backup);
+          store = restored.store;
+          sessions.clear();
+          store.recordAudit({
+            user: session.user,
+            action: "restore",
+            entityType: "desktop_db_backup",
+            entityId: responsePayload.backup?.id,
+            entityLabel: "Desktop SQLite backup",
+            summary: "Restored desktop DB from latest cloud backup",
+            before: null,
+            after: {
+              ...backupMetadata(responsePayload.backup),
+              previousPath: restored.previousPath
+            }
+          });
+          return send(response, 200, {
+            ok: true,
+            backup: backupMetadata(responsePayload.backup),
+            previousPath: restored.previousPath
+          });
         }
         if (request.method === "GET" && url.pathname === "/office/green-leaf-book") {
           const month = url.searchParams.get("month");

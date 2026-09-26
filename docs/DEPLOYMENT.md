@@ -119,6 +119,15 @@ $env:OFFICE_SYNC_URL="http://<desktop-lan-ip>:7070"
 - Confirm backend `/health` responds from the hosting environment.
 - Confirm web login, logout, and page refresh session restore work against the hosted backend.
 - Confirm desktop Sync to Web App succeeds and the web Green Leaf Book shows the synced month.
+- Confirm desktop Cloud DB Backup can upload a backup to the hosted backend, then check the latest backup metadata from the desktop app.
 - Confirm each tablet can pair with the desktop QR code, log in as a line user, download 14 tea lines and 496 suppliers, save offline records, print receipts, and upload records to desktop staging.
 - Back up the desktop SQLite database folder and hosted MySQL database before production use.
 - Confirm server clocks/timezones are sane; date-only collection fields must remain calendar dates, while timestamp fields render in local time.
+
+## Replacement Desktop Recovery
+
+1. Install the desktop app on the replacement Windows computer.
+2. Log in with the seeded desktop admin account, then immediately use the correct production admin credentials if the restored DB has different users.
+3. Open Sync to Web App and save the hosted backend URL and cloud sync token if they are not already configured.
+4. Open Cloud DB Backup, press Check latest backup, then Restore latest backup.
+5. Log in again after restore and confirm suppliers, collection records, Green Leaf Book months, staging records, and office users are present.

@@ -21,6 +21,56 @@ async function withServer(fn) {
   }
 }
 
+test("trusted desktop can upload and fetch latest DB backup", async () => {
+  const previousToken = process.env.CLOUD_SYNC_TOKEN;
+  process.env.CLOUD_SYNC_TOKEN = "backup-token";
+  try {
+    await withServer(async (baseUrl) => {
+      const blocked = await fetch(`${baseUrl}/desktop-backups/latest/metadata`);
+      assert.equal(blocked.status, 401);
+
+      const backupPayload = {
+        id: "desktop_backup_test",
+        format: "tea-desktop-sqlite-backup",
+        formatVersion: 1,
+        appName: "Tea Leaf Acquiring System",
+        createdAt: "2026-09-06T10:00:00.000Z",
+        compression: "gzip",
+        sizeBytes: 12,
+        sha256: "a".repeat(64),
+        backupData: Buffer.from("compressed").toString("base64")
+      };
+      const upload = await fetch(`${baseUrl}/desktop-backups`, {
+        method: "POST",
+        headers: { "x-sync-token": "backup-token" },
+        body: JSON.stringify(backupPayload)
+      });
+      assert.equal(upload.status, 201);
+      const metadata = await upload.json();
+      assert.equal(metadata.id, "desktop_backup_test");
+      assert.equal(metadata.backupData, undefined);
+
+      const latestMetadataResponse = await fetch(`${baseUrl}/desktop-backups/latest/metadata`, {
+        headers: { "x-sync-token": "backup-token" }
+      });
+      assert.equal(latestMetadataResponse.status, 200);
+      const latestMetadata = await latestMetadataResponse.json();
+      assert.equal(latestMetadata.backup.id, "desktop_backup_test");
+      assert.equal(latestMetadata.backup.backupData, undefined);
+
+      const latestResponse = await fetch(`${baseUrl}/desktop-backups/latest`, {
+        headers: { "x-sync-token": "backup-token" }
+      });
+      assert.equal(latestResponse.status, 200);
+      const latest = await latestResponse.json();
+      assert.equal(latest.backup.backupData, backupPayload.backupData);
+    });
+  } finally {
+    if (previousToken === undefined) delete process.env.CLOUD_SYNC_TOKEN;
+    else process.env.CLOUD_SYNC_TOKEN = previousToken;
+  }
+});
+
 test("super admin can create directors and director can view green leaf book", async () => {
   await withServer(async (baseUrl) => {
     const loginResponse = await fetch(`${baseUrl}/auth/login`, {

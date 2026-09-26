@@ -88,6 +88,36 @@ function publicUser(row) {
   };
 }
 
+function desktopBackupMetadata(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    format: "tea-desktop-sqlite-backup",
+    formatVersion: Number(row.format_version || 1),
+    appName: row.app_name || "Tea Leaf Acquiring System",
+    createdAt: row.created_at,
+    uploadedAt: row.uploaded_at,
+    uploadedBy: row.uploaded_by,
+    compression: row.compression || "gzip",
+    sizeBytes: Number(row.size_bytes || 0),
+    sha256: row.sha256,
+    note: row.note || ""
+  };
+}
+
+function validateDesktopBackupPayload(payload = {}) {
+  if (payload.format !== "tea-desktop-sqlite-backup" || Number(payload.formatVersion || 0) < 1) {
+    const error = new Error("Unsupported desktop backup format");
+    error.status = 400;
+    throw error;
+  }
+  if (!payload.backupData || !payload.sha256 || !payload.sizeBytes) {
+    const error = new Error("Desktop backup payload must include backupData, sha256, and sizeBytes");
+    error.status = 400;
+    throw error;
+  }
+}
+
 function dbConfigFromEnv() {
   return {
     host: process.env.MYSQL_HOST,
@@ -1160,6 +1190,69 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
 
     async syncFromTrustedDesktop(payload) {
       return await this.syncFromDesktopPayload(payload, "trusted_desktop_sync", "trusted_desktop");
+    },
+
+    async saveDesktopBackup(payload, actorId = "trusted_desktop_backup") {
+      validateDesktopBackupPayload(payload);
+      const conn = await pool.getConnection();
+      try {
+        const backup = {
+          id: payload.id || makeId("desktop_backup"),
+          createdAt: toMysqlDateTime(payload.createdAt || new Date()),
+          uploadedAt: toMysqlDateTime(),
+          uploadedBy: actorId,
+          appName: payload.appName || "Tea Leaf Acquiring System",
+          formatVersion: Number(payload.formatVersion || 1),
+          compression: payload.compression || "gzip",
+          sizeBytes: Number(payload.sizeBytes),
+          sha256: payload.sha256,
+          backupData: payload.backupData,
+          note: payload.note || null
+        };
+        await conn.execute(
+          `INSERT INTO desktop_backups
+           (id, created_at, uploaded_at, uploaded_by, app_name, format_version, compression, size_bytes, sha256, backup_data, note)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            backup.id,
+            backup.createdAt,
+            backup.uploadedAt,
+            backup.uploadedBy,
+            backup.appName,
+            backup.formatVersion,
+            backup.compression,
+            backup.sizeBytes,
+            backup.sha256,
+            backup.backupData,
+            backup.note
+          ]
+        );
+        const [rows] = await conn.execute("SELECT * FROM desktop_backups WHERE id = ?", [backup.id]);
+        return desktopBackupMetadata(rows[0]);
+      } finally {
+        conn.release();
+      }
+    },
+
+    async latestDesktopBackup({ includeData = false } = {}) {
+      const conn = await pool.getConnection();
+      try {
+        const [rows] = await conn.execute(
+          `SELECT *
+           FROM desktop_backups
+           ORDER BY uploaded_at DESC, id DESC
+           LIMIT 1`
+        );
+        if (!rows.length) {
+          const error = new Error("No desktop backup has been uploaded yet");
+          error.status = 404;
+          throw error;
+        }
+        const metadata = desktopBackupMetadata(rows[0]);
+        return includeData ? { ...metadata, backupData: rows[0].backup_data } : metadata;
+      } finally {
+        conn.release();
+      }
     },
 
     async getGreenLeafInput(sessionToken, month) {

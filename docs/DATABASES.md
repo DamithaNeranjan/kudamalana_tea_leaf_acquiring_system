@@ -55,6 +55,12 @@ CLOUD_SYNC_TOKEN=<same-long-random-secret-used-by-desktop>
 
 The backend creates the configured database, creates missing tables from `apps/backend/src/mysql-schema.sql`, and seeds default web users for the `super_admin`, `director`, and `office_user` roles at startup when the MySQL user has permission. It also keeps the older development `superadmin` account.
 
+## Desktop Cloud DB Backups
+
+The Cloud DB Backup desktop screen stores disaster-recovery backups in the hosted backend MySQL database, in the `desktop_backups` table. Each upload is a SQLite `VACUUM INTO` snapshot of the desktop DB, verified with `PRAGMA integrity_check`, gzip-compressed, base64 encoded, and authenticated with the same `CLOUD_SYNC_TOKEN` used by desktop-to-web sync.
+
+This backup is separate from Green Leaf Book cloud sync. Cloud sync keeps hosted web reporting data current, while Cloud DB Backup preserves the exact desktop SQLite database so a replacement desktop deployment can restore offline office data, audit logs, staging records, local users, and sync history.
+
 ## Current Persistence Notes
 
 - Desktop uses SQLite through Node's built-in `node:sqlite` module.
@@ -83,4 +89,5 @@ The backend creates the configured database, creates missing tables from `apps/b
 - The hosted MySQL backend opens MySQL connections with UTC timezone handling for `DATETIME` columns. Timestamp-style values are stored from UTC ISO timestamps and rendered by clients in the user's local/system timezone, while date-only Green Leaf Book fields remain calendar dates. Web and shared month defaults use local/business month values instead of UTC ISO slicing so month selection does not drift around midnight. Android stores tablet saved/printed instants as ISO timestamps while preserving collection date/time as local collection values for receipts and Green Leaf Book grouping.
 - Desktop `audit_log` is append-only for office login/logout, create/update/post/payment actions, and successful supplier bill print actions. It stores the acting user, action, entity metadata, summary, timestamp, and sanitized before/after JSON while excluding passwords, hashes, tokens, and authorization values. Viewing bill print previews is not logged.
 - Desktop cloud sync run history is retained for operational review with pagination/filtering in the UI. Cleanup keeps recent history for 180 days and preserves at least the latest 500 runs before pruning older rows.
+- Desktop cloud DB backup upload and restore actions are recorded in the desktop audit log. Restore saves the current SQLite file beside the active database as a `.before-restore-<timestamp>` copy before replacing it.
 - Local runtime data, WAL files, and logs are excluded from Git.

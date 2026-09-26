@@ -38,6 +38,7 @@ export function createMemoryStore() {
   const monthClosures = new Map();
   const webAuditLogs = [];
   const syncLog = [];
+  const desktopBackups = [];
 
   for (const user of [
     { id: "user_superadmin", username: "superadmin", displayName: "Super Admin", role: "super_admin", password: "admin123" },
@@ -101,6 +102,25 @@ export function createMemoryStore() {
         updatedAt: user.updatedAt || user.createdAt
       }))
       .sort((a, b) => a.username.localeCompare(b.username));
+  }
+
+  function desktopBackupMetadata(backup) {
+    if (!backup) return null;
+    const { backupData, ...metadata } = backup;
+    return metadata;
+  }
+
+  function validateDesktopBackupPayload(payload = {}) {
+    if (payload.format !== "tea-desktop-sqlite-backup" || Number(payload.formatVersion || 0) < 1) {
+      const error = new Error("Unsupported desktop backup format");
+      error.status = 400;
+      throw error;
+    }
+    if (!payload.backupData || !payload.sha256 || !payload.sizeBytes) {
+      const error = new Error("Desktop backup payload must include backupData, sha256, and sizeBytes");
+      error.status = 400;
+      throw error;
+    }
   }
 
   function upsertOfficeUsers(records = []) {
@@ -559,6 +579,38 @@ export function createMemoryStore() {
 
     syncFromTrustedDesktop(payload) {
       return syncDesktopPayload({ id: "trusted_desktop_sync" }, payload);
+    },
+
+    saveDesktopBackup(payload, actorId = "trusted_desktop_backup") {
+      validateDesktopBackupPayload(payload);
+      const backup = {
+        id: payload.id || makeId("desktop_backup"),
+        format: "tea-desktop-sqlite-backup",
+        formatVersion: Number(payload.formatVersion || 1),
+        appName: payload.appName || "Tea Leaf Acquiring System",
+        createdAt: payload.createdAt || new Date().toISOString(),
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: actorId,
+        compression: payload.compression || "gzip",
+        sizeBytes: Number(payload.sizeBytes),
+        sha256: payload.sha256,
+        note: payload.note || "",
+        backupData: payload.backupData
+      };
+      desktopBackups.push(backup);
+      desktopBackups.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+      desktopBackups.splice(12);
+      return desktopBackupMetadata(backup);
+    },
+
+    latestDesktopBackup({ includeData = false } = {}) {
+      const backup = desktopBackups[0];
+      if (!backup) {
+        const error = new Error("No desktop backup has been uploaded yet");
+        error.status = 404;
+        throw error;
+      }
+      return includeData ? backup : desktopBackupMetadata(backup);
     },
 
     getGreenLeafInput(sessionToken, month) {

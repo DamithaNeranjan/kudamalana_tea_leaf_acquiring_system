@@ -1009,6 +1009,41 @@ button {
   grid-template-columns: minmax(260px, 1fr) minmax(220px, 1fr);
 }
 
+.cloud-backup-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.cloud-backup-actions {
+  align-items: center;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  padding: 16px;
+}
+
+.cloud-backup-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.secondary-action-button {
+  background: #ffffff;
+  border-color: #b8c4b4;
+  color: var(--brand-strong);
+}
+
+.danger-button {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
 .status-card {
   background: #ffffff;
   border: 1px solid var(--line);
@@ -1782,8 +1817,13 @@ th:first-child {
   .cloud-sync-config-card,
   .cloud-sync-config-form,
   .cloud-sync-form,
-  .cloud-sync-status {
+  .cloud-sync-status,
+  .cloud-backup-actions {
     grid-template-columns: 1fr;
+  }
+
+  .cloud-backup-buttons {
+    justify-content: flex-start;
   }
 }
 

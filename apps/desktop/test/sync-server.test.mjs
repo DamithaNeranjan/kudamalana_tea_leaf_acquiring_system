@@ -544,6 +544,78 @@ test("desktop admin can save cloud sync config for deployed app use", async () =
   });
 });
 
+test("desktop can upload and restore latest cloud DB backup", async () => {
+  const previousToken = process.env.CLOUD_SYNC_TOKEN;
+  process.env.CLOUD_SYNC_TOKEN = "test-cloud-backup-token";
+  try {
+    await withBackendServer(async (backendUrl) => {
+      await withDesktopServer(async (desktopUrl) => {
+        const adminLogin = await fetch(`${desktopUrl}/office/login`, {
+          method: "POST",
+          body: JSON.stringify({ username: "admin", password: "admin123" })
+        });
+        assert.equal(adminLogin.status, 200);
+        const { token } = await adminLogin.json();
+        const auth = { authorization: `Bearer ${token}` };
+
+        const backupLineResponse = await fetch(`${desktopUrl}/office/tea-lines`, {
+          method: "POST",
+          headers: auth,
+          body: JSON.stringify({ id: "line_before_backup", name: "Before Backup Line" })
+        });
+        assert.equal(backupLineResponse.status, 201);
+
+        const uploadBackup = await fetch(`${desktopUrl}/office/cloud-backup`, {
+          method: "POST",
+          headers: auth,
+          body: JSON.stringify({})
+        });
+        assert.equal(uploadBackup.status, 201);
+        const uploaded = await uploadBackup.json();
+        assert.equal(uploaded.format, "tea-desktop-sqlite-backup");
+        assert.equal(uploaded.backupData, undefined);
+
+        const latestBackup = await fetch(`${desktopUrl}/office/cloud-backup/latest`, { headers: auth });
+        assert.equal(latestBackup.status, 200);
+        assert.equal((await latestBackup.json()).backup.id, uploaded.id);
+
+        const afterBackupLineResponse = await fetch(`${desktopUrl}/office/tea-lines`, {
+          method: "POST",
+          headers: auth,
+          body: JSON.stringify({ id: "line_after_backup", name: "After Backup Line" })
+        });
+        assert.equal(afterBackupLineResponse.status, 201);
+
+        const restore = await fetch(`${desktopUrl}/office/cloud-backup/restore`, {
+          method: "POST",
+          headers: auth,
+          body: JSON.stringify({})
+        });
+        assert.equal(restore.status, 200);
+        assert.equal((await restore.json()).backup.id, uploaded.id);
+
+        const blockedOldSession = await fetch(`${desktopUrl}/office/state`, { headers: auth });
+        assert.equal(blockedOldSession.status, 401);
+
+        const relogin = await fetch(`${desktopUrl}/office/login`, {
+          method: "POST",
+          body: JSON.stringify({ username: "admin", password: "admin123" })
+        });
+        assert.equal(relogin.status, 200);
+        const { token: restoredToken } = await relogin.json();
+        const restoredState = await (
+          await fetch(`${desktopUrl}/office/state`, { headers: { authorization: `Bearer ${restoredToken}` } })
+        ).json();
+        assert.ok(restoredState.teaLines.some((line) => line.id === "line_before_backup"));
+        assert.equal(restoredState.teaLines.some((line) => line.id === "line_after_backup"), false);
+      }, { BACKEND_URL: backendUrl, CLOUD_SYNC_TOKEN: "test-cloud-backup-token" });
+    });
+  } finally {
+    if (previousToken === undefined) delete process.env.CLOUD_SYNC_TOKEN;
+    else process.env.CLOUD_SYNC_TOKEN = previousToken;
+  }
+});
+
 test("desktop cloud sync records status and sends only changed data after first sync", async () => {
   const previousToken = process.env.CLOUD_SYNC_TOKEN;
   process.env.CLOUD_SYNC_TOKEN = "test-cloud-sync-token";

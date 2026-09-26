@@ -142,6 +142,10 @@ function clearSession() {
   document.querySelector("#cloudSyncConfigForm").reset();
   document.querySelector("#cloudSyncConfigCard").classList.add("hidden");
   document.querySelector("#cloudSyncConfigSummary").classList.add("hidden");
+  document.querySelector("#cloudBackupLatest").textContent = "No cloud backup checked yet";
+  document.querySelector("#cloudBackupDetails").textContent = "";
+  document.querySelector("#cloudBackupMessage").textContent = "";
+  document.querySelector("#restoreCloudBackup").classList.add("hidden");
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
@@ -193,6 +197,11 @@ function showView(viewId) {
   }
   if (viewId === "cloudSyncView" && officeToken) {
     loadCloudSyncStatus().catch((error) => showToast(error.message, "error"));
+  }
+  if (viewId === "cloudBackupView" && officeToken) {
+    loadCloudBackupStatus().catch(() => {
+      renderCloudBackupStatus(null);
+    });
   }
 }
 
@@ -1173,6 +1182,96 @@ async function runCloudSync(event) {
     message.textContent = error.message;
     showToast(error.message, "error");
     await loadCloudSyncStatus().catch(() => {});
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function renderCloudBackupStatus(result) {
+  const backup = result?.backup || result || null;
+  const latest = document.querySelector("#cloudBackupLatest");
+  const details = document.querySelector("#cloudBackupDetails");
+  const restoreButton = document.querySelector("#restoreCloudBackup");
+  restoreButton.classList.toggle("hidden", !isDesktopAdmin() || !backup?.id);
+  if (!backup?.uploadedAt && !backup?.createdAt) {
+    latest.textContent = "No cloud backup found";
+    details.textContent = "";
+    return;
+  }
+  latest.textContent = formatDateTime(backup.uploadedAt || backup.createdAt);
+  details.textContent = `${formatBytes(backup.sizeBytes)} - ${backup.sha256 ? backup.sha256.slice(0, 12) : "checksum unavailable"}`;
+}
+
+async function loadCloudBackupStatus() {
+  const result = await api("/office/cloud-backup/latest");
+  renderCloudBackupStatus(result);
+  return result;
+}
+
+async function checkCloudBackup() {
+  const message = document.querySelector("#cloudBackupMessage");
+  message.className = "message info";
+  message.textContent = "Checking latest cloud backup...";
+  try {
+    await loadCloudBackupStatus();
+    message.className = "message success";
+    message.textContent = "Latest cloud backup loaded.";
+  } catch (error) {
+    renderCloudBackupStatus(null);
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  }
+}
+
+async function uploadCloudBackup() {
+  const message = document.querySelector("#cloudBackupMessage");
+  const button = document.querySelector("#uploadCloudBackup");
+  message.className = "message info";
+  message.textContent = "Creating and uploading desktop DB backup...";
+  button.disabled = true;
+  try {
+    const result = await api("/office/cloud-backup", { method: "POST", body: JSON.stringify({}) });
+    renderCloudBackupStatus(result);
+    message.className = "message success";
+    message.textContent = "Desktop DB backup uploaded to cloud.";
+    showToast("Desktop DB backup uploaded.");
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function restoreCloudBackup() {
+  if (!isDesktopAdmin()) return;
+  const confirmed = window.confirm("Restore the latest cloud DB backup? Current local data will be saved as a pre-restore copy, then replaced.");
+  if (!confirmed) return;
+  const message = document.querySelector("#cloudBackupMessage");
+  const button = document.querySelector("#restoreCloudBackup");
+  message.className = "message info";
+  message.textContent = "Downloading and restoring latest cloud DB backup...";
+  button.disabled = true;
+  try {
+    const result = await api("/office/cloud-backup/restore", { method: "POST", body: JSON.stringify({}) });
+    renderCloudBackupStatus(result);
+    message.className = "message success";
+    message.textContent = "Desktop DB restored. Log in again to continue.";
+    showToast("Desktop DB restored. Log in again.");
+    clearSession();
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
   } finally {
     button.disabled = false;
   }
@@ -2264,6 +2363,9 @@ function formatSinhalaMonth(month) {
 document.querySelector("#refreshPairingQr").addEventListener("click", refreshPairingQr);
 document.querySelector("#cloudSyncConfigForm").addEventListener("submit", saveCloudSyncConfig);
 document.querySelector("#cloudSyncForm").addEventListener("submit", runCloudSync);
+document.querySelector("#checkCloudBackup").addEventListener("click", checkCloudBackup);
+document.querySelector("#uploadCloudBackup").addEventListener("click", uploadCloudBackup);
+document.querySelector("#restoreCloudBackup").addEventListener("click", restoreCloudBackup);
 
 document.querySelector("#bookMonth").value = localMonthValue();
 document.querySelector("#billMonth").value = localMonthValue();

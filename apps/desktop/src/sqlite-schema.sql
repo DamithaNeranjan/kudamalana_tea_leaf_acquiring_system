@@ -258,6 +258,14 @@ CREATE TABLE cloud_sync_runs (
   error TEXT
 );
 
+CREATE TABLE cloud_backup_reminder_settings (
+  id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  interval_days INTEGER NOT NULL DEFAULT 30,
+  last_backup_at TEXT,
+  updated_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_month ON supplier_payments(month, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(username, created_at);

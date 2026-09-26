@@ -533,6 +533,25 @@ Desktop-session protected endpoint on the local desktop sync server. It creates 
 
 Desktop-session protected endpoint that asks the hosted backend for latest cloud backup metadata.
 
+### `GET /office/cloud-backup/reminder`
+
+Desktop-session protected endpoint that returns the local Cloud DB Backup reminder settings and due status. The default is enabled every 30 days. A reminder is due when no successful desktop backup has been recorded, or when the configured number of days has passed since the last successful upload.
+
+### `PUT /office/cloud-backup/reminder`
+
+Desktop-session protected endpoint that updates local Cloud DB Backup reminder settings.
+
+Payload:
+
+```json
+{
+  "enabled": true,
+  "intervalDays": 14
+}
+```
+
+Use `enabled: false` to turn reminders off. `intervalDays` supports values from 1 to 365.
+
 ### `POST /office/cloud-backup/restore`
 
 Desktop admin-only endpoint that downloads the latest hosted backup, verifies the checksum and SQLite integrity, saves the current DB as a `.before-restore-<timestamp>` copy, replaces the active desktop DB, clears desktop sessions, and requires users to log in again.

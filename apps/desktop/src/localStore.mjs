@@ -37,6 +37,9 @@ function currentMonth() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const CLOUD_BACKUP_REMINDER_ID = "desktop_cloud_backup";
+const DEFAULT_CLOUD_BACKUP_REMINDER_DAYS = 30;
+
 function isAfter(value, since) {
   if (!since) return true;
   if (!value) return false;
@@ -180,6 +183,13 @@ export class LocalStore {
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(`settings_${currentMonth()}`, currentMonth(), 200, 2, 5, 3, now());
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO cloud_backup_reminder_settings
+         (id, enabled, interval_days, last_backup_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(CLOUD_BACKUP_REMINDER_ID, 1, DEFAULT_CLOUD_BACKUP_REMINDER_DAYS, null, now());
 
     this.seedDefaultMasterData();
   }
@@ -400,6 +410,17 @@ export class LocalStore {
       )
       .run();
     this.db.prepare("CREATE INDEX IF NOT EXISTS idx_cloud_sync_runs_started_at ON cloud_sync_runs(started_at)").run();
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS cloud_backup_reminder_settings (
+          id TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          interval_days INTEGER NOT NULL DEFAULT 30,
+          last_backup_at TEXT,
+          updated_at TEXT
+        )`
+      )
+      .run();
   }
 
   hasColumn(table, column) {
@@ -1707,6 +1728,83 @@ export class LocalStore {
     return { importedCount };
   }
 
+  cloudBackupReminderSettings() {
+    let row = this.db
+      .prepare(
+        `SELECT id, enabled, interval_days AS intervalDays,
+         last_backup_at AS lastBackupAt, updated_at AS updatedAt
+         FROM cloud_backup_reminder_settings
+         WHERE id = ?`
+      )
+      .get(CLOUD_BACKUP_REMINDER_ID);
+    if (!row) {
+      this.db
+        .prepare(
+          `INSERT INTO cloud_backup_reminder_settings
+           (id, enabled, interval_days, last_backup_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(CLOUD_BACKUP_REMINDER_ID, 1, DEFAULT_CLOUD_BACKUP_REMINDER_DAYS, null, now());
+      row = this.db
+        .prepare(
+          `SELECT id, enabled, interval_days AS intervalDays,
+           last_backup_at AS lastBackupAt, updated_at AS updatedAt
+           FROM cloud_backup_reminder_settings
+           WHERE id = ?`
+        )
+        .get(CLOUD_BACKUP_REMINDER_ID);
+    }
+    return {
+      ...row,
+      enabled: fromBool(row.enabled),
+      intervalDays: Math.max(1, Number(row.intervalDays || DEFAULT_CLOUD_BACKUP_REMINDER_DAYS))
+    };
+  }
+
+  cloudBackupReminderStatus(referenceTime = now()) {
+    const settings = this.cloudBackupReminderSettings();
+    const intervalMs = settings.intervalDays * 24 * 60 * 60 * 1000;
+    const referenceMs = new Date(referenceTime).getTime();
+    const lastMs = settings.lastBackupAt ? new Date(settings.lastBackupAt).getTime() : 0;
+    const nextDueAt = settings.lastBackupAt ? new Date(lastMs + intervalMs).toISOString() : referenceTime;
+    const due = Boolean(settings.enabled && (!settings.lastBackupAt || referenceMs >= lastMs + intervalMs));
+    const daysUntilDue = due ? 0 : Math.max(0, Math.ceil((lastMs + intervalMs - referenceMs) / (24 * 60 * 60 * 1000)));
+    return {
+      ...settings,
+      nextDueAt,
+      due,
+      daysUntilDue
+    };
+  }
+
+  updateCloudBackupReminderSettings(input = {}) {
+    const current = this.cloudBackupReminderSettings();
+    const intervalDays = Math.min(365, Math.max(1, Number(input.intervalDays || current.intervalDays || DEFAULT_CLOUD_BACKUP_REMINDER_DAYS)));
+    const enabled = input.enabled === undefined ? current.enabled : input.enabled === true || input.enabled === "true" || input.enabled === "on";
+    this.db
+      .prepare(
+        `UPDATE cloud_backup_reminder_settings
+         SET enabled = ?, interval_days = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(bool(enabled), intervalDays, now(), CLOUD_BACKUP_REMINDER_ID);
+    this.refreshSnapshot();
+    return this.cloudBackupReminderStatus();
+  }
+
+  recordCloudBackupSuccess(backupAt = now()) {
+    this.cloudBackupReminderSettings();
+    this.db
+      .prepare(
+        `UPDATE cloud_backup_reminder_settings
+         SET last_backup_at = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(backupAt || now(), now(), CLOUD_BACKUP_REMINDER_ID);
+    this.refreshSnapshot();
+    return this.cloudBackupReminderStatus();
+  }
+
   refreshSnapshot() {
     this.data = {
       officeUsers: this.officeUsers(),
@@ -2385,6 +2483,14 @@ CREATE TABLE IF NOT EXISTS cloud_sync_runs (
   sent_json TEXT,
   received_json TEXT,
   error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cloud_backup_reminder_settings (
+  id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  interval_days INTEGER NOT NULL DEFAULT 30,
+  last_backup_at TEXT,
+  updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_collection_entries_month_supplier ON collection_entries(collection_date, supplier_id);

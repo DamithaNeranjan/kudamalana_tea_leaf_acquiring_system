@@ -109,6 +109,13 @@
               <p>Choose a section from the office menu to continue daily work.</p>
             </div>
           </div>
+          <div id="cloudBackupReminderNotice" class="reminder-card hidden">
+            <div>
+              <strong>Cloud DB Backup is due</strong>
+              <span id="cloudBackupReminderNoticeText">Upload a desktop DB backup to keep recovery data current.</span>
+            </div>
+            <button type="button" data-view-shortcut="cloudBackupView">Open backup</button>
+          </div>
           <div class="dashboard-sections">
             <section class="dashboard-section">
               <h3>Monthly Work</h3>
@@ -1124,6 +1131,22 @@
                 <button id="restoreCloudBackup" class="danger-button hidden" type="button">Restore latest backup</button>
               </div>
             </div>
+            <form id="cloudBackupReminderForm" class="cloud-backup-reminder-card">
+              <div>
+                <span class="eyebrow">Reminder settings</span>
+                <strong id="cloudBackupReminderStatus">Reminder status not loaded</strong>
+                <span id="cloudBackupReminderDetails" class="muted-text"></span>
+              </div>
+              <label class="switch-row">
+                <input name="enabled" type="checkbox" />
+                Remind office users
+              </label>
+              <label>
+                Reminder interval (days)
+                <input name="intervalDays" type="number" min="1" max="365" step="1" />
+              </label>
+              <button type="submit">Save reminder</button>
+            </form>
             <span id="cloudBackupMessage" class="message"></span>
           </section>
         </section>

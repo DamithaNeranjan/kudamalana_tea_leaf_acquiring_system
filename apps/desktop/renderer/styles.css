@@ -506,6 +506,33 @@ main {
   line-height: 1.4;
 }
 
+.reminder-card {
+  align-items: center;
+  background: #fff7df;
+  border: 1px solid #d6a84f;
+  border-radius: 8px;
+  color: #68470d;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.reminder-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.reminder-card span {
+  color: #7b5a1a;
+}
+
+.reminder-card button {
+  background: #68470d;
+  border-color: #68470d;
+  flex: 0 0 auto;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1030,6 +1057,30 @@ button {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.cloud-backup-reminder-card {
+  align-items: end;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, 1fr) auto minmax(120px, 180px) auto;
+  padding: 16px;
+}
+
+.cloud-backup-reminder-card > div {
+  display: grid;
+  gap: 6px;
+}
+
+.cloud-backup-reminder-card label {
+  color: #334231;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .secondary-action-button {
@@ -1818,7 +1869,8 @@ th:first-child {
   .cloud-sync-config-form,
   .cloud-sync-form,
   .cloud-sync-status,
-  .cloud-backup-actions {
+  .cloud-backup-actions,
+  .cloud-backup-reminder-card {
     grid-template-columns: 1fr;
   }
 
@@ -1906,8 +1958,14 @@ th:first-child {
 
 @media (max-width: 620px) {
   .menu-section,
-  .summary-grid {
+  .summary-grid,
+  .reminder-card {
     grid-template-columns: 1fr;
+  }
+
+  .reminder-card {
+    align-items: stretch;
+    display: grid;
   }
 
   .subnav {

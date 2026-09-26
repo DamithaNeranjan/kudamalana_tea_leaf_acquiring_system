@@ -61,6 +61,8 @@ The Cloud DB Backup desktop screen stores disaster-recovery backups in the hoste
 
 This backup is separate from Green Leaf Book cloud sync. Cloud sync keeps hosted web reporting data current, while Cloud DB Backup preserves the exact desktop SQLite database so a replacement desktop deployment can restore offline office data, audit logs, staging records, local users, and sync history.
 
+Cloud DB Backup reminder settings are stored locally in desktop SQLite in `cloud_backup_reminder_settings`. The default reminder is enabled every 30 days. Changing it to 14 days gives the office user a bi-weekly reminder, and the last successful backup timestamp is updated after each successful cloud backup upload.
+
 ## Current Persistence Notes
 
 - Desktop uses SQLite through Node's built-in `node:sqlite` module.

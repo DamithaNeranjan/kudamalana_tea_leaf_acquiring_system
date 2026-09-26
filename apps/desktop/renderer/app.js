@@ -28,6 +28,7 @@ let latestState = null;
 let latestBook = null;
 let latestMonthEndSummary = null;
 let latestAuditLogs = [];
+let latestCloudBackupReminder = null;
 let activeBillSummaryScope = "all";
 let activeBillSummarySupplier = "";
 let activeBillSummaryLine = "";
@@ -146,11 +147,16 @@ function clearSession() {
   document.querySelector("#cloudBackupDetails").textContent = "";
   document.querySelector("#cloudBackupMessage").textContent = "";
   document.querySelector("#restoreCloudBackup").classList.add("hidden");
+  document.querySelector("#cloudBackupReminderNotice").classList.add("hidden");
+  document.querySelector("#cloudBackupReminderStatus").textContent = "Reminder status not loaded";
+  document.querySelector("#cloudBackupReminderDetails").textContent = "";
+  document.querySelector("#cloudBackupReminderForm").reset();
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
   latestMonthEndSummary = null;
   latestAuditLogs = [];
+  latestCloudBackupReminder = null;
   document.querySelector("#stagingTable tbody").innerHTML = "";
   document.querySelector("#recordsTable tbody").innerHTML = "";
   document.querySelector("#auditTable tbody").innerHTML = "";
@@ -202,6 +208,10 @@ function showView(viewId) {
     loadCloudBackupStatus().catch(() => {
       renderCloudBackupStatus(null);
     });
+    loadCloudBackupReminder().catch(() => {});
+  }
+  if (viewId === "dashboardView" && officeToken) {
+    loadCloudBackupReminder().catch(() => {});
   }
 }
 
@@ -286,6 +296,7 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     form.reset();
     message.textContent = "";
     await refreshState();
+    await loadCloudBackupReminder({ showToastIfDue: true }).catch(() => {});
   } catch (error) {
     message.textContent = error.message;
   }
@@ -317,6 +328,10 @@ document.querySelector(".menu").addEventListener("click", (event) => {
 document.querySelector(".dashboard-sections").addEventListener("click", (event) => {
   const shortcut = event.target.closest("[data-view-shortcut]");
   if (shortcut) showView(shortcut.dataset.viewShortcut);
+});
+
+document.querySelector("#cloudBackupReminderNotice button").addEventListener("click", () => {
+  showView("cloudBackupView");
 });
 
 document.addEventListener("click", (event) => {
@@ -1209,9 +1224,44 @@ function renderCloudBackupStatus(result) {
   details.textContent = `${formatBytes(backup.sizeBytes)} - ${backup.sha256 ? backup.sha256.slice(0, 12) : "checksum unavailable"}`;
 }
 
+function backupReminderText(reminder) {
+  if (!reminder?.enabled) return "Reminder is turned off.";
+  if (reminder.due) {
+    return reminder.lastBackupAt
+      ? `Backup is due. Last backup was ${formatDateTime(reminder.lastBackupAt)}.`
+      : "Backup is due. No successful backup has been recorded on this desktop.";
+  }
+  return `Next reminder: ${formatDateTime(reminder.nextDueAt)}.`;
+}
+
+function renderCloudBackupReminder(reminder) {
+  latestCloudBackupReminder = reminder || null;
+  const notice = document.querySelector("#cloudBackupReminderNotice");
+  const noticeText = document.querySelector("#cloudBackupReminderNoticeText");
+  const form = document.querySelector("#cloudBackupReminderForm");
+  const status = document.querySelector("#cloudBackupReminderStatus");
+  const details = document.querySelector("#cloudBackupReminderDetails");
+  const due = Boolean(reminder?.enabled && reminder?.due);
+  notice.classList.toggle("hidden", !due);
+  noticeText.textContent = reminder ? backupReminderText(reminder) : "Upload a desktop DB backup to keep recovery data current.";
+  form.elements.enabled.checked = reminder?.enabled !== false;
+  form.elements.intervalDays.value = reminder?.intervalDays || 30;
+  status.textContent = due ? "Backup reminder is due" : reminder?.enabled === false ? "Reminder is off" : "Reminder is scheduled";
+  details.textContent = reminder ? `${backupReminderText(reminder)} Interval: every ${reminder.intervalDays || 30} day${Number(reminder.intervalDays || 30) === 1 ? "" : "s"}.` : "";
+}
+
 async function loadCloudBackupStatus() {
   const result = await api("/office/cloud-backup/latest");
   renderCloudBackupStatus(result);
+  return result;
+}
+
+async function loadCloudBackupReminder({ showToastIfDue = false } = {}) {
+  const result = await api("/office/cloud-backup/reminder");
+  renderCloudBackupReminder(result.reminder);
+  if (showToastIfDue && result.reminder?.enabled && result.reminder?.due) {
+    showToast("Cloud DB Backup is due. Open Cloud DB Backup to upload now.", "error");
+  }
   return result;
 }
 
@@ -1240,9 +1290,37 @@ async function uploadCloudBackup() {
   try {
     const result = await api("/office/cloud-backup", { method: "POST", body: JSON.stringify({}) });
     renderCloudBackupStatus(result);
+    if (result.reminder) renderCloudBackupReminder(result.reminder);
     message.className = "message success";
     message.textContent = "Desktop DB backup uploaded to cloud.";
     showToast("Desktop DB backup uploaded.");
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function saveCloudBackupReminder(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = {
+    enabled: form.elements.enabled.checked,
+    intervalDays: form.elements.intervalDays.value
+  };
+  const message = document.querySelector("#cloudBackupMessage");
+  const button = form.querySelector('button[type="submit"]');
+  message.className = "message info";
+  message.textContent = "Saving backup reminder settings...";
+  button.disabled = true;
+  try {
+    const result = await api("/office/cloud-backup/reminder", { method: "PUT", body: JSON.stringify(payload) });
+    renderCloudBackupReminder(result.reminder);
+    message.className = "message success";
+    message.textContent = "Backup reminder settings saved.";
+    showToast("Backup reminder settings saved.");
   } catch (error) {
     message.className = "message error";
     message.textContent = error.message;
@@ -2366,6 +2444,7 @@ document.querySelector("#cloudSyncForm").addEventListener("submit", runCloudSync
 document.querySelector("#checkCloudBackup").addEventListener("click", checkCloudBackup);
 document.querySelector("#uploadCloudBackup").addEventListener("click", uploadCloudBackup);
 document.querySelector("#restoreCloudBackup").addEventListener("click", restoreCloudBackup);
+document.querySelector("#cloudBackupReminderForm").addEventListener("submit", saveCloudBackupReminder);
 
 document.querySelector("#bookMonth").value = localMonthValue();
 document.querySelector("#billMonth").value = localMonthValue();

@@ -558,6 +558,21 @@ test("desktop can upload and restore latest cloud DB backup", async () => {
         const { token } = await adminLogin.json();
         const auth = { authorization: `Bearer ${token}` };
 
+        const defaultReminder = await (await fetch(`${desktopUrl}/office/cloud-backup/reminder`, { headers: auth })).json();
+        assert.equal(defaultReminder.reminder.enabled, true);
+        assert.equal(defaultReminder.reminder.intervalDays, 30);
+        assert.equal(defaultReminder.reminder.due, true);
+
+        const updateReminder = await fetch(`${desktopUrl}/office/cloud-backup/reminder`, {
+          method: "PUT",
+          headers: auth,
+          body: JSON.stringify({ enabled: true, intervalDays: 14 })
+        });
+        assert.equal(updateReminder.status, 200);
+        const updatedReminder = await updateReminder.json();
+        assert.equal(updatedReminder.reminder.enabled, true);
+        assert.equal(updatedReminder.reminder.intervalDays, 14);
+
         const backupLineResponse = await fetch(`${desktopUrl}/office/tea-lines`, {
           method: "POST",
           headers: auth,
@@ -574,6 +589,8 @@ test("desktop can upload and restore latest cloud DB backup", async () => {
         const uploaded = await uploadBackup.json();
         assert.equal(uploaded.format, "tea-desktop-sqlite-backup");
         assert.equal(uploaded.backupData, undefined);
+        assert.equal(uploaded.reminder.intervalDays, 14);
+        assert.equal(uploaded.reminder.due, false);
 
         const latestBackup = await fetch(`${desktopUrl}/office/cloud-backup/latest`, { headers: auth });
         assert.equal(latestBackup.status, 200);

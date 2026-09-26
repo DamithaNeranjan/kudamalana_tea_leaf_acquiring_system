@@ -665,7 +665,8 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             before: null,
             after: backupMetadata(responsePayload.backup || responsePayload)
           });
-          return send(response, 201, responsePayload);
+          const reminder = store.recordCloudBackupSuccess(responsePayload.backup?.uploadedAt || responsePayload.uploadedAt || backupPayload.createdAt);
+          return send(response, 201, { ...responsePayload, reminder });
         }
         if (request.method === "GET" && url.pathname === "/office/cloud-backup/latest") {
           const { backendUrl, backendToken } = await requireCloudBackupConfig();
@@ -682,6 +683,23 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
             throw error;
           }
           return send(response, 200, responsePayload);
+        }
+        if (request.method === "GET" && url.pathname === "/office/cloud-backup/reminder") {
+          return send(response, 200, { reminder: store.cloudBackupReminderStatus() });
+        }
+        if (request.method === "PUT" && url.pathname === "/office/cloud-backup/reminder") {
+          const before = store.cloudBackupReminderStatus();
+          const reminder = store.updateCloudBackupReminderSettings(await parseJsonBody(request));
+          logAudit(session, {
+            action: "update",
+            entityType: "cloud_backup_reminder",
+            entityId: "desktop_cloud_backup",
+            entityLabel: "Cloud DB Backup reminder",
+            summary: "Updated Cloud DB Backup reminder settings",
+            before,
+            after: reminder
+          });
+          return send(response, 200, { reminder });
         }
         if (request.method === "POST" && url.pathname === "/office/cloud-backup/restore") {
           requireDesktopAdmin(session);

@@ -533,6 +533,10 @@ main {
   flex: 0 0 auto;
 }
 
+.reminder-card.hidden {
+  display: none;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);

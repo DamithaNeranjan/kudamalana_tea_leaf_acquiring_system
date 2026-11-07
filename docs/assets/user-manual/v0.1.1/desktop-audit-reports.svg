@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop App - Audit Reports</title>
+  <desc id="desc">Documentation screenshot placeholder for Desktop App Audit Reports. Replace this file with a real screenshot captured from version 0.1.1 when available.</desc>
+  <rect width="1280" height="720" fill="#f5f7f2"/>
+  <rect x="52" y="48" width="1176" height="624" rx="22" fill="#ffffff" stroke="#cfd8c5" stroke-width="3"/>
+  <rect x="52" y="48" width="1176" height="88" rx="22" fill="#2f5d46"/>
+  <rect x="52" y="106" width="1176" height="30" fill="#2f5d46"/>
+  <text x="88" y="105" font-family="Segoe UI, Noto Sans Sinhala, Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">Tea Leaf Acquiring System</text>
+  <rect x="92" y="184" width="250" height="420" rx="10" fill="#eef4ea" stroke="#d8e2d0"/>
+  <rect x="382" y="184" width="806" height="420" rx="10" fill="#fbfcfa" stroke="#d8e2d0"/>
+  <text x="412" y="260" font-family="Segoe UI, Noto Sans Sinhala, Arial, sans-serif" font-size="46" font-weight="700" fill="#26382f">Audit Reports</text>
+  <text x="412" y="322" font-family="Segoe UI, Noto Sans Sinhala, Arial, sans-serif" font-size="34" fill="#446657">විගණන වාර්තා</text>
+  <text x="412" y="394" font-family="Segoe UI, Noto Sans Sinhala, Arial, sans-serif" font-size="24" fill="#6b766f">Screenshot slot for user manual version 0.1.1</text>
+  <text x="412" y="436" font-family="Segoe UI, Noto Sans Sinhala, Arial, sans-serif" font-size="22" fill="#7f8a82">Replace this SVG with a real captured screen when available.</text>
+  <circle cx="152" cy="244" r="18" fill="#5f8f69"/>
+  <rect x="188" y="228" width="106" height="20" rx="6" fill="#9bb99e"/>
+  <circle cx="152" cy="304" r="18" fill="#c8a85f"/>
+  <rect x="188" y="288" width="120" height="20" rx="6" fill="#d7c38a"/>
+  <circle cx="152" cy="364" r="18" fill="#7c9ab1"/>
+  <rect x="188" y="348" width="96" height="20" rx="6" fill="#adc1cf"/>
+  <rect x="412" y="492" width="190" height="46" rx="8" fill="#2f5d46"/>
+  <rect x="626" y="492" width="190" height="46" rx="8" fill="#e7ede2" stroke="#cfd8c5"/>
+</svg>

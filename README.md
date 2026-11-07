@@ -134,6 +134,7 @@ Open this file with a SQLite viewer such as DB Browser for SQLite. MySQL Workben
 
 ## Documentation
 
+- [User Manual](docs/USER_MANUAL.md) ([Word](docs/USER_MANUAL.docx), [PDF](docs/USER_MANUAL.pdf))
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment Checklist](docs/DEPLOYMENT.md)
 - [Development Guide](docs/DEVELOPMENT.md)

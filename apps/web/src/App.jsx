@@ -14,14 +14,21 @@ import { OfficeUsersView } from "./views/OfficeUsersView.jsx";
 import { ProfileView } from "./views/ProfileView.jsx";
 
 function AppShell({ activeView, currentUser, onNavigate, showToast }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const canViewDirectors = ["super_admin", "director"].includes(currentUser.role);
   const canViewOfficeUsers = ["super_admin", "director", "office_user"].includes(currentUser.role);
   const canManageUsers = currentUser.role === "super_admin";
   const canViewAudit = currentUser.role === "super_admin";
 
   return (
-    <main className="app-shell">
-      <Sidebar activeView={activeView} currentUser={currentUser} onNavigate={onNavigate} />
+    <main className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+      <Sidebar
+        activeView={activeView}
+        currentUser={currentUser}
+        onNavigate={onNavigate}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
+      />
       <section className="content">
         {activeView === "book" && <BookView />}
         {activeView === "balances" && <BalancesView currentUser={currentUser} showToast={showToast} />}

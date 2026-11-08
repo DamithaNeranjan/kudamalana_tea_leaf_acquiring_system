@@ -62,11 +62,16 @@
 
     <main id="appView" class="app-shell hidden">
       <aside class="sidebar">
-        <div class="sidebar-title">
-          <span class="eyebrow">Office menu</span>
-          <strong>Operations</strong>
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span class="eyebrow">Office menu</span>
+            <strong>Operations</strong>
+          </div>
+          <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar" aria-expanded="true" aria-controls="officeNavigation">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m14 6-6 6 6 6" /></svg>
+          </button>
         </div>
-        <nav class="menu" aria-label="Office sections">
+        <nav id="officeNavigation" class="menu" aria-label="Office sections">
           <div class="menu-section">
             <span class="menu-section-label">Home</span>
             <button class="menu-item active" type="button" data-view="dashboardView">Dashboard</button>

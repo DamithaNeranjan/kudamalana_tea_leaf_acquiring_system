@@ -32,6 +32,11 @@ body,
   height: 100%;
 }
 
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
 body {
   background:
     radial-gradient(circle at 18% 12%, rgba(185, 134, 44, 0.12), transparent 28%),
@@ -47,6 +52,7 @@ body {
 }
 
 .topbar {
+  flex: 0 0 auto;
   align-items: center;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 35%),
@@ -349,7 +355,7 @@ p {
   display: grid;
   gap: 0;
   grid-template-columns: 260px minmax(0, 1fr);
-  height: calc(100vh - 81px);
+  flex: 1;
   min-height: 0;
   padding: 0;
 }
@@ -364,10 +370,68 @@ p {
   padding: 20px 16px;
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.sidebar-header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sidebar-toggle {
+  align-items: center;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: var(--brand-strong);
+  display: inline-flex;
+  flex: 0 0 36px;
+  height: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  width: 36px;
+}
+
+.sidebar-toggle:hover {
+  background: #e8f1e5;
+}
+
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.sidebar-toggle svg {
+  display: block;
+}
+
+.sidebar-collapsed .sidebar {
+  padding: 20px 12px;
+}
+
+.sidebar-collapsed .sidebar-header {
+  margin-bottom: 0;
+}
+
+.sidebar-collapsed .sidebar-title,
+.sidebar .menu[hidden] {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
 .sidebar-title {
   display: grid;
   gap: 4px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
 }
 
 .sidebar-title .eyebrow {
@@ -1384,13 +1448,20 @@ th:nth-child(2) {
 
 @media (max-width: 900px) {
   .app-shell,
+  .app-shell.sidebar-collapsed,
   .management-layout,
   .edit-form,
   .advance-signal-form {
     grid-template-columns: 1fr;
   }
 
+  .app-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .sidebar {
+    height: auto;
+    max-height: 45vh;
     min-height: auto;
     position: static;
   }

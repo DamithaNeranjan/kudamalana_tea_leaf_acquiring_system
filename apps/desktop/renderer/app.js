@@ -111,6 +111,7 @@ const stagingEdits = new StagingEdits(async (id, effectiveDate) => {
 });
 
 function setLoggedInSession(login) {
+  setSidebarCollapsed(false);
   officeToken = login.token;
   officeUser = login.user;
   document.querySelector("#sessionStatus").textContent = `Logged in: ${officeUser.displayName}`;
@@ -125,6 +126,7 @@ function setLoggedInSession(login) {
 }
 
 function clearSession() {
+  setSidebarCollapsed(false);
   stagingEdits.clear([...stagingEdits.weights.keys(), ...stagingEdits.dates.keys()]);
   officeToken = "";
   officeUser = null;
@@ -350,6 +352,20 @@ document.addEventListener("click", (event) => {
   passwordInput.type = shouldShow ? "text" : "password";
   event.target.textContent = shouldShow ? "Hide" : "Show";
   event.target.setAttribute("aria-pressed", String(shouldShow));
+});
+
+function setSidebarCollapsed(collapsed) {
+  document.querySelector("#appView").classList.toggle("sidebar-collapsed", collapsed);
+  document.querySelector("#officeNavigation").hidden = collapsed;
+  const toggle = document.querySelector("#sidebarToggle");
+  const label = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.setAttribute("aria-label", label);
+  toggle.title = label;
+}
+
+document.querySelector("#sidebarToggle").addEventListener("click", () => {
+  setSidebarCollapsed(!document.querySelector("#appView").classList.contains("sidebar-collapsed"));
 });
 
 document.querySelector(".menu").addEventListener("click", (event) => {

@@ -54,6 +54,8 @@ If cPanel reports `Cannot find module '/home/<user>/TeaLeaf_Acquiring_Web_Backen
 
 ## Web App
 
+For the green leaf effective-date update, deploy/restart the hosted backend before distributing the updated desktop app. Backend startup adds and backfills `collection_entries.effective_date` and creates its reporting index; the database account needs schema migration permissions. Updated desktops migrate their own SQLite databases at startup. Back up both databases before rollout. Existing receipt dates and totals remain unchanged until an office user selects a different effective date in staging.
+
 Build the web app with the production API URL:
 
 ```powershell

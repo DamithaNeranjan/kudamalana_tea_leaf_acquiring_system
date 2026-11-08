@@ -147,6 +147,6 @@ test("desktop staging and collection record helpers preserve filters and pages",
   assert.deepEqual(collectionRecordPage([1, 2, 3], 9, 2), { page: 2, pageCount: 2, start: 2, pageRecords: [3], shownEnd: 3 });
   assert.equal(
     postAllStagingMessage(2),
-    "This will permanently post 2 staged tablet records using the net weights currently shown in the table."
+    "This will permanently post 2 staged tablet records using their saved effective dates and reviewed net weights, including records on other pages."
   );
 });

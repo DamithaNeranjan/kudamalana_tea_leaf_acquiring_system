@@ -1,4 +1,9 @@
 import { compareNewestFirst } from "./listing.js";
+import { effectiveCollectionDate } from "../../../../packages/shared/src/collectionDates.mjs";
+
+export function bulkStagingRows(records = [], filters = {}, scope = "all") {
+  return scope === "filtered" ? stagingRows(records, filters) : records.slice();
+}
 
 export function stagingRows(records = [], filters = {}) {
   const supplier = filters.stagingSupplier || "";
@@ -24,11 +29,11 @@ export function collectionRecordRows(records = [], filters = {}) {
         line.includes(filters.recordLine || "") &&
         postedBy.includes(filters.recordPostedBy || "") &&
         collector.includes(filters.recordCollector || "") &&
-        (!filters.recordDateFrom || record.collectionDate >= filters.recordDateFrom) &&
-        (!filters.recordDateTo || record.collectionDate <= filters.recordDateTo)
+        (!filters.recordDateFrom || effectiveCollectionDate(record) >= filters.recordDateFrom) &&
+        (!filters.recordDateTo || effectiveCollectionDate(record) <= filters.recordDateTo)
       );
     })
-    .sort((a, b) => compareNewestFirst(a, b, "postedAt", "tabletSavedAt", "collectionDate"));
+    .sort((a, b) => compareNewestFirst(a, b, "postedAt", "effectiveDate", "collectionDate"));
 }
 
 export function collectionRecordPage(records = [], requestedPage = 1, pageSize = 20) {
@@ -46,5 +51,5 @@ export function collectionRecordPage(records = [], requestedPage = 1, pageSize =
 }
 
 export function postAllStagingMessage(count) {
-  return `This will permanently post ${count} staged tablet record${count === 1 ? "" : "s"} using the net weights currently shown in the table.`;
+  return `This will permanently post ${count} staged tablet record${count === 1 ? "" : "s"} using their saved effective dates and reviewed net weights, including records on other pages.`;
 }

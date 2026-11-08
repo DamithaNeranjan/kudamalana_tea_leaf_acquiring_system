@@ -503,6 +503,21 @@ export async function createDesktopSyncServer({ store = new LocalStore() } = {})
         if (request.method === "POST" && url.pathname === "/office/tea-packets") {
           return send(response, 201, await auditedUpsert(session, "teaPackets", await parseJsonBody(request), "tea_packet"));
         }
+        if (request.method === "PUT" && url.pathname === "/office/staging/effective-date") {
+          const payload = await parseJsonBody(request);
+          const before = Array.isArray(payload.ids) ? [...new Set(payload.ids)].map((id) => store.stagingById(id)) : [];
+          const result = await store.updateStagingEffectiveDate(payload);
+          logAudit(session, {
+            action: "bulk_update",
+            entityType: "collection_staging",
+            entityId: "effective-date",
+            entityLabel: `${result.updatedCount} staged collections`,
+            summary: `Changed effective date to ${payload.effectiveDate} for ${result.updatedCount} staged collections`,
+            before,
+            after: { ids: payload.ids, effectiveDate: payload.effectiveDate, ...result }
+          });
+          return send(response, 200, result);
+        }
         if (request.method === "PUT" && url.pathname.startsWith("/office/staging/")) {
           const id = url.pathname.split("/").pop();
           const before = store.stagingById(id);

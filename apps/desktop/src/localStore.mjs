@@ -9,7 +9,9 @@ import {
   DEFAULT_TEA_LINES,
   buildGreenLeafBook,
   buildGreenLeafBookWithAutoArrears,
-  makeId
+  makeId,
+  effectiveCollectionDate,
+  validateEffectiveDate
 } from "../../../packages/shared/src/index.mjs";
 
 function defaultDbPath() {
@@ -271,6 +273,13 @@ export class LocalStore {
   }
 
   migrateSchema() {
+    for (const table of ["collection_staging", "collection_entries"]) {
+      if (!this.hasColumn(table, "effective_date")) {
+        this.db.prepare(`ALTER TABLE ${table} ADD COLUMN effective_date TEXT`).run();
+      }
+      this.db.prepare(`UPDATE ${table} SET effective_date = collection_date WHERE effective_date IS NULL`).run();
+    }
+    this.db.prepare("CREATE INDEX IF NOT EXISTS idx_collection_entries_effective_supplier ON collection_entries(effective_date, supplier_id)").run();
     for (const column of [
       ["posted_by_office_user_id", "TEXT"],
       ["posted_by_office_user_name", "TEXT"],
@@ -1447,7 +1456,7 @@ export class LocalStore {
     const payments = this.supplierPayments();
     const supplierBills = book.rows.map((row) => {
       const supplier = this.suppliers().find((item) => item.id === row.supplierId);
-      const supplierEntries = entries.filter((entry) => entry.supplierId === row.supplierId && entry.collectionDate.startsWith(book.month));
+      const supplierEntries = entries.filter((entry) => entry.supplierId === row.supplierId && effectiveCollectionDate(entry).startsWith(book.month));
       const supplierFertilizer = fertilizerIssues
         .filter((issue) => issue.supplierId === row.supplierId && [issue.effectiveMonth1, issue.effectiveMonth2].includes(book.month))
         .map((issue) => {
@@ -1540,10 +1549,6 @@ export class LocalStore {
           skipped.push(record.id);
           continue;
         }
-        if (this.monthClosure(String(record.collectionDate || "").slice(0, 7))?.closed) {
-          skipped.push(record.id);
-          continue;
-        }
         const stagingRecord = {
           id: makeId("stage"),
           mobileRecordId: record.id,
@@ -1554,6 +1559,7 @@ export class LocalStore {
           lineId: record.lineId,
           lineName: record.lineName,
           collectionDate: record.collectionDate,
+          effectiveDate: validateEffectiveDate(record.collectionDate),
           collectionTime: record.collectionTime,
           tabletSavedAt: record.tabletSavedAt || [record.collectionDate, record.collectionTime].filter(Boolean).join(" "),
           bagCount: Number(record.bagCount || 0),
@@ -1587,8 +1593,9 @@ export class LocalStore {
 
   async updateStaging(id, updates) {
     const record = this.stagingById(id);
-    if (!record) throw new Error("Staging record not found");
-    this.assertMonthOpen(String(record.collectionDate || "").slice(0, 7));
+    if (!record) throw Object.assign(new Error("Staging record not found"), { status: 404 });
+    const effectiveDate = validateEffectiveDate(Object.hasOwn(updates, "effectiveDate") ? updates.effectiveDate : effectiveCollectionDate(record));
+    this.assertMonthOpen(effectiveDate.slice(0, 7));
     const updated = {
       grossWeightKg: Number(updates.grossWeightKg ?? record.grossWeightKg),
       netWeightKg: Number(updates.netWeightKg ?? record.netWeightKg),
@@ -1597,18 +1604,42 @@ export class LocalStore {
     this.db
       .prepare(
         `UPDATE collection_staging
-         SET gross_weight_kg = ?, net_weight_kg = ?, reviewed_at = ?
+         SET gross_weight_kg = ?, net_weight_kg = ?, reviewed_at = ?, effective_date = ?
          WHERE id = ?`
       )
-      .run(updated.grossWeightKg, updated.netWeightKg, updated.reviewedAt, id);
+      .run(updated.grossWeightKg, updated.netWeightKg, updated.reviewedAt, effectiveDate, id);
     this.refreshSnapshot();
     return this.stagingById(id);
+  }
+
+  async updateStagingEffectiveDate({ ids, effectiveDate } = {}) {
+    validateEffectiveDate(effectiveDate);
+    if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== "string" || !id)) {
+      throw Object.assign(new Error("At least one valid staging record ID is required."), { status: 400 });
+    }
+    const targets = [...new Set(ids)];
+    this.db.exec("BEGIN");
+    try {
+      this.assertMonthOpen(effectiveDate.slice(0, 7));
+      for (const id of targets) {
+        if (!this.stagingById(id)) throw Object.assign(new Error(`Staging record not found: ${id}`), { status: 404 });
+      }
+      const update = this.db.prepare("UPDATE collection_staging SET effective_date = ?, reviewed_at = ? WHERE id = ?");
+      const reviewedAt = now();
+      for (const id of targets) update.run(effectiveDate, reviewedAt, id);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+    this.refreshSnapshot();
+    return { updatedCount: targets.length };
   }
 
   async postStaging(id, officeUser = null) {
     const staging = this.stagingById(id);
     if (!staging) throw new Error("Staging record not found");
-    this.assertMonthOpen(String(staging.collectionDate || "").slice(0, 7));
+    this.assertMonthOpen(validateEffectiveDate(effectiveCollectionDate(staging)).slice(0, 7));
     const entry = {
       ...staging,
       id: makeId("entry"),
@@ -1964,9 +1995,9 @@ export class LocalStore {
       .prepare(
         `INSERT INTO collection_staging
          (id, mobile_record_id, device_id, supplier_id, supplier_code, supplier_name, line_id, line_name,
-          collection_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
+          collection_date, effective_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
           net_weight_kg, line_user_name, print_status, tablet_saved_at, tablet_printed_at, imported_at, reviewed_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         record.id,
@@ -1978,6 +2009,7 @@ export class LocalStore {
         optional(record.lineId),
         record.lineName,
         record.collectionDate,
+        validateEffectiveDate(effectiveCollectionDate(record)),
         optional(record.collectionTime),
         Number(record.bagCount || 0),
         Number(record.originalGrossWeightKg || 0),
@@ -1994,15 +2026,15 @@ export class LocalStore {
   }
 
   insertEntry(record) {
-    this.assertMonthOpen(String(record.collectionDate || "").slice(0, 7));
+    this.assertMonthOpen(validateEffectiveDate(effectiveCollectionDate(record)).slice(0, 7));
     this.db
       .prepare(
         `INSERT INTO collection_entries
          (id, mobile_record_id, supplier_id, supplier_code, supplier_name, line_id, line_name,
-          collection_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
+          collection_date, effective_date, collection_time, bag_count, original_gross_weight_kg, gross_weight_kg,
           net_weight_kg, line_user_name, print_status, tablet_saved_at, tablet_printed_at,
           posted_at, posted_by_office_user_id, posted_by_office_user_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         record.id,
@@ -2013,6 +2045,7 @@ export class LocalStore {
         optional(record.lineId),
         record.lineName,
         record.collectionDate,
+        validateEffectiveDate(effectiveCollectionDate(record)),
         optional(record.collectionTime),
         Number(record.bagCount || 0),
         Number(record.originalGrossWeightKg || 0),
@@ -2141,7 +2174,7 @@ export class LocalStore {
   }
 
   collectionEntries() {
-    return this.db.prepare("SELECT * FROM collection_entries ORDER BY collection_date, collection_time").all().map(mapEntry);
+    return this.db.prepare("SELECT * FROM collection_entries ORDER BY effective_date, collection_time").all().map(mapEntry);
   }
 
   advances() {
@@ -2314,6 +2347,7 @@ function mapStaging(row) {
     lineId: row.line_id,
     lineName: row.line_name,
     collectionDate: row.collection_date,
+    effectiveDate: row.effective_date ?? row.collection_date,
     collectionTime: row.collection_time,
     bagCount: row.bag_count,
     originalGrossWeightKg: row.original_gross_weight_kg,
@@ -2339,6 +2373,7 @@ function mapEntry(row) {
     lineId: row.line_id,
     lineName: row.line_name,
     collectionDate: row.collection_date,
+    effectiveDate: row.effective_date ?? row.collection_date,
     collectionTime: row.collection_time,
     bagCount: row.bag_count,
     originalGrossWeightKg: row.original_gross_weight_kg,
@@ -2429,6 +2464,7 @@ CREATE TABLE IF NOT EXISTS collection_staging (
   line_id TEXT,
   line_name TEXT NOT NULL,
   collection_date TEXT NOT NULL,
+  effective_date TEXT NOT NULL,
   collection_time TEXT,
   bag_count INTEGER NOT NULL,
   original_gross_weight_kg REAL NOT NULL,
@@ -2452,6 +2488,7 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   line_id TEXT,
   line_name TEXT NOT NULL,
   collection_date TEXT NOT NULL,
+  effective_date TEXT NOT NULL,
   collection_time TEXT,
   bag_count INTEGER NOT NULL,
   original_gross_weight_kg REAL NOT NULL,

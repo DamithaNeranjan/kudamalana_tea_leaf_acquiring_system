@@ -9,7 +9,8 @@ import {
   DEFAULT_TEA_LINES,
   buildGreenLeafBookWithAutoArrears,
   makeId,
-  suggestAdvancePayment
+  suggestAdvancePayment,
+  validateEffectiveDate
 } from "../../../packages/shared/src/index.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -171,6 +172,15 @@ async function executeSchema(pool) {
     .filter(Boolean);
   for (const statement of statements) {
     await pool.query(statement);
+  }
+  const [effectiveDateColumns] = await pool.query("SHOW COLUMNS FROM collection_entries LIKE 'effective_date'");
+  if (!effectiveDateColumns.length) {
+    await pool.query("ALTER TABLE collection_entries ADD COLUMN effective_date DATE NULL AFTER collection_date");
+  }
+  await pool.query("UPDATE collection_entries SET effective_date = collection_date WHERE effective_date IS NULL");
+  const [effectiveDateIndexes] = await pool.query("SHOW INDEX FROM collection_entries WHERE Key_name = 'idx_collection_entries_effective_supplier'");
+  if (!effectiveDateIndexes.length) {
+    await pool.query("CREATE INDEX idx_collection_entries_effective_supplier ON collection_entries(effective_date, supplier_id)");
   }
   const [supplierPaymentModeColumns] = await pool.query("SHOW COLUMNS FROM suppliers LIKE 'payment_mode'");
   if (!supplierPaymentModeColumns.length) {
@@ -681,11 +691,11 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
       await conn.execute(
         `INSERT INTO collection_entries (
           id, mobile_record_id, supplier_id, supplier_code, supplier_name,
-          line_id, line_name, collection_date, collection_time, bag_count,
+          line_id, line_name, collection_date, effective_date, collection_time, bag_count,
           original_gross_weight_kg, gross_weight_kg, net_weight_kg,
           line_user_name, print_status, posted_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           mobile_record_id = VALUES(mobile_record_id),
           supplier_id = VALUES(supplier_id),
@@ -694,6 +704,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           line_id = VALUES(line_id),
           line_name = VALUES(line_name),
           collection_date = VALUES(collection_date),
+          effective_date = VALUES(effective_date),
           collection_time = VALUES(collection_time),
           bag_count = VALUES(bag_count),
           original_gross_weight_kg = VALUES(original_gross_weight_kg),
@@ -711,6 +722,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
           record.lineId || record.line_id || null,
           record.lineName || record.line_name || "",
           toDateOnly(record.collectionDate || record.collection_date),
+          validateEffectiveDate(toDateOnly(record.effectiveDate ?? record.effective_date ?? record.collectionDate ?? record.collection_date)),
           record.collectionTime || record.collection_time || null,
           numberOrDefault(record.bagCount || record.bag_count),
           numberOrDefault(record.originalGrossWeightKg || record.original_gross_weight_kg, grossWeightKg),
@@ -1263,7 +1275,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
         const previousMonth = previousMonthValue(month);
         const [teaLines] = await conn.execute("SELECT * FROM tea_lines WHERE active = TRUE ORDER BY name");
         const [suppliers] = await conn.execute("SELECT * FROM suppliers WHERE active = TRUE ORDER BY code");
-        const [entries] = await conn.execute("SELECT * FROM collection_entries WHERE collection_date >= ?", [`${previousMonth}-01`]);
+        const [entries] = await conn.execute("SELECT * FROM collection_entries WHERE effective_date >= ?", [`${previousMonth}-01`]);
         const [settingsRows] = await conn.execute("SELECT * FROM monthly_settings");
         const [overrides] = await conn.execute("SELECT * FROM supplier_month_overrides");
         const [advances] = await conn.execute("SELECT * FROM advances");
@@ -1300,6 +1312,7 @@ export async function createMySqlStore(config = dbConfigFromEnv()) {
             supplierName: row.supplier_name,
             lineName: row.line_name,
             collectionDate: toDateOnly(row.collection_date),
+            effectiveDate: toDateOnly(row.effective_date ?? row.collection_date),
             netWeightKg: numberOrDefault(row.net_weight_kg),
             grossWeightKg: numberOrDefault(row.gross_weight_kg)
           })),

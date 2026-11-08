@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   line_id VARCHAR(80),
   line_name VARCHAR(160) NOT NULL,
   collection_date DATE NOT NULL,
+  effective_date DATE NOT NULL,
   collection_time TIME,
   bag_count INT NOT NULL,
   original_gross_weight_kg DECIMAL(10,2) NOT NULL,

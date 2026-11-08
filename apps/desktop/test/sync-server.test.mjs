@@ -8,12 +8,58 @@ import { createDesktopSyncServer } from "../src/server.mjs";
 import { LocalStore } from "../src/localStore.mjs";
 import { createBackendServer } from "../../backend/src/server.mjs";
 import { createMemoryStore } from "../../backend/src/store.mjs";
+import { buildGreenLeafBookWithAutoArrears } from "../../../packages/shared/src/index.mjs";
 
 function webHash(password) {
   const salt = randomBytes(16).toString("hex");
   const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
   return `${salt}:${hash}`;
 }
+
+test("office effective-date APIs enforce authentication, atomic changes, audit and cloud report dates", async () => {
+  await withDesktopServer(async (baseUrl) => {
+    const login = await (await fetch(`${baseUrl}/office/login`, {
+      method: "POST", body: JSON.stringify({ username: "admin", password: "admin123" })
+    })).json();
+    const headers = { authorization: `Bearer ${login.token}` };
+    const request = async (path, body, method = "PUT", auth = headers) => {
+      const response = await fetch(`${baseUrl}${path}`, { method, headers: auth, body: JSON.stringify(body) });
+      return { status: response.status, body: await response.json() };
+    };
+    const imported = await request("/sync/collections", {
+      deviceId: "date_api_tablet",
+      records: [1, 2].map((index) => ({
+        id: `date_api_${index}`, supplierId: "date_api_supplier", supplierCode: "DATE", supplierName: "Date supplier",
+        lineName: "North", collectionDate: "2026-12-31", collectionTime: "08:00", bagCount: 1,
+        grossWeightKg: 12, lineUserName: "Collector", printStatus: "printed"
+      }))
+    }, "POST", {});
+    const ids = imported.body.imported;
+    assert.equal((await request("/office/staging/effective-date", { ids, effectiveDate: "2027-01-01" }, "PUT", {})).status, 401);
+    assert.equal((await request("/office/staging/effective-date", { ids: [...ids, "missing"], effectiveDate: "2027-01-01" })).status, 404);
+    const unchanged = await (await fetch(`${baseUrl}/office/state`, { headers })).json();
+    assert.ok(unchanged.collectionStaging.every((row) => row.effectiveDate === "2026-12-31"));
+    assert.equal((await request("/office/staging/effective-date", { ids, effectiveDate: "2027-02-29" })).status, 400);
+    const bulk = await request("/office/staging/effective-date", { ids, effectiveDate: "2027-01-01" });
+    assert.deepEqual(bulk, { status: 200, body: { updatedCount: 2 } });
+    const updated = await request(`/office/staging/${ids[0]}`, { effectiveDate: "2027-01-02", collectionDate: "2027-02-01", netWeightKg: 10 });
+    assert.equal(updated.body.collectionDate, "2026-12-31");
+    assert.equal(updated.body.effectiveDate, "2027-01-02");
+    assert.equal((await request(`/office/staging/${ids[0]}/post`, {}, "POST")).status, 200);
+    const audit = await (await fetch(`${baseUrl}/office/audit-log`, { headers })).json();
+    const bulkAudit = audit.auditLogs.find((row) => row.action === "bulk_update" && row.entityType === "collection_staging");
+    assert.equal(bulkAudit.before.length, 2);
+    assert.equal(bulkAudit.after.effectiveDate, "2027-01-01");
+    const state = await (await fetch(`${baseUrl}/office/state`, { headers })).json();
+    assert.equal(state.collectionEntries[0].effectiveDate, "2027-01-02");
+    const backend = createMemoryStore();
+    backend.seedDesktopData({ collectionEntries: state.collectionEntries });
+    const webLogin = backend.login("office", "office123");
+    const book = buildGreenLeafBookWithAutoArrears(backend.getGreenLeafInput(webLogin.token, "2027-01"));
+    assert.equal(book.rows.find((row) => row.supplierId === "date_api_supplier").dailyKg[1], 10);
+    assert.equal(buildGreenLeafBookWithAutoArrears(backend.getGreenLeafInput(webLogin.token, "2026-12")).rows.length, 0);
+  });
+});
 
 async function withDesktopServer(fn, env = {}) {
   const dir = await mkdtemp(join(tmpdir(), "tea-desktop-"));

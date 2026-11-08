@@ -3,7 +3,9 @@ import { formatAuditAction, formatAuditDetails, formatAuditEntity, summarizeCoun
 import { formatAdvanceAmounts, formatAdvanceDates, greenLeafBookTotals, poyaDaysForMonth } from "./modules/book.js";
 import { escapeAttribute, escapeHtml } from "./modules/html.js";
 import { compareNewestFirst, pagedItems } from "./modules/listing.js";
-import { collectionRecordPage, collectionRecordRows, postAllStagingMessage, stagingRows } from "./modules/records.js";
+import { bulkStagingRows, collectionRecordPage, collectionRecordRows, postAllStagingMessage, stagingRows } from "./modules/records.js";
+import { StagingEdits } from "./modules/stagingEdits.js";
+import { effectiveCollectionDate, validateEffectiveDate } from "../../../packages/shared/src/collectionDates.mjs";
 import {
   formatBillCurrency,
   formatBookNumber,
@@ -99,6 +101,14 @@ const api = createApi({
   baseUrl: window.teaDesktop?.apiBaseUrl || "http://127.0.0.1:7070",
   getOfficeToken: () => officeToken
 });
+let stagingBusy = false;
+const stagingEdits = new StagingEdits(async (id, effectiveDate) => {
+  validateEffectiveDate(effectiveDate);
+  const saved = await api(`/office/staging/${id}`, { method: "PUT", body: JSON.stringify({ effectiveDate }) });
+  const record = latestState?.collectionStaging?.find((row) => row.id === id);
+  if (record) Object.assign(record, saved);
+  return saved;
+});
 
 function setLoggedInSession(login) {
   officeToken = login.token;
@@ -115,6 +125,7 @@ function setLoggedInSession(login) {
 }
 
 function clearSession() {
+  stagingEdits.clear([...stagingEdits.weights.keys(), ...stagingEdits.dates.keys()]);
   officeToken = "";
   officeUser = null;
   document.querySelector("#sessionStatus").textContent = "Not logged in";
@@ -572,6 +583,7 @@ function renderOfficeUsers(state) {
 }
 
 function renderStaging(state) {
+  stagingEdits.retain(state.collectionStaging);
   const pageRows = paginateList(
     "staging",
     stagingRows(state.collectionStaging, filters),
@@ -581,16 +593,41 @@ function renderStaging(state) {
     .map(
       (row) => `
       <tr>
-        <td>${row.supplierName}</td>
-        <td>${row.collectionDate}</td>
+        <td>${escapeHtml(row.supplierName)}</td>
+        <td>${escapeHtml(row.collectionDate)}</td>
+        <td><input type="date" data-effective-date="${escapeAttribute(row.id)}" aria-label="Effective date for ${escapeAttribute(row.supplierName)}" aria-describedby="date-status-${escapeAttribute(row.id)}" aria-invalid="${Boolean(stagingEdits.dates.get(row.id)?.error)}" value="${escapeAttribute(stagingEdits.effectiveDate(row))}" />
+          <span id="date-status-${escapeAttribute(row.id)}" data-date-status="${escapeAttribute(row.id)}" role="status">${escapeHtml(stagingEdits.dates.get(row.id)?.error?.message || (stagingEdits.dates.has(row.id) ? "Saving…" : ""))}</span></td>
         <td>${row.bagCount}</td>
         <td>${row.grossWeightKg}</td>
-        <td><input data-net="${row.id}" value="${row.netWeightKg}" /></td>
-        <td>${row.printStatus}</td>
+        <td><input data-net="${row.id}" value="${escapeAttribute(stagingEdits.netWeight(row))}" /></td>
+        <td>${escapeHtml(row.printStatus)}</td>
         <td><button data-post="${row.id}">Post</button></td>
       </tr>`
     )
     .join("");
+  updateStagingControls();
+}
+
+function bulkDateTargets() {
+  return bulkStagingRows(latestState?.collectionStaging || [], filters, document.querySelector("#bulkEffectiveDateScope").value);
+}
+
+function updateStagingControls() {
+  const count = bulkDateTargets().length;
+  const apply = document.querySelector("#applyEffectiveDate");
+  apply.textContent = `Apply to ${count} record${count === 1 ? "" : "s"}`;
+  apply.disabled = stagingBusy || !count;
+  for (const control of document.querySelectorAll("#stagingTable input, #stagingTable button, #refreshStaging, #postAllStaging, #bulkEffectiveDate, #bulkEffectiveDateScope")) {
+    control.disabled = stagingBusy;
+  }
+}
+
+function updateStagingDateStatus(id) {
+  const status = document.querySelector(`[data-date-status="${id}"]`);
+  if (!status) return;
+  const draft = stagingEdits.dates.get(id);
+  status.textContent = draft?.error?.message || (draft ? "Saving…" : "Saved");
+  document.querySelector(`[data-effective-date="${id}"]`)?.setAttribute("aria-invalid", String(Boolean(draft?.error)));
 }
 
 function paginateList(pageKey, items, tableId) {
@@ -998,6 +1035,8 @@ function renderCollectionRecords(records = []) {
     .map(
       (record) => `
       <tr>
+        <td>${escapeHtml(effectiveCollectionDate(record))}</td>
+        <td>${escapeHtml(record.collectionDate)}</td>
         <td>${escapeHtml(formatDateTime(record.tabletSavedAt || `${record.collectionDate} ${record.collectionTime || ""}`))}</td>
         <td>${escapeHtml(record.supplierName)}</td>
         <td>${escapeHtml(record.lineName || "")}</td>
@@ -1869,17 +1908,85 @@ document.querySelector("#editModalBody").addEventListener("submit", async (event
   if (kind === "tea-packet-type") await updateFromModal(event.target, "/office/tea-packet-types", "Made tea packet");
 });
 
+document.querySelector("#stagingTable").addEventListener("input", (event) => {
+  if (event.target.dataset.net) stagingEdits.weights.set(event.target.dataset.net, event.target.value);
+});
+
+document.querySelector("#stagingTable").addEventListener("change", async (event) => {
+  const id = event.target.dataset.effectiveDate;
+  if (!id || stagingBusy) return;
+  const save = stagingEdits.saveEffectiveDate(id, event.target.value);
+  updateStagingDateStatus(id);
+  try {
+    await save;
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+  updateStagingDateStatus(id);
+});
+
+document.querySelector("#bulkEffectiveDateScope").addEventListener("change", updateStagingControls);
+document.querySelector("#applyEffectiveDate").addEventListener("click", async () => {
+  if (stagingBusy) return;
+  const ids = bulkDateTargets().map((row) => row.id);
+  const effectiveDate = document.querySelector("#bulkEffectiveDate").value;
+  const message = document.querySelector("#stagingDateMessage");
+  stagingBusy = true;
+  updateStagingControls();
+  message.className = "message info";
+  message.textContent = `Applying effective date to ${ids.length} records…`;
+  try {
+    validateEffectiveDate(effectiveDate);
+    // A bulk change can replace a failed individual date edit, but must follow queued saves.
+    await stagingEdits.pending;
+    const result = await api("/office/staging/effective-date", {
+      method: "PUT", body: JSON.stringify({ ids, effectiveDate })
+    });
+    const targetIds = new Set(ids);
+    for (const row of latestState?.collectionStaging || []) {
+      if (targetIds.has(row.id)) {
+        row.effectiveDate = effectiveDate;
+        stagingEdits.dates.delete(row.id);
+      }
+    }
+    message.className = "message success";
+    message.textContent = `Effective date set to ${effectiveDate} for ${result.updatedCount} records.`;
+    await refreshState();
+    showToast(message.textContent);
+  } catch (error) {
+    message.className = "message error";
+    message.textContent = error.message;
+    showToast(error.message, "error");
+  } finally {
+    stagingBusy = false;
+    updateStagingControls();
+  }
+});
+
 document.querySelector("#stagingTable").addEventListener("click", async (event) => {
   const id = event.target.dataset.post;
-  if (!id) return;
-  const netWeightKg = Number(document.querySelector(`[data-net="${id}"]`).value);
-  await api(`/office/staging/${id}`, { method: "PUT", body: JSON.stringify({ netWeightKg }) });
-  await api(`/office/staging/${id}/post`, { method: "POST" });
-  await refreshState();
+  if (!id || stagingBusy) return;
+  stagingBusy = true;
+  updateStagingControls();
+  try {
+    await stagingEdits.waitForDates([id]);
+    const record = latestState.collectionStaging.find((row) => row.id === id);
+    const netWeightKg = Number(stagingEdits.netWeight(record));
+    await api(`/office/staging/${id}`, { method: "PUT", body: JSON.stringify({ netWeightKg }) });
+    await api(`/office/staging/${id}/post`, { method: "POST" });
+    stagingEdits.clear([id]);
+    await refreshState();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    stagingBusy = false;
+    updateStagingControls();
+  }
 });
 
 document.querySelector("#refreshStaging").addEventListener("click", async () => {
   try {
+    await stagingEdits.pending;
     await refreshState();
     showToast("Staging imports refreshed.");
   } catch (error) {
@@ -1902,20 +2009,28 @@ function closePostAllModal() {
 }
 
 async function postAllStagingRecords() {
+  if (stagingBusy) return;
   const records = latestState?.collectionStaging || [];
   closePostAllModal();
   if (!records.length) return;
+  stagingBusy = true;
+  updateStagingControls();
   try {
+    await stagingEdits.waitForDates(records.map((record) => record.id));
     for (const record of records) {
-      const netWeightKg = Number(document.querySelector(`[data-net="${record.id}"]`)?.value ?? record.netWeightKg);
+      const netWeightKg = Number(stagingEdits.netWeight(record));
       await api(`/office/staging/${record.id}`, { method: "PUT", body: JSON.stringify({ netWeightKg }) });
       await api(`/office/staging/${record.id}/post`, { method: "POST" });
+      stagingEdits.clear([record.id]);
     }
     await refreshState();
     showToast(`Posted ${records.length} staged record${records.length === 1 ? "" : "s"}.`);
   } catch (error) {
     await refreshState();
     showToast(error.message, "error");
+  } finally {
+    stagingBusy = false;
+    updateStagingControls();
   }
 }
 

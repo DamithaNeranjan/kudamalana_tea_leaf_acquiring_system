@@ -78,7 +78,17 @@ Payload shape:
 }
 ```
 
-The desktop app imports these records into staging and skips duplicates by `id`. `tabletSavedAt` and `printedAt` are preserved for desktop audit views when supplied. New Android clients send tablet saved/printed timestamp fields as ISO instants; collection date and collection time remain local collection values for Green Leaf Book grouping.
+The desktop app imports these records into staging and skips duplicates by `id`. `tabletSavedAt` and `printedAt` are preserved for desktop audit views when supplied. New Android clients send tablet saved/printed timestamp fields as ISO instants. `collectionDate` and `collectionTime` preserve the original mobile collection values for reference. Staging defaults `effectiveDate` to `collectionDate`; the office-reviewed effective date determines factory receipts, Green Leaf Book grouping, and calculations. Records from closed mobile collection months may enter staging, but posting requires an open effective month.
+
+### `PUT /office/staging/:id`
+
+Requires an office session. Accepts `effectiveDate` (`YYYY-MM-DD`), `netWeightKg`, and/or `grossWeightKg`; returns the updated staged record. Date changes save immediately in the desktop UI. The original `collectionDate` is immutable. Invalid or empty dates return `400`, missing records return `404`, and a closed destination effective month returns `409`. Posting rechecks the effective month.
+
+### `PUT /office/staging/effective-date`
+
+Requires an office session. Accepts `{ "ids": ["stage_1", "stage_2"], "effectiveDate": "2026-11-06" }` and returns `{ "updatedCount": 2 }`. IDs identify a fixed batch across all pages; duplicate IDs count once. All targets are validated and updated in one transaction, preserving collection dates and weights. Empty/invalid input returns `400`, any missing target returns `404`, and a closed destination month returns `409`, with no changes to the batch. The existing audit log records the actor, original dates, target IDs and resulting date.
+
+Staged and posted records expose both `collectionDate` (mobile reference) and `effectiveDate` (factory receipt/accounting date). Cloud sync preserves both. Legacy records and payloads without an effective date default to the original collection date. Dates remain calendar strings without timezone conversion.
 
 ### `GET /office/green-leaf-book?month=YYYY-MM`
 

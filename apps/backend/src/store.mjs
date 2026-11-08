@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { buildGreenLeafBookWithAutoArrears, makeId, suggestAdvancePayment } from "../../../packages/shared/src/index.mjs";
+import { buildGreenLeafBookWithAutoArrears, effectiveCollectionDate, makeId, suggestAdvancePayment, validateEffectiveDate } from "../../../packages/shared/src/index.mjs";
 
 function hashPassword(password, salt = randomBytes(16).toString("hex")) {
   const hash = createHash("sha256").update(`${salt}:${password}`).digest("hex");
@@ -401,11 +401,18 @@ export function createMemoryStore() {
     };
   }
 
+  function upsertCollectionEntries(records = []) {
+    upsertMany(entries, records.map((record) => ({
+      ...record,
+      effectiveDate: validateEffectiveDate(effectiveCollectionDate(record))
+    })));
+  }
+
   function syncDesktopPayload(actor, payload) {
     upsertOfficeUsers(payload.officeUsers);
     upsertMany(teaLines, payload.teaLines);
     upsertMany(suppliers, payload.suppliers);
-    upsertMany(entries, payload.collectionEntries);
+    upsertCollectionEntries(payload.collectionEntries);
     upsertMany(advances, payload.advances);
     upsertMany(fertilizerInstallments, payload.fertilizerInstallments);
     upsertMany(teaPackets, payload.teaPackets);
@@ -948,7 +955,7 @@ export function createMemoryStore() {
 
     seedDesktopData(payload) {
       upsertMany(suppliers, payload.suppliers);
-      upsertMany(entries, payload.collectionEntries);
+      upsertCollectionEntries(payload.collectionEntries);
       for (const setting of payload.monthlySettings || []) {
         monthlySettings.set(setting.month, setting);
       }

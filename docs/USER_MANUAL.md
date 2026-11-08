@@ -239,10 +239,14 @@ Tablet uploads first arrive in Staging Review. Posted records become permanent c
 1. Open `Staging Review`.
 2. Select `Refresh imports`.
 3. Review each uploaded record.
-4. Edit net weight if office review requires correction.
+4. Edit net weight if office review requires correction. Set **Effective date** with the row's date picker when the factory receipt date differs from **Mobile collection date**. The effective date defaults to the mobile date and saves immediately; resolve any displayed save error before posting.
 5. Select `Post` for one record, or `Post all` for all pending rows.
 6. Confirm the `Post all` confirmation dialog before bulk posting.
 7. Open `Collection Records` to verify posted entries.
+
+To change hundreds of records together, select **Effective date for batch**, choose **All staged records** or **Filtered records**, then select **Apply to N records**. Both choices cover every page, and the count shows the whole batch. The mobile collection date filter continues to match original mobile dates. Weight edits remain available while filtering or changing pages. Batch date changes preserve all weights.
+
+The effective date is the factory receipt date used by all reports, Green Leaf Books and payment calculations. Collection Records shows both dates and filters by effective date. The mobile date remains a read-only reference. Records collected in a closed month can enter staging and receive a date in an open month; posting into a closed effective month is blocked.
 
 Example / උදාහරණය: A line user uploads 30 records after collection. The office user opens Staging Review, corrects two net weights, posts those two individually, then uses `Post all` for the remaining verified records.
 

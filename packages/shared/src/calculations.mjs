@@ -1,5 +1,6 @@
 import { daysInMonth, normalizeMonth } from "./ids.mjs";
 import { localMonthValue, roundToTwo, roundWhole, sumNumbers } from "./format.mjs";
+import { effectiveCollectionDate } from "./collectionDates.mjs";
 
 const DEFAULT_SETTINGS = {
   teaPricePerKg: 200,
@@ -59,7 +60,7 @@ function supplierOverride(overrides, supplierId, month) {
 
 function supplierEntries(entries, supplierId, month) {
   return entries.filter(
-    (entry) => entry.supplierId === supplierId && sameMonth(entry.collectionDate, month)
+    (entry) => entry.supplierId === supplierId && sameMonth(effectiveCollectionDate(entry), month)
   );
 }
 
@@ -79,7 +80,7 @@ export function buildGreenLeafBook(input) {
   const settings = { ...DEFAULT_SETTINGS, ...(monthSetting || {}) };
   const entries = input.entries || [];
   const supplierMap = new Map((input.suppliers || []).map((supplier) => [supplier.id, supplier]));
-  for (const entry of entries.filter((item) => sameMonth(item.collectionDate, month))) {
+  for (const entry of entries.filter((item) => sameMonth(effectiveCollectionDate(item), month))) {
     if (!supplierMap.has(entry.supplierId)) {
       supplierMap.set(entry.supplierId, {
         id: entry.supplierId,
@@ -107,7 +108,7 @@ export function buildGreenLeafBook(input) {
       const dailyKg = Array.from({ length: dayCount }, (_, index) => {
         const day = String(index + 1).padStart(2, "0");
         return kg(
-          sumBy(rowsForSupplier.filter((entry) => entry.collectionDate.slice(8, 10) === day), (entry) =>
+          sumBy(rowsForSupplier.filter((entry) => effectiveCollectionDate(entry).slice(8, 10) === day), (entry) =>
             entry.netWeightKg ?? entry.grossWeightKg
           )
         );

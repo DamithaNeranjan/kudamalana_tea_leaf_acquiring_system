@@ -912,15 +912,29 @@
                 <input id="stagingLineFilter" placeholder="Line name" />
               </label>
               <label>
-                Collection date
+                Mobile collection date
                 <input id="stagingDateFilter" type="date" />
               </label>
             </div>
+            <div class="toolbar">
+              <label>Effective date for batch <input id="bulkEffectiveDate" type="date" /></label>
+              <label>Apply to
+                <select id="bulkEffectiveDateScope">
+                  <option value="all">All staged records</option>
+                  <option value="filtered">Filtered records</option>
+                </select>
+              </label>
+              <button id="applyEffectiveDate" type="button">Apply to 0 records</button>
+              <span id="stagingDateMessage" class="message" role="status" aria-live="polite"></span>
+            </div>
+            <p class="muted-text">Effective dates determine factory receipt dates and reporting. Batch changes include all pages.</p>
+            <div class="table-scroll">
             <table id="stagingTable">
               <thead>
                 <tr>
                   <th>Supplier</th>
-                  <th>Date</th>
+                  <th>Mobile collection date</th>
+                  <th>Effective date</th>
                   <th>Bags</th>
                   <th>Gross</th>
                   <th>Net</th>
@@ -930,6 +944,7 @@
               </thead>
               <tbody></tbody>
             </table>
+            </div>
           </section>
         </section>
 
@@ -951,11 +966,11 @@
                 <input id="recordLineFilter" placeholder="Line name" />
               </label>
               <label>
-                Date from
+                Effective date from
                 <input id="recordDateFromFilter" type="date" />
               </label>
               <label>
-                Date to
+                Effective date to
                 <input id="recordDateToFilter" type="date" />
               </label>
               <label>
@@ -971,6 +986,8 @@
               <table id="recordsTable">
                 <thead>
                   <tr>
+                    <th>Effective date</th>
+                    <th>Mobile collection date</th>
                     <th>Saved on tablet</th>
                     <th>Supplier</th>
                     <th>Line</th>

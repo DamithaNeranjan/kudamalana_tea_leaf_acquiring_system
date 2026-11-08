@@ -95,6 +95,16 @@ build/icon.ico
 
 ## Build Desktop Installers
 
+Effective-date coverage is included in `npm.cmd test`. To also verify real MySQL migration, sync, and effective-month queries, run:
+
+```powershell
+$env:TEA_TEST_MYSQL="1"
+node --test apps/backend/test/effective-dates-mysql.test.mjs
+Remove-Item Env:TEA_TEST_MYSQL
+```
+
+The integration test reads MySQL connection settings from `.env`, creates a uniquely named `tea_effective_dates_test_*` database and drops only that database afterward. It never uses the configured application database. The test account needs create/drop database permissions. Without the opt-in variable, this integration test is skipped.
+
 From the repository root, build the default 64-bit Windows installer with:
 
 ```powershell
@@ -143,7 +153,7 @@ npm.cmd run desktop
 6. Open Cloud DB Backup and confirm a local test backup uploads to the hosted backend.
 7. Open the web app, log in through the backend API on `http://127.0.0.1:8080`, and confirm the Green Leaf Book data appears.
 
-When debugging a synced row that exists in MySQL but does not appear in the web Green Leaf Book, first check the selected month and the row's `collection_date`. MySQL `DATE` values must remain calendar-date strings in backend calculation input; UTC conversion can shift first-of-month rows into the previous month.
+When debugging a synced row that exists in MySQL but does not appear in the web Green Leaf Book, first check the selected month and the row's `effective_date`. `collection_date` is the original mobile reference. MySQL `DATE` values must remain calendar-date strings in backend calculation input; UTC conversion can shift first-of-month rows into the previous month.
 
 Timestamp-style fields such as signal marked/read time, sync timestamps, posted times, and tablet saved/printed times should be treated as UTC/ISO instants and rendered in the local/system timezone. Do not use `toISOString().slice(0, 7)` for current month defaults; use local year/month values so Sri Lanka month selection does not drift around midnight.
 

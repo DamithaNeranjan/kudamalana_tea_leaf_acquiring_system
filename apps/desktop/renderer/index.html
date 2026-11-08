@@ -885,23 +885,27 @@
             </div>
           </div>
           <section class="panel">
-            <form id="stagingReviewReminderForm" class="daily-reminder-card" data-reminder-id="staging_review">
-              <div>
-                <span class="eyebrow">Daily reminder</span>
+            <details class="daily-reminder-section">
+              <summary>
+                <span>Daily reminder</span>
                 <strong id="stagingReviewReminderStatus">Reminder status not loaded</strong>
-                <span id="stagingReviewReminderDetails" class="muted-text"></span>
-              </div>
-              <label class="switch-row">
-                <input name="enabled" type="checkbox" />
-                Remind office users
-              </label>
-              <label>
-                Reminder time
-                <input name="timeOfDay" type="time" />
-              </label>
-              <button type="submit">Save reminder</button>
-            </form>
-            <span id="stagingReminderMessage" class="message"></span>
+              </summary>
+              <form id="stagingReviewReminderForm" class="daily-reminder-card" data-reminder-id="staging_review">
+                <div>
+                  <span id="stagingReviewReminderDetails" class="muted-text"></span>
+                </div>
+                <label class="switch-row">
+                  <input name="enabled" type="checkbox" />
+                  Remind office users
+                </label>
+                <label>
+                  Reminder time
+                  <input name="timeOfDay" type="time" />
+                </label>
+                <button type="submit">Save reminder</button>
+              </form>
+              <span id="stagingReminderMessage" class="message" role="status"></span>
+            </details>
             <div class="filter-grid compact-filter-grid">
               <label>
                 Supplier
@@ -1050,6 +1054,27 @@
             <p>Send Green Leaf Book changes and office-user accounts to the hosted web database.</p>
           </div>
           <section class="panel cloud-sync-panel">
+            <details class="daily-reminder-section">
+              <summary>
+                <span>Daily reminder</span>
+                <strong id="cloudSyncReminderStatus">Reminder status not loaded</strong>
+              </summary>
+              <form id="cloudSyncReminderForm" class="daily-reminder-card" data-reminder-id="cloud_sync">
+                <div>
+                  <span id="cloudSyncReminderDetails" class="muted-text"></span>
+                </div>
+                <label class="switch-row">
+                  <input name="enabled" type="checkbox" />
+                  Remind office users
+                </label>
+                <label>
+                  Reminder time
+                  <input name="timeOfDay" type="time" />
+                </label>
+                <button type="submit">Save reminder</button>
+              </form>
+              <span id="cloudSyncReminderMessage" class="message" role="status"></span>
+            </details>
             <section id="cloudSyncConfigCard" class="cloud-sync-config-card hidden">
               <div class="cloud-sync-config-copy">
                 <span class="eyebrow">Admin setup</span>
@@ -1095,22 +1120,7 @@
               </div>
               <span id="cloudSyncMessage" class="message"></span>
             </div>
-            <form id="cloudSyncReminderForm" class="daily-reminder-card" data-reminder-id="cloud_sync">
-              <div>
-                <span class="eyebrow">Daily reminder</span>
-                <strong id="cloudSyncReminderStatus">Reminder status not loaded</strong>
-                <span id="cloudSyncReminderDetails" class="muted-text"></span>
-              </div>
-              <label class="switch-row">
-                <input name="enabled" type="checkbox" />
-                Remind office users
-              </label>
-              <label>
-                Reminder time
-                <input name="timeOfDay" type="time" />
-              </label>
-              <button type="submit">Save reminder</button>
-            </form>
+
             <div class="table-scroll">
               <div class="filter-grid compact-filter-grid">
                 <label>

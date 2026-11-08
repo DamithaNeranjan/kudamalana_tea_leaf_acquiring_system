@@ -168,10 +168,14 @@ function clearSession() {
   document.querySelector("#cloudSyncReminderStatus").textContent = "Reminder status not loaded";
   document.querySelector("#cloudSyncReminderDetails").textContent = "";
   document.querySelector("#cloudSyncReminderForm").reset();
+  document.querySelector("#cloudSyncReminderMessage").textContent = "";
   document.querySelector("#stagingReviewReminderStatus").textContent = "Reminder status not loaded";
   document.querySelector("#stagingReviewReminderDetails").textContent = "";
   document.querySelector("#stagingReviewReminderForm").reset();
   document.querySelector("#stagingReminderMessage").textContent = "";
+  document.querySelectorAll(".daily-reminder-section").forEach((section) => {
+    section.open = false;
+  });
   document.querySelector("#monthEndSummary").classList.add("hidden");
   document.querySelector("#monthEndSummary").innerHTML = "";
   latestBook = null;
@@ -1426,7 +1430,7 @@ async function saveDailyReminder(event) {
   };
   const message =
     reminderId === "cloud_sync"
-      ? document.querySelector("#cloudSyncMessage")
+      ? document.querySelector("#cloudSyncReminderMessage")
       : document.querySelector("#stagingReminderMessage");
   const button = form.querySelector('button[type="submit"]');
   message.className = "message info";

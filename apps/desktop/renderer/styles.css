@@ -1063,6 +1063,48 @@ button {
   justify-content: flex-end;
 }
 
+.daily-reminder-section {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+
+.cloud-sync-panel > .daily-reminder-section {
+  margin-bottom: 0;
+}
+
+.daily-reminder-section > summary {
+  color: var(--brand-strong);
+  cursor: pointer;
+  padding: 14px 16px;
+}
+
+.daily-reminder-section > summary > span {
+  font-weight: 700;
+}
+
+.daily-reminder-section > summary > strong {
+  color: var(--muted);
+  display: inline-block;
+  font-size: 13px;
+  margin-left: 12px;
+}
+
+.daily-reminder-section[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.daily-reminder-section > .daily-reminder-card {
+  border: 0;
+}
+
+.daily-reminder-section > .message:not(:empty) {
+  display: block;
+  margin: 0 16px 16px;
+}
+
 .cloud-backup-reminder-card,
 .daily-reminder-card {
   align-items: end;
